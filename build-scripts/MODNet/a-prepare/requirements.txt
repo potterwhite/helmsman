@@ -1,0 +1,6 @@
+# Modern, stable, and Python 3.12 compatible stack
+torch==2.3.1
+torchvision==0.18.1
+onnx==1.16.0
+onnxruntime==1.18.1
+opencv-python==4.9.0.80

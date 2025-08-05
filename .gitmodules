@@ -1,0 +1,3 @@
+[submodule "MODNet.git"]
+	path = MODNet.git
+	url = git@github.com:potterwhite/MODNet.git
