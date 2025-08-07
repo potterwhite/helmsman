@@ -44,6 +44,7 @@ declare -a SYMLINKS=(
     "requirements.txt                          ${BASH_SCRIPT_DIR}      ${MODNET_REPO_DIR}/onnx/requirements.txt"
     "export_onnx.py                            ${BASH_SCRIPT_DIR}      ${MODNET_REPO_DIR}/onnx/export_onnx.py"
     "inference_onnx.py                         ${BASH_SCRIPT_DIR}      ${MODNET_REPO_DIR}/onnx/inference_onnx.py"
+    "generate_golden_files.py                  ${BASH_SCRIPT_DIR}      ${MODNET_REPO_DIR}/onnx/generate_golden_files.py"
     "mobilenetv2_human_seg.ckpt                ${MODNET_MODELS_DIR}    ${MODNET_REPO_DIR}/pretrained/mobilenetv2_human_seg.ckpt"
     "modnet_photographic_portrait_matting.ckpt ${MODNET_MODELS_DIR}    ${MODNET_REPO_DIR}/pretrained/modnet_photographic_portrait_matting.ckpt"
     "modnet_photographic_portrait_matting.onnx ${MODNET_MODELS_DIR}    ${MODNET_REPO_DIR}/pretrained/modnet_photographic_portrait_matting.onnx"
