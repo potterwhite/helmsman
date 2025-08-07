@@ -125,6 +125,7 @@ func_2_0_prepare_env() {
     libreadline-dev libsqlite3-dev wget curl llvm libncurses-dev \
     xz-utils tk-dev libffi-dev liblzma-dev python3-openssl git \
     cmake libgl1
+
     func_1_1_log "✅ System dependencies are up to date." "green"
 
     # --- Step 2: Install and set up pyenv ---
@@ -347,10 +348,10 @@ main(){
     # Load environment variables first, regardless of the command
     func_1_0_load_env
 
-    if [[ "${#}" == 0 ]];then
-        func_1_2_usage
-        exit 0
-    fi
+    # if [[ "${#}" == 0 ]];then
+    #     func_1_2_usage
+    #     exit 0
+    # fi
 
     # --- Argument Parsing ---
     # Check for options like -h, -v before processing commands
@@ -372,8 +373,6 @@ main(){
     # If a command is provided, execute it directly.
     # Otherwise, enter interactive mode.
     COMMAND=${1:-"menu"} # Default to 'menu' if no command is given
-    shift
-    local sub_command_args=("$@")
 
     case $COMMAND in
         prepare)
@@ -389,6 +388,8 @@ main(){
             ;;
         build)
             func_1_3_check_env
+            shift
+            local sub_command_args=("$@")
             func_2_4_build_cpp "${sub_command_args[@]}"
             ;;
         clean)

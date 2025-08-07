@@ -133,11 +133,13 @@
         echo "Configuring for native build (x86_64)."
         # we will add the vcpkg toolchain file here for native builds
         # For a generic template, this is fine.
-        
+
         # ==================== CONAN INTEGRATION POINT ====================
         # If we are building natively, let's use Conan to get our dependencies.
         echo "Running 'conan install' for native dependencies..."
-        conan install . --output-folder="${BUILD_TOP_DIR}" --build=missing --profile:host=default
+        conan install . --output-folder="${BUILD_TOP_DIR}" --build=missing --profile:host=default \
+            -c tools.system.package_manager:mode=install \
+            -c tools.system.package_manager:sudo=True 
         # The toolchain will be generated inside BUILD_TOP_DIR,
         # and our CMakeLists.txt will automatically include it.
         # =================================================================
