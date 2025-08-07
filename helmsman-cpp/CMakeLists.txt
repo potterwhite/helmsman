@@ -2,8 +2,14 @@
 
 cmake_minimum_required(VERSION 3.16)
 
+# --- Conan Integration ---
+# This makes CMakeLists.txt "Conan-aware".
+if(EXISTS "${CMAKE_BINARY_DIR}/conan_toolchain.cmake")
+    include("${CMAKE_BINARY_DIR}/conan_toolchain.cmake")
+endif()
+
 # I. Config PROJECT_NAME And C++ Standards
-set(PROJECT_NAME "executableTemplate")
+set(PROJECT_NAME "helmsman-cpp")
 project(${PROJECT_NAME} CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,7 +27,6 @@ if(NOT CMAKE_BUILD_TYPE)
     message(STATUS "No build type specified, defaulting to 'Debug'")
 endif()
 add_definitions(-DBUILD_TYPE="${CMAKE_BUILD_TYPE}")
-
 
 #############################################################
 # IV. Compile options Sets global compilation flags
@@ -80,7 +85,11 @@ set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 # 在这里定义你的项目所需要的所有库。
 # 这样src/CMakeLists.txt就不需要知道具体的依赖了。
 # 对于一个干净的模板，我们先留空。未来Helmsman项目会在这里添加OpenCV等。
-set(COMMON_LIBRARIES "") # 例如: "OpenCV::opencv" "Threads::Threads"
+set(COMMON_LIBRARIES
+    "OpenCV::opencv"
+) # 例如: "OpenCV::opencv" "Threads::Threads"
+
+find_package(OpenCV REQUIRED)
 # ##################################################################################################
 
 
