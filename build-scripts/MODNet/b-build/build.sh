@@ -77,14 +77,16 @@ func_1_2_usage() {
     # This function prints the help message for the script.
     echo "Usage: $0 [command] [options]"
     echo ""
-    echo "Helmsman Project - MODNet Build & Management Script"
+    echo "Helmsman Project - Top-Level Command Script"
     echo ""
-    echo "Manages the environment, model conversion, and inference for MODNet."
+    echo "Manages environment, model operations, and C++ builds."
     echo ""
     echo "Commands:"
-    echo "  prepare         Set up the complete development environment (system and Python)."
+    echo "  prepare         Set up the complete development environment (Python, Conan, etc.)."
     echo "  convert         Convert a .ckpt model to the .onnx format."
-    echo "  inference       Run inference on an image using a .onnx model."
+    echo "  inference       Run Python inference on an image using a .onnx model."
+    echo "  build           Build the C++ Helmsman Engine (for native platform)." # <<< MODIFICATION: ADDED
+    echo "  clean           Clean up generated files and virtual environment."
     echo "  <no command>    Enter interactive menu mode."
     echo ""
     echo "Options:"
@@ -177,6 +179,19 @@ func_2_0_prepare_env() {
         pip install --no-cache-dir -r "$DEV_REQUIREMENTS_FILE" -i https://pypi.tuna.tsinghua.edu.cn/simple
     fi
     func_1_1_log "✅ Python virtual environment is ready." "green"
+
+    # --- Step 4: Install and set up Conan for C++ dependency management ---
+    func_1_1_log "   [4/4] Setting up Conan for C++ dependencies..." "yellow"
+    if ! command -v conan &> /dev/null; then
+        func_1_1_log "   Installing Conan..."
+        pip install conan
+    else
+        func_1_1_log "   Conan is already installed." "green"
+    fi
+    func_1_1_log "   Detecting Conan profile..."
+    conan profile detect --force
+    func_1_1_log "✅ Conan is ready." "green"
+
     func_1_1_log "🎉 Preparation complete! You are now in a Python ${PYTHON_VERSION} environment." "green"
 }
 
@@ -289,9 +304,53 @@ func_2_3_clean_project(){
     func_1_1_log "✅ Cleanup complete." "green"
 }
 
+func_2_4_build_cpp(){
+    # This function acts as a transparent proxy, commanding the C++
+    # executor script and faithfully passing all arguments.
+    local cpp_build_args=("$@")
+
+    func_1_1_log "🚀 Commanding C++ build for Helmsman Engine..." "blue"
+
+    local cpp_dir="${REPO_TOP_DIR}/helmsman-cpp"
+
+    if [ ! -f "${cpp_dir}/build.sh" ]; then
+        func_1_1_log "❌ C++ build executor not found at '${cpp_dir}/build.sh'." "red"
+        return 1
+    fi
+
+    if [ ${#cpp_build_args[@]} -eq 0 ]; then
+        func_1_1_log "   Dispatching command to helmsman-cpp/build.sh with NO arguments." "yellow"
+    else
+        func_1_1_log "   Dispatching command to helmsman-cpp/build.sh with args: [${cpp_build_args[*]}]" "yellow"
+    fi
+
+    # Execute the script in its own directory to preserve its internal logic.
+    # The parent shell's environment (with .venv activated) is inherited.
+    # 使用子shell () 来确保命令在正确的目录执行，且不会影响当前脚本的路径
+    (
+        echo "Entering directory: ${cpp_dir}"
+        cd "$cpp_dir"
+        echo "Current directory: $(pwd)"
+        echo "Executing: ./build.sh ${cpp_build_args[*]}"
+        ./build.sh "${cpp_build_args[@]}"
+    )
+    local build_status=$?
+    if [ $build_status -eq 0 ]; then
+        func_1_1_log "✅ C++ build command executed successfully!" "green"
+    else
+        func_1_1_log "❌ C++ build command failed with status $build_status." "red"
+        return 1
+    fi
+}
+
 main(){
     # Load environment variables first, regardless of the command
     func_1_0_load_env
+
+    if [[ "${#}" == 0 ]];then
+        func_1_2_usage
+        exit 0
+    fi
 
     # --- Argument Parsing ---
     # Check for options like -h, -v before processing commands
@@ -313,48 +372,58 @@ main(){
     # If a command is provided, execute it directly.
     # Otherwise, enter interactive mode.
     COMMAND=${1:-"menu"} # Default to 'menu' if no command is given
+    shift
+    local sub_command_args=("$@")
 
     case $COMMAND in
         prepare)
             func_2_0_prepare_env
             ;;
         convert)
-            func_1_3_check_env # Quick check before running
+            func_1_3_check_env
             func_2_1_ckpt_2_onnx
             ;;
         inference)
-            func_1_3_check_env # Quick check before running
+            func_1_3_check_env
             func_2_2_inference_with_onnx
+            ;;
+        build)
+            func_1_3_check_env
+            func_2_4_build_cpp "${sub_command_args[@]}"
             ;;
         clean)
             func_2_3_clean_project
             ;;
         menu)
             while true; do
-                func_1_1_log "\n--- Helmsman Build Menu ---" "blue"
+                # <<< MODIFICATION: Updated menu options >>>
+                func_1_1_log "\n--- Helmsman Project Main Menu ---" "blue"
                 echo "1. Prepare Environment (run this first!)"
                 echo "2. Convert .ckpt model to .onnx"
-                echo "3. Run inference with .onnx model"
-                echo "4. Clean project (remove generated files)"
-                echo "5. Exit"
-                read -p "Please enter your choice [1-5]: " choice
+                echo "3. Run Python inference with .onnx model"
+                echo "4. Build C++ Helmsman Engine"
+                echo "5. Clean project (generated files, venv)"
+                echo "6. Exit"
+                read -p "Please enter your choice [1-6]: " choice
                 case $choice in
                     1) func_2_0_prepare_env ;;
                     2) func_1_3_check_env && func_2_1_ckpt_2_onnx ;;
                     3) func_1_3_check_env && func_2_2_inference_with_onnx ;;
-                    4) func_2_3_clean_project ;;
-                    5) func_1_1_log "👋 Exiting." "green"; exit 0 ;;
+                    4) func_1_3_check_env && func_2_4_build_cpp ;;
+                    5) func_2_3_clean_project ;;
+                    6) func_1_1_log "👋 Exiting." "green"; exit 0 ;;
                     *) func_1_1_log "Invalid choice. Please try again." "red" ;;
                 esac
             done
             ;;
         *)
-            # Handle unknown commands
-            if [[ "$COMMAND" != "-v" ]]; then # Ignore if the only arg was -v
+            if [[ "$COMMAND" != "-v" ]]; then
                 func_1_1_log "❌ Error: Unknown command '$COMMAND'" "red"
                 func_1_2_usage
                 exit 1
             fi
+            # If only -v is passed, drop into menu
+            main "menu"
             ;;
     esac
 }

@@ -1,0 +1,19 @@
+# helmsman-cpp/conanfile.txt
+
+[requires]
+# 我们需要OpenCV
+opencv/4.9.0
+
+# 我们显式地锁定libjpeg的版本为9e。
+# 这是为了解决一个依赖冲突：OpenCV的子依赖libtiff/4.6.0强制要求版本9e。
+# 通过在这里全局锁定，我们统一了整个项目的libjpeg版本。
+libjpeg/9e
+
+[options]
+opencv/*:with_gtk=False
+opencv/*:with_jpeg=libjpeg
+opencv/*:with_png=True
+
+[generators]
+CMakeDeps
+CMakeToolchain
