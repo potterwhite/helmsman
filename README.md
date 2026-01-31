@@ -1,1 +1,21 @@
+
+<div align="center">
+  <h1>Helmsman 推理引擎</h1>
+</div>
+
+<p align="center">
+  <img src="https://github.com/potterwhite/ArcFoundry/blob/f941fed95221b5453e2b3a0c8dea82a4d867476e/docs/assets/background_light.jpeg" alt="Project Banner" width="100%"/>
+</p>
+
+<p align="center">
+  <a href="https://github.com/potterwhite/ArcFoundry/releases"><img src="https://img.shields.io/github/v/release/potterwhite/ArcFoundry?color=orange&label=version" alt="version"></a>
+  <a href="#"><img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python Version"></a>
+  <a href="#"><img src="https://img.shields.io/badge/platform-Rockchip%20NPU-orange" alt="Platform"></a>
+  <a href="#"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
+</p>
+
+<p align="center">
+  <a href="../README.md">English</a> | <strong>简体中文</strong>
+</p>
+
 # helmsman
