@@ -1,0 +1,4 @@
+onnx>=1.16.1,<1.19.0
+pyyaml
+requests
+yapf
