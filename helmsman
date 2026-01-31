@@ -134,8 +134,13 @@ func_2_0_load_env(){
     LV1_VENV_DIR="${REPO_TOP_DIR}/.venv"
 
     # 2nd-lv: third-party
-    MODNET_REPO_DIR="${LV1_3RD_PARTY_DIR}/sdk/MODNet.git"
-    PRETRAINED_DIR="${MODNET_REPO_DIR}/pretrained"
+    LV4_MODNET_SDK_DIR="${LV1_3RD_PARTY_DIR}/sdk/modnet"
+    LV4_MODNET_SCRIPT_DIR="${LV1_3RD_PARTY_DIR}/scripts/modnet"
+    LV4_MODNET_MODELS_DIR="${LV1_3RD_PARTY_DIR}/models/modnet"
+
+    MODNET_SDK_DIR="${LV4_MODNET_SDK_DIR}/MODNet.git"
+    PRETRAINED_DIR="${MODNET_SDK_DIR}/pretrained"
+
 
     # 2nd-lv: envs Dir
     DEV_REQUIREMENTS_FILE="${LV1_ENVS_DIR}/requirements.txt"
@@ -175,9 +180,10 @@ func_2_1_check_env_ready(){
     # List of critical files that MUST exist at the destination
     # These match the targets in func_3_0_setup_links
     local required_files=(
-        "${MODNET_REPO_DIR}/onnx/export_onnx.py"
-        "${MODNET_REPO_DIR}/onnx/inference_onnx.py"
-        "${MODNET_REPO_DIR}/onnx/generate_golden_files.py"
+        "${LV2_3RD_PARTY_SCRIPT_DIR}/export_onnx.py"
+        "${LV2_3RD_PARTY_SCRIPT_DIR}/inference_onnx.py"
+        "${LV2_3RD_PARTY_SCRIPT_DIR}/generate_golden_files.py"
+        "${LV2_3RD_PARTY_MODELS_DIR}/generate_golden_files.py"
     )
 
     for target_file in "${required_files[@]}"; do
@@ -304,60 +310,123 @@ func_3_2_prepare_env() {
     func_1_1_log "🎉 Preparation complete!" "green"
 }
 
-func_3_3_setup_links() {
-    # Based on your provided setup_links.sh
-    func_1_1_log "🔗 Setting up symbolic links..." "blue"
+
+func_3_0_setup_links() {
+    func_1_1_log "🔗 Setting up symbolic links and assets..." "blue"
 
     # Define path for models (Calculated relative to Repo Top)
-    # Assumes modnet-models is parallel to MODNet.git
-    local MODNET_MODELS_DIR="${REPO_TOP_DIR}/modnet-models"
+    local LV4_MODNET_MODELS_DIR="${REPO_TOP_DIR}/modnet-models"
 
-    # Define the list of symbolic links.
-    # Format: "SOURCE_FILENAME  SOURCE_DIR  DESTINATION_PATH"
-    # Note: BUILD_SCRIPT_DIR and MODNET_REPO_DIR are defined in func_2_0_load_env
-    declare -a SYMLINKS=(
-        "requirements.txt                          ${BUILD_SCRIPT_DIR}      ${MODNET_REPO_DIR}/onnx/requirements.txt"
-        "export_onnx.py                            ${BUILD_SCRIPT_DIR}      ${MODNET_REPO_DIR}/onnx/export_onnx.py"
-        "inference_onnx.py                         ${BUILD_SCRIPT_DIR}      ${MODNET_REPO_DIR}/onnx/inference_onnx.py"
-        "generate_golden_files.py                  ${BUILD_SCRIPT_DIR}      ${MODNET_REPO_DIR}/onnx/generate_golden_files.py"
-        "mobilenetv2_human_seg.ckpt                ${MODNET_MODELS_DIR}     ${MODNET_REPO_DIR}/pretrained/mobilenetv2_human_seg.ckpt"
-        "modnet_photographic_portrait_matting.ckpt ${MODNET_MODELS_DIR}     ${MODNET_REPO_DIR}/pretrained/modnet_photographic_portrait_matting.ckpt"
-        "modnet_photographic_portrait_matting.onnx ${MODNET_MODELS_DIR}     ${MODNET_REPO_DIR}/pretrained/modnet_photographic_portrait_matting.onnx"
-        "modnet_webcam_portrait_matting.ckpt       ${MODNET_MODELS_DIR}     ${MODNET_REPO_DIR}/pretrained/modnet_webcam_portrait_matting.ckpt"
+    # Ensure the model source directory exists
+    if [ ! -d "$LV4_MODNET_MODELS_DIR" ]; then
+        mkdir -p "$LV4_MODNET_MODELS_DIR"
+    fi
+
+    # =========================================================
+    # Part 1: Local Script Links (Source: BUILD_SCRIPT_DIR)
+    # =========================================================
+    declare -a SCRIPT_LINKS=(
+        "requirements.txt          ${LV4_MODNET_SDK_DIR}/onnx/requirements.txt"
+        "export_onnx.py            ${LV4_MODNET_SDK_DIR}/onnx/export_onnx.py"
+        "inference_onnx.py         ${LV4_MODNET_SDK_DIR}/onnx/inference_onnx.py"
+        "generate_golden_files.py  ${LV4_MODNET_SDK_DIR}/onnx/generate_golden_files.py"
     )
 
-    for entry in "${SYMLINKS[@]}"; do
-        # Parse the entry
-        read -r source_filename source_dir dest_path <<< "$entry"
-
-        local full_source_path="${source_dir}/${source_filename}"
+    for entry in "${SCRIPT_LINKS[@]}"; do
+        read -r filename dest_path <<< "$entry"
+        local full_source_path="${BUILD_SCRIPT_DIR}/${filename}"
         local dest_dir=$(dirname "$dest_path")
 
-        # --- Robustness Check 1: Ensure source file exists ---
+        # Robustness: Check source
         if [ ! -f "$full_source_path" ]; then
-            func_1_1_log "   ❌ Source not found: ${source_filename}" "red"
-            func_1_1_log "      (Searched at: ${full_source_path})" "yellow"
+            func_1_1_log "   ❌ Script not found: ${filename}" "red"
             continue
         fi
 
-        # --- Robustness Check 2: Ensure destination directory exists ---
-        if [ ! -d "$dest_dir" ]; then
-            func_1_1_log "   ⚠️  Creating directory: ${dest_dir}" "yellow"
-            mkdir -p "$dest_dir"
-        fi
+        # Robustness: Create dest dir
+        if [ ! -d "$dest_dir" ]; then mkdir -p "$dest_dir"; fi
 
-        # --- Action: Create the symbolic link ---
+        # Action: Link
         ln -sf "${full_source_path}" "${dest_path}"
-
-        # Log success (checking if link is valid)
-        if [ -L "${dest_path}" ]; then
-            func_1_1_log "   ✅ Linked: $(basename "${dest_path}")" "green"
-        else
-            func_1_2_err "Failed to link ${dest_path}"
-        fi
     done
 
-    func_1_1_log "✅ All symbolic links processed." "green"
+    # =========================================================
+    # Part 2: Model Links with Auto-Download
+    # =========================================================
+
+    # --- [CONFIG] HARDCODE YOUR URLs HERE ---
+    local URL_MOBILENET="https://huggingface.co/PotterWhite/MODNet/resolve/main/mobilenetv2_human_seg.ckpt"
+    local URL_PHOTO_CKPT="https://huggingface.co/PotterWhite/MODNet/resolve/main/modnet_photographic_portrait_matting.ckpt"
+    local URL_PHOTO_ONNX="https://huggingface.co/PotterWhite/MODNet/resolve/main/modnet_photographic_portrait_matting.onnx"
+    local URL_WEBCAM="https://huggingface.co/PotterWhite/MODNet/resolve/main/modnet_webcam_portrait_matting.ckpt"
+    # ----------------------------------------
+
+    # Internal helper to handle the logic: Check -> Wget -> Link
+    _process_model() {
+        local filename="$1"
+        local url="$2"
+        local dest_path="$3"
+        local full_source_path="${LV4_MODNET_MODELS_DIR}/${filename}"
+        local dest_dir=$(dirname "$dest_path")
+
+        # 1. Check if source exists; if not, download
+        if [ ! -f "$full_source_path" ]; then
+            func_1_1_log "   📥 Model missing: ${filename}" "yellow"
+
+            if [[ "$url" == "YOUR_URL_HERE" || -z "$url" ]]; then
+                func_1_1_log "   ⚠️  URL not set. Skipping download." "yellow"
+                return
+            fi
+
+            func_1_1_log "      Downloading from: $url" "blue"
+            if ! command -v wget &> /dev/null; then
+                func_1_2_err "wget not found. Please install it."
+            fi
+
+            wget -O "$full_source_path" "$url"
+            if [ $? -ne 0 ]; then
+                func_1_1_log "      ❌ Download failed." "red"
+                rm -f "$full_source_path" # Remove empty/corrupt file
+                return
+            fi
+            func_1_1_log "      ✅ Download success." "green"
+        fi
+
+        # 2. Create Destination Directory
+        if [ ! -d "$dest_dir" ]; then mkdir -p "$dest_dir"; fi
+
+        # 3. Create Symlink
+        if [ -f "$full_source_path" ]; then
+            ln -sf "${full_source_path}" "${dest_path}"
+            if [ -L "${dest_path}" ]; then
+                func_1_1_log "   ✅ Linked: ${filename}" "green"
+            fi
+        fi
+    }
+
+    # --- Execute Process (Explicit Calls) ---
+
+    _process_model \
+        "mobilenetv2_human_seg.ckpt" \
+        "$URL_MOBILENET" \
+        "${LV4_MODNET_SDK_DIR}/pretrained/mobilenetv2_human_seg.ckpt"
+
+    _process_model \
+        "modnet_photographic_portrait_matting.ckpt" \
+        "$URL_PHOTO_CKPT" \
+        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_photographic_portrait_matting.ckpt"
+
+    _process_model \
+        "modnet_photographic_portrait_matting.onnx" \
+        "$URL_PHOTO_ONNX" \
+        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_photographic_portrait_matting.onnx"
+
+    _process_model \
+        "modnet_webcam_portrait_matting.ckpt" \
+        "$URL_WEBCAM" \
+        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_webcam_portrait_matting.ckpt"
+
+    func_1_1_log "✅ Link setup and model verification complete." "green"
 }
 
 # ==============================================================================
@@ -399,7 +468,7 @@ func_4_1_ckpt_2_onnx(){
     fi
 
     func_1_1_log "🚀 Starting conversion..." "blue"
-    cd "$MODNET_REPO_DIR"
+    cd "$LV4_MODNET_SDK_DIR"
     # Use the venv python explicitly
     "$PYTHON_BIN" -m onnx.export_onnx --ckpt-path="$ckpt_path" --output-path="$onnx_path"
 
@@ -439,7 +508,7 @@ func_4_2_inference_with_onnx(){
     local output_path="$(dirname "$image_path")/${output_filename}"
 
     func_1_1_log "🚀 Starting inference..." "blue"
-    cd "$MODNET_REPO_DIR"
+    cd "$LV4_MODNET_SDK_DIR"
     "$PYTHON_BIN" -m onnx.inference_onnx --model-path="$model_path" --image-path="$image_path" --output-path="$output_path"
 
     if [ $? -eq 0 ]; then func_1_1_log "✅ Inference successful! Saved to: $output_path" "green"; else func_1_2_err "Inference failed."; fi
