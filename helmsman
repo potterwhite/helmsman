@@ -1,5 +1,19 @@
 #!/bin/bash
 
+# ===================================================================================
+#
+#   Helmsman Project - Unified Build & Management Script (Merged Version C - Static Req)
+#
+#   Copyright (C) 2025, potterwhite
+#   All rights reserved.
+#
+#   Description:
+#   This script automates the setup, model conversion, inference, and C++ build
+#   processes for the MODNet component. It integrates robust environment management,
+#   execution timing, and intelligent dependency handling.
+#
+# ===================================================================================
+
 # Global Timers
 __START_TIME=
 __TASK_START_TIME=
@@ -110,9 +124,9 @@ func_2_0_load_env(){
     # Define Paths (From A - Keeping original structure)
     BUILD_SCRIPT_PATH="$(realpath ${BASH_SOURCE})"
     BUILD_SCRIPT_DIR="$(dirname ${BUILD_SCRIPT_PATH})"
-    REPO_TOP_DIR="${BUILD_SCRIPT_DIR}/../../.."
+    REPO_TOP_DIR="${BUILD_SCRIPT_DIR}"
 
-    MODNET_REPO_DIR="${REPO_TOP_DIR}/MODNet.git"
+    MODNET_REPO_DIR="${REPO_TOP_DIR}/third-party/MODNet.git"
     PRETRAINED_DIR="${MODNET_REPO_DIR}/pretrained"
     MEDIA_DIR="${REPO_TOP_DIR}/media"
 
@@ -122,7 +136,7 @@ func_2_0_load_env(){
     PIP_BIN="${VENV_DIR}/bin/pip"
 
     # Dependency File
-    DEV_REQUIREMENTS_FILE="${MODNET_REPO_DIR}/onnx/requirements.txt"
+    DEV_REQUIREMENTS_FILE="${REPO_TOP_DIR}/envs/requirements.txt"
 
     # Pyenv Setup (From A & B)
     export PYENV_ROOT="$HOME/.pyenv"
@@ -152,29 +166,6 @@ func_2_1_check_env_ready(){
 # ==============================================================================
 # Level 3: Environment Preparation Logic
 # ==============================================================================
-
-func_3_0_generate_requirements() {
-    # Refactored from A: Uses Heredoc (cat <<EOF) instead of multiple echoes.
-    # Solves the "bad practice" issue.
-    local req_file="$1"
-
-    func_1_1_log "   Generating stable requirements file..." "blue"
-
-    mkdir -p "$(dirname "$req_file")"
-    cat <<EOF > "$req_file"
-torch==1.7.1
-torchvision==0.8.2
-onnx==1.8.1
-onnxruntime==1.6.0
-# opencv-python pinned to a specific version, will be auto-adjusted if headless is needed
-opencv-python==4.5.1.48
-# Pin protobuf to a compatible version to avoid API breaking changes in 4.x
-protobuf==3.20.1
-# Pin numpy to a version BEFORE np.object was removed
-numpy==1.21.6
-EOF
-    func_1_1_log "   Requirements file created at: $req_file" "green"
-}
 
 func_3_1_check_opencv_compatibility() {
     # (Transplanted from B)
@@ -247,13 +238,19 @@ func_3_2_prepare_env() {
     # Ensure pip is up to date
     "${PIP_BIN}" install --upgrade pip
 
-    # Handle Requirements (Clean creation logic)
-    func_3_0_generate_requirements "$DEV_REQUIREMENTS_FILE"
-
-    func_1_1_log "   Installing Python packages..."
-    "${PIP_BIN}" install --no-cache-dir -r "$DEV_REQUIREMENTS_FILE" -i https://pypi.tuna.tsinghua.edu.cn/simple
+    # Handle Requirements (Load from file only)
+    if [ -f "$DEV_REQUIREMENTS_FILE" ]; then
+        func_1_1_log "   Installing Python packages from $DEV_REQUIREMENTS_FILE..."
+        "${PIP_BIN}" install --no-cache-dir -r "$DEV_REQUIREMENTS_FILE" -i https://pypi.tuna.tsinghua.edu.cn/simple
+    else
+        func_1_1_log "❌ Requirements file not found at: $DEV_REQUIREMENTS_FILE" "red"
+        func_1_1_log "   Please create the file manually before running prepare." "yellow"
+        exit 1
+    fi
 
     # Auto-fix OpenCV if needed (From B)
+    # This remains critical: even if requirements.txt installed opencv-python,
+    # this function will swap it for headless if the GUI version fails to load.
     func_3_1_check_opencv_compatibility
 
     func_1_1_log "   ✅ Python environment ready." "green"
@@ -264,8 +261,6 @@ func_3_2_prepare_env() {
         "${PIP_BIN}" install conan
     fi
     # Check if profile exists to avoid error
-    # conan profile show default >/dev/null 2>&1 || conan profile detect --force
-    # Using A's logic directly but wrapped safely
     if command -v conan &> /dev/null; then
          conan profile detect --force 2>/dev/null || true
          func_1_1_log "   ✅ Conan ready." "green"
@@ -286,7 +281,7 @@ func_4_1_ckpt_2_onnx(){
     mapfile -t ckpt_files < <(find "$PRETRAINED_DIR" -maxdepth 1 -type l -name "*.ckpt" -o -name "*.ckpt")
 
     if [ ${#ckpt_files[@]} -eq 0 ]; then
-        # Try finding regular files if symlinks fail (fix from logic analysis)
+        # Try finding regular files if symlinks fail
         mapfile -t ckpt_files < <(find "$PRETRAINED_DIR" -maxdepth 1 -type f -name "*.ckpt")
     fi
 
