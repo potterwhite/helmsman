@@ -121,22 +121,28 @@ func_2_0_load_env(){
     # Define Target Python Version (From A)
     export PYTHON_Target_VERSION="3.8.10"
 
-    # Define Paths (From A - Keeping original structure)
+    # Top Directoriess
     BUILD_SCRIPT_PATH="$(realpath ${BASH_SOURCE})"
     BUILD_SCRIPT_DIR="$(dirname ${BUILD_SCRIPT_PATH})"
     REPO_TOP_DIR="${BUILD_SCRIPT_DIR}"
+    LV1_DOC_DIR="${REPO_TOP_DIR}/docs"
+    LV1_ENVS_DIR="${REPO_TOP_DIR}/envs"
+    LV1_MEDIA_DIR="${REPO_TOP_DIR}/media"
+    LV1_RUNTIME_DIR="${REPO_TOP_DIR}/runtime"
+    LV1_3RD_PARTY_DIR="${REPO_TOP_DIR}/third-party"
+    LV1_TOOLS_DIR="${REPO_TOP_DIR}/tools"
+    LV1_VENV_DIR="${REPO_TOP_DIR}/.venv"
 
-    MODNET_REPO_DIR="${REPO_TOP_DIR}/third-party/MODNet.git"
+    # 2nd-lv: third-party
+    MODNET_REPO_DIR="${LV1_3RD_PARTY_DIR}/sdk/MODNet.git"
     PRETRAINED_DIR="${MODNET_REPO_DIR}/pretrained"
-    MEDIA_DIR="${REPO_TOP_DIR}/media"
+
+    # 2nd-lv: envs Dir
+    DEV_REQUIREMENTS_FILE="${LV1_ENVS_DIR}/requirements.txt"
 
     # Virtual Environment Paths
-    VENV_DIR="${REPO_TOP_DIR}/.venv"
-    PYTHON_BIN="${VENV_DIR}/bin/python"
-    PIP_BIN="${VENV_DIR}/bin/pip"
-
-    # Dependency File
-    DEV_REQUIREMENTS_FILE="${REPO_TOP_DIR}/envs/requirements.txt"
+    PYTHON_BIN="${LV1_VENV_DIR}/bin/python"
+    PIP_BIN="${LV1_VENV_DIR}/bin/pip"
 
     # Pyenv Setup (From A & B)
     export PYENV_ROOT="$HOME/.pyenv"
@@ -152,8 +158,8 @@ func_2_0_load_env(){
 
 func_2_1_check_env_ready(){
     # (From A) Lightweight check
-    if [ ! -d "$VENV_DIR" ]; then
-        func_1_1_log "❌ Environment not ready. Virtual environment not found at '$VENV_DIR'." "red"
+    if [ ! -d "$LV1_VENV_DIR" ]; then
+        func_1_1_log "❌ Environment not ready. Virtual environment not found at '$LV1_VENV_DIR'." "red"
         func_1_1_log "   Please run './build.sh prepare' first." "yellow"
         exit 1
     fi
@@ -161,6 +167,35 @@ func_2_1_check_env_ready(){
         func_1_1_log "❌ Python binary not found in venv." "red"
         exit 1
     fi
+
+    # --- 2. Check Essential Links/Files (New Logic) ---
+    # func_1_1_log "🔎 Verifying file integrity..." "blue"
+
+    local missing_count=0
+    # List of critical files that MUST exist at the destination
+    # These match the targets in func_3_0_setup_links
+    local required_files=(
+        "${MODNET_REPO_DIR}/onnx/export_onnx.py"
+        "${MODNET_REPO_DIR}/onnx/inference_onnx.py"
+        "${MODNET_REPO_DIR}/onnx/generate_golden_files.py"
+    )
+
+    for target_file in "${required_files[@]}"; do
+        if [ ! -f "$target_file" ]; then
+            # -f returns false if file is missing OR if it's a broken symlink
+            func_1_1_log "❌ Missing or broken link: $target_file" "red"
+            missing_count=$((missing_count + 1))
+        fi
+    done
+
+    if [ $missing_count -gt 0 ]; then
+        func_1_1_log "   Found $missing_count missing essential file(s)." "yellow"
+        func_1_1_log "   Please run './build.sh prepare' to restore symbolic links." "yellow"
+        exit 1
+    fi
+
+    # func_1_1_log "✅ Environment and links are ready." "green"
+
 }
 
 # ==============================================================================
@@ -228,10 +263,10 @@ func_3_2_prepare_env() {
 
     # --- Step 3: Virtual Environment (From A, enhanced) ---
     func_1_1_log "   [3/4] Setting up Virtual Environment..." "yellow"
-    if [ ! -d "$VENV_DIR" ]; then
-        func_1_1_log "   Creating venv in '$VENV_DIR'..."
+    if [ ! -d "$LV1_VENV_DIR" ]; then
+        func_1_1_log "   Creating venv in '$LV1_VENV_DIR'..."
         pyenv local ${PYTHON_Target_VERSION}
-        python -m venv "$VENV_DIR"
+        python -m venv "$LV1_VENV_DIR"
         pyenv local --unset
     fi
 
@@ -267,6 +302,62 @@ func_3_2_prepare_env() {
     fi
 
     func_1_1_log "🎉 Preparation complete!" "green"
+}
+
+func_3_3_setup_links() {
+    # Based on your provided setup_links.sh
+    func_1_1_log "🔗 Setting up symbolic links..." "blue"
+
+    # Define path for models (Calculated relative to Repo Top)
+    # Assumes modnet-models is parallel to MODNet.git
+    local MODNET_MODELS_DIR="${REPO_TOP_DIR}/modnet-models"
+
+    # Define the list of symbolic links.
+    # Format: "SOURCE_FILENAME  SOURCE_DIR  DESTINATION_PATH"
+    # Note: BUILD_SCRIPT_DIR and MODNET_REPO_DIR are defined in func_2_0_load_env
+    declare -a SYMLINKS=(
+        "requirements.txt                          ${BUILD_SCRIPT_DIR}      ${MODNET_REPO_DIR}/onnx/requirements.txt"
+        "export_onnx.py                            ${BUILD_SCRIPT_DIR}      ${MODNET_REPO_DIR}/onnx/export_onnx.py"
+        "inference_onnx.py                         ${BUILD_SCRIPT_DIR}      ${MODNET_REPO_DIR}/onnx/inference_onnx.py"
+        "generate_golden_files.py                  ${BUILD_SCRIPT_DIR}      ${MODNET_REPO_DIR}/onnx/generate_golden_files.py"
+        "mobilenetv2_human_seg.ckpt                ${MODNET_MODELS_DIR}     ${MODNET_REPO_DIR}/pretrained/mobilenetv2_human_seg.ckpt"
+        "modnet_photographic_portrait_matting.ckpt ${MODNET_MODELS_DIR}     ${MODNET_REPO_DIR}/pretrained/modnet_photographic_portrait_matting.ckpt"
+        "modnet_photographic_portrait_matting.onnx ${MODNET_MODELS_DIR}     ${MODNET_REPO_DIR}/pretrained/modnet_photographic_portrait_matting.onnx"
+        "modnet_webcam_portrait_matting.ckpt       ${MODNET_MODELS_DIR}     ${MODNET_REPO_DIR}/pretrained/modnet_webcam_portrait_matting.ckpt"
+    )
+
+    for entry in "${SYMLINKS[@]}"; do
+        # Parse the entry
+        read -r source_filename source_dir dest_path <<< "$entry"
+
+        local full_source_path="${source_dir}/${source_filename}"
+        local dest_dir=$(dirname "$dest_path")
+
+        # --- Robustness Check 1: Ensure source file exists ---
+        if [ ! -f "$full_source_path" ]; then
+            func_1_1_log "   ❌ Source not found: ${source_filename}" "red"
+            func_1_1_log "      (Searched at: ${full_source_path})" "yellow"
+            continue
+        fi
+
+        # --- Robustness Check 2: Ensure destination directory exists ---
+        if [ ! -d "$dest_dir" ]; then
+            func_1_1_log "   ⚠️  Creating directory: ${dest_dir}" "yellow"
+            mkdir -p "$dest_dir"
+        fi
+
+        # --- Action: Create the symbolic link ---
+        ln -sf "${full_source_path}" "${dest_path}"
+
+        # Log success (checking if link is valid)
+        if [ -L "${dest_path}" ]; then
+            func_1_1_log "   ✅ Linked: $(basename "${dest_path}")" "green"
+        else
+            func_1_2_err "Failed to link ${dest_path}"
+        fi
+    done
+
+    func_1_1_log "✅ All symbolic links processed." "green"
 }
 
 # ==============================================================================
@@ -332,10 +423,10 @@ func_4_2_inference_with_onnx(){
     done
 
     func_1_1_log "🔎 Scanning for images..." "blue"
-    mapfile -t images_list < <(find "${MEDIA_DIR}" -type f \( -name "*.jpg" -o -name "*.bmp" -o -name "*.png" \))
+    mapfile -t images_list < <(find "${LV1_MEDIA_DIR}" -type f \( -name "*.jpg" -o -name "*.bmp" -o -name "*.png" \))
 
     if [ ${#images_list[@]} -eq 0 ]; then
-         func_1_1_log "❌ No images found in ${MEDIA_DIR}" "red"; return 1;
+         func_1_1_log "❌ No images found in ${LV1_MEDIA_DIR}" "red"; return 1;
     fi
 
     func_1_1_log "   Choose input image:" "green"
@@ -398,13 +489,13 @@ func_5_1_clean_project(){
             func_1_1_log "   Models removed." "green"
             ;;
         2)
-            rm -rf "$VENV_DIR"
+            rm -rf "$LV1_VENV_DIR"
             func_1_1_log "   Venv removed." "green"
             ;;
         3)
             # Implements B's distclean logic concept
             find "$PRETRAINED_DIR" -maxdepth 1 -type f -name "*.onnx" -print -delete || true
-            rm -rf "$VENV_DIR"
+            rm -rf "$LV1_VENV_DIR"
             func_1_1_log "   Full cleanup complete." "green"
             ;;
         *)
