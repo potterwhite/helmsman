@@ -369,7 +369,7 @@ func_3_2_setup_dep_before_build() {
 
     # ********************************************
     # --- Step 1: System Dependencies (From A) ---
-    func_1_1_log "   [1/6] Installing system dependencies..." "yellow"
+    func_1_1_log "   [1/7] Installing system dependencies..." "yellow"
     sudo apt update && sudo apt-get install -y \
     make build-essential libssl-dev zlib1g-dev libbz2-dev \
     libreadline-dev libsqlite3-dev wget curl llvm libncurses-dev \
@@ -379,7 +379,7 @@ func_3_2_setup_dep_before_build() {
 
     # ********************************************
     # --- Step 2: Pyenv Setup (From A & B) ---
-    func_1_1_log "   [2/6] Setting up pyenv..." "yellow"
+    func_1_1_log "   [2/7] Setting up pyenv..." "yellow"
     if [ ! -d "$PYENV_ROOT" ]; then
         curl https://pyenv.run | bash
         export PYENV_ROOT="$HOME/.pyenv"
@@ -400,7 +400,7 @@ func_3_2_setup_dep_before_build() {
 
     # ********************************************
     # --- Step 3: Virtual Environment (From A, enhanced) ---
-    func_1_1_log "   [3/6] Setting up Virtual Environment..." "yellow"
+    func_1_1_log "   [3/7] Setting up Virtual Environment..." "yellow"
     if [ ! -d "$LV1_VENV_DIR" ]; then
         func_1_1_log "   Creating venv in '$LV1_VENV_DIR'..."
         pyenv local ${PYTHON_Target_VERSION}
@@ -430,7 +430,7 @@ func_3_2_setup_dep_before_build() {
 
     # ********************************************
     # --- Step 4: Conan (From A) ---
-    func_1_1_log "   [4/6] Setting up Conan..." "yellow"
+    func_1_1_log "   [4/7] Setting up Conan..." "yellow"
     if ! command -v conan &> /dev/null; then
         "${PIP_BIN}" install conan
     fi
@@ -444,12 +444,22 @@ func_3_2_setup_dep_before_build() {
     # --- Step 5: build dir is temporary for restoring temp files and folders
     if [ ! -d "${LV1_BUILD_DIR}" ];then
         mkdir -p "${LV1_BUILD_DIR}"
-        func_1_1_log "   [5/6] Setting up build dir successfully..." "yellow"
+        func_1_1_log "   [5/7] Setting up build dir successfully..." "yellow"
     fi
 
     # ********************************************
-    # --- Step 6: MODNet Links for furthur executing
-    func_1_1_log "   [6/6] Setting up Softlinks for MODNet SDK..." "yellow"
+    # --- Step 6: Sync MODNet sdk as needed
+    if [ ! -d "${LV4_MODNET_SDK_DIR}" ]; then
+        cd "${REPO_TOP_DIR}"
+        git submodule update
+        func_1_1_log "   [6/7] Synchronized MODNet SDK Complete." "yellow"
+    else
+        func_1_1_log "   [6/7] MODNet SDK Exist, Skip Downloading." "yellow"
+    fi
+
+    # ********************************************
+    # --- Step 7: MODNet Links for furthur executing
+    func_1_1_log "   [7/7] Setting up Softlinks for MODNet SDK..." "yellow"
     func_3_0_setup_modnet_softlinks
 
     # ********************************************
