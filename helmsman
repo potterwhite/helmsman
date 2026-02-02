@@ -107,7 +107,7 @@ func_1_7_usage() {
 # Level 2: Environment Variables & Path Definitions
 # ==============================================================================
 
-func_2_0_load_env(){
+func_2_0_setup_env(){
     # Merged logic: Uses A's paths but B's robust variable handling
     set -e
     if [[ x"${V}" == x"1" ]];then
@@ -132,18 +132,19 @@ func_2_0_load_env(){
     LV1_3RD_PARTY_DIR="${REPO_TOP_DIR}/third-party"
     LV1_TOOLS_DIR="${REPO_TOP_DIR}/tools"
     LV1_VENV_DIR="${REPO_TOP_DIR}/.venv"
+    LV1_BUILD_DIR="${REPO_TOP_DIR}/build"
 
     # 2nd-lv: third-party
-    LV4_MODNET_SDK_DIR="${LV1_3RD_PARTY_DIR}/sdk/modnet"
-    LV4_MODNET_SCRIPT_DIR="${LV1_3RD_PARTY_DIR}/scripts/modnet"
+    LV4_MODNET_SDK_DIR="${LV1_3RD_PARTY_DIR}/sdk/MODNet.git"
+    LV4_MODNET_SCRIPTS_DIR="${LV1_3RD_PARTY_DIR}/scripts/modnet"
     LV4_MODNET_MODELS_DIR="${LV1_3RD_PARTY_DIR}/models/modnet"
-
-    MODNET_SDK_DIR="${LV4_MODNET_SDK_DIR}/MODNet.git"
-    PRETRAINED_DIR="${MODNET_SDK_DIR}/pretrained"
-
+    LV5_PRETRAINED_DIR="${LV4_MODNET_SDK_DIR}/pretrained"
 
     # 2nd-lv: envs Dir
     DEV_REQUIREMENTS_FILE="${LV1_ENVS_DIR}/requirements.txt"
+
+    # 2nd-lv: build Dir
+    LV2_MODELS_DOWNLOAD_DIR="${LV1_BUILD_DIR}/modnet-models"
 
     # Virtual Environment Paths
     PYTHON_BIN="${LV1_VENV_DIR}/bin/python"
@@ -158,7 +159,7 @@ func_2_0_load_env(){
     fi
 
     # Ensure Finalization on Exit (From B)
-    trap func_5_2_finalize EXIT
+    trap func_5_4_finalize EXIT
 }
 
 func_2_1_check_env_ready(){
@@ -178,12 +179,15 @@ func_2_1_check_env_ready(){
 
     local missing_count=0
     # List of critical files that MUST exist at the destination
-    # These match the targets in func_3_0_setup_links
+    # These match the targets in func_3_0_setup_modnet_softlinks
     local required_files=(
-        "${LV2_3RD_PARTY_SCRIPT_DIR}/export_onnx.py"
-        "${LV2_3RD_PARTY_SCRIPT_DIR}/inference_onnx.py"
-        "${LV2_3RD_PARTY_SCRIPT_DIR}/generate_golden_files.py"
-        "${LV2_3RD_PARTY_MODELS_DIR}/generate_golden_files.py"
+        "${LV4_MODNET_SDK_DIR}/onnx/export_onnx.py"
+        "${LV4_MODNET_SDK_DIR}/onnx/inference_onnx.py"
+        "${LV4_MODNET_SDK_DIR}/onnx/generate_golden_files.py"
+        "${LV4_MODNET_SDK_DIR}/pretrained/mobilenetv2_human_seg.ckpt"
+        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_photographic_portrait_matting.ckpt"
+        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_photographic_portrait_matting.onnx"
+        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_webcam_portrait_matting.ckpt"
     )
 
     for target_file in "${required_files[@]}"; do
@@ -208,138 +212,36 @@ func_2_1_check_env_ready(){
 # Level 3: Environment Preparation Logic
 # ==============================================================================
 
-func_3_1_check_opencv_compatibility() {
-    # (Transplanted from B)
-    # Checks if OpenCV works. If not (common in servers), switches to headless.
-    func_1_1_log "   Verifying OpenCV environment inside the venv..." "blue"
-
-    # First try with whatever is currently installed
-    if "${PYTHON_BIN}" -c "import cv2" &> /dev/null; then
-        func_1_1_log "   ✅ OpenCV import succeeded." "green"
-        return 0
-    fi
-
-    func_1_1_log "   ⚠️ OpenCV import failed (likely missing GUI libs). Switching to opencv-python-headless..." "yellow"
-
-    # Switch to headless
-    "${PIP_BIN}" uninstall -y opencv-python || true
-    "${PIP_BIN}" install "opencv-python-headless==4.5.1.48" || func_1_2_err "Failed to install opencv-python-headless."
-
-    # Re-check
-    if "${PYTHON_BIN}" -c "import cv2" &> /dev/null; then
-        func_1_1_log "   ✅ OpenCV (headless) import succeeded." "green"
-        return 0
-    fi
-
-    func_1_2_err "OpenCV environment check failed even after installing headless version."
-}
-
-func_3_2_prepare_env() {
-    # (Merged A & B)
-    func_1_1_log "🛠️  Starting full environment preparation..." "blue"
-
-    # --- Step 1: System Dependencies (From A) ---
-    func_1_1_log "   [1/4] Installing system dependencies..." "yellow"
-    sudo apt update && sudo apt-get install -y \
-    make build-essential libssl-dev zlib1g-dev libbz2-dev \
-    libreadline-dev libsqlite3-dev wget curl llvm libncurses-dev \
-    xz-utils tk-dev libffi-dev liblzma-dev python3-openssl git \
-    cmake libgl1
-    func_1_1_log "   ✅ System dependencies installed." "green"
-
-    # --- Step 2: Pyenv Setup (From A & B) ---
-    func_1_1_log "   [2/4] Setting up pyenv..." "yellow"
-    if [ ! -d "$PYENV_ROOT" ]; then
-        curl https://pyenv.run | bash
-        export PYENV_ROOT="$HOME/.pyenv"
-        export PATH="$PYENV_ROOT/bin:$PATH"
-        eval "$(pyenv init --path)"
-        eval "$(pyenv init -)"
-    else
-        func_1_1_log "   Pyenv already installed." "green"
-    fi
-
-    # Install Python Version if missing
-    if ! pyenv versions --bare | grep -q "^${PYTHON_Target_VERSION}$"; then
-        func_1_1_log "   Installing Python ${PYTHON_Target_VERSION}..."
-        pyenv install ${PYTHON_Target_VERSION}
-    else
-        func_1_1_log "   Python ${PYTHON_Target_VERSION} found." "green"
-    fi
-
-    # --- Step 3: Virtual Environment (From A, enhanced) ---
-    func_1_1_log "   [3/4] Setting up Virtual Environment..." "yellow"
-    if [ ! -d "$LV1_VENV_DIR" ]; then
-        func_1_1_log "   Creating venv in '$LV1_VENV_DIR'..."
-        pyenv local ${PYTHON_Target_VERSION}
-        python -m venv "$LV1_VENV_DIR"
-        pyenv local --unset
-    fi
-
-    # Ensure pip is up to date
-    "${PIP_BIN}" install --upgrade pip
-
-    # Handle Requirements (Load from file only)
-    if [ -f "$DEV_REQUIREMENTS_FILE" ]; then
-        func_1_1_log "   Installing Python packages from $DEV_REQUIREMENTS_FILE..."
-        "${PIP_BIN}" install --no-cache-dir -r "$DEV_REQUIREMENTS_FILE" -i https://pypi.tuna.tsinghua.edu.cn/simple
-    else
-        func_1_1_log "❌ Requirements file not found at: $DEV_REQUIREMENTS_FILE" "red"
-        func_1_1_log "   Please create the file manually before running prepare." "yellow"
-        exit 1
-    fi
-
-    # Auto-fix OpenCV if needed (From B)
-    # This remains critical: even if requirements.txt installed opencv-python,
-    # this function will swap it for headless if the GUI version fails to load.
-    func_3_1_check_opencv_compatibility
-
-    func_1_1_log "   ✅ Python environment ready." "green"
-
-    # --- Step 4: Conan (From A) ---
-    func_1_1_log "   [4/4] Setting up Conan..." "yellow"
-    if ! command -v conan &> /dev/null; then
-        "${PIP_BIN}" install conan
-    fi
-    # Check if profile exists to avoid error
-    if command -v conan &> /dev/null; then
-         conan profile detect --force 2>/dev/null || true
-         func_1_1_log "   ✅ Conan ready." "green"
-    fi
-
-    func_1_1_log "🎉 Preparation complete!" "green"
-}
-
-
-func_3_0_setup_links() {
+func_3_0_setup_modnet_softlinks() {
     func_1_1_log "🔗 Setting up symbolic links and assets..." "blue"
 
-    # Define path for models (Calculated relative to Repo Top)
-    local LV4_MODNET_MODELS_DIR="${REPO_TOP_DIR}/modnet-models"
-
     # Ensure the model source directory exists
-    if [ ! -d "$LV4_MODNET_MODELS_DIR" ]; then
-        mkdir -p "$LV4_MODNET_MODELS_DIR"
+    if [ ! -d "${LV2_MODELS_DOWNLOAD_DIR}" ]; then
+        mkdir -p "${LV2_MODELS_DOWNLOAD_DIR}"
     fi
 
     # =========================================================
     # Part 1: Local Script Links (Source: BUILD_SCRIPT_DIR)
     # =========================================================
+
+    #   1ST field                       2nd Field                     3rd field
+    #   file name                       source dir                    destination dir
     declare -a SCRIPT_LINKS=(
-        "requirements.txt          ${LV4_MODNET_SDK_DIR}/onnx/requirements.txt"
-        "export_onnx.py            ${LV4_MODNET_SDK_DIR}/onnx/export_onnx.py"
-        "inference_onnx.py         ${LV4_MODNET_SDK_DIR}/onnx/inference_onnx.py"
-        "generate_golden_files.py  ${LV4_MODNET_SDK_DIR}/onnx/generate_golden_files.py"
+        "requirements.txt          ${LV1_ENVS_DIR}              ${LV4_MODNET_SDK_DIR}/onnx/requirements.txt"
+        "export_onnx.py            ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx.py"
+        "inference_onnx.py         ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/inference_onnx.py"
+        "generate_golden_files.py  ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/generate_golden_files.py"
     )
 
     for entry in "${SCRIPT_LINKS[@]}"; do
-        read -r filename dest_path <<< "$entry"
-        local full_source_path="${BUILD_SCRIPT_DIR}/${filename}"
+        read -r filename src_dir dest_path <<< "$entry"
+        # func_1_1_log "+++++ filename=${filename}; src_dir=${src_dir} ; dest_path=${dest_path}"
+        local full_source_path="${src_dir}/${filename}"
         local dest_dir=$(dirname "$dest_path")
 
         # Robustness: Check source
         if [ ! -f "$full_source_path" ]; then
-            func_1_1_log "   ❌ Script not found: ${filename}" "red"
+            func_1_1_log "   ❌ Script ${filename} not found in ${src_dir}" "red"
             continue
         fi
 
@@ -348,6 +250,12 @@ func_3_0_setup_links() {
 
         # Action: Link
         ln -sf "${full_source_path}" "${dest_path}"
+
+        # Check Link and Echo
+        ln -sf "${full_source_path}" "${dest_path}"
+        if [ -L "${dest_path}" ]; then
+            func_1_1_log "   ✅ Linked: ${filename}" "green"
+        fi
     done
 
     # =========================================================
@@ -366,7 +274,7 @@ func_3_0_setup_links() {
         local filename="$1"
         local url="$2"
         local dest_path="$3"
-        local full_source_path="${LV4_MODNET_MODELS_DIR}/${filename}"
+        local full_source_path="${LV2_MODELS_DOWNLOAD_DIR}/${filename}"
         local dest_dir=$(dirname "$dest_path")
 
         # 1. Check if source exists; if not, download
@@ -379,7 +287,7 @@ func_3_0_setup_links() {
             fi
 
             func_1_1_log "      Downloading from: $url" "blue"
-            if ! command -v wget &> /dev/null; then
+            if ! command -v wget > /dev/null; then
                 func_1_2_err "wget not found. Please install it."
             fi
 
@@ -389,7 +297,7 @@ func_3_0_setup_links() {
                 rm -f "$full_source_path" # Remove empty/corrupt file
                 return
             fi
-            func_1_1_log "      ✅ Download success." "green"
+            func_1_1_log "   ✅ Download success." "green"
         fi
 
         # 2. Create Destination Directory
@@ -429,6 +337,128 @@ func_3_0_setup_links() {
     func_1_1_log "✅ Link setup and model verification complete." "green"
 }
 
+func_3_1_check_opencv_compatibility() {
+    # (Transplanted from B)
+    # Checks if OpenCV works. If not (common in servers), switches to headless.
+    func_1_1_log "   Verifying OpenCV environment inside the venv..." "blue"
+
+    # First try with whatever is currently installed
+    if "${PYTHON_BIN}" -c "import cv2" &> /dev/null; then
+        func_1_1_log "   ✅ OpenCV import succeeded." "green"
+        return 0
+    fi
+
+    func_1_1_log "   ⚠️ OpenCV import failed (likely missing GUI libs). Switching to opencv-python-headless..." "yellow"
+
+    # Switch to headless
+    "${PIP_BIN}" uninstall -y opencv-python || true
+    "${PIP_BIN}" install "opencv-python-headless==4.5.1.48" || func_1_2_err "Failed to install opencv-python-headless."
+
+    # Re-check
+    if "${PYTHON_BIN}" -c "import cv2" &> /dev/null; then
+        func_1_1_log "   ✅ OpenCV (headless) import succeeded." "green"
+        return 0
+    fi
+
+    func_1_2_err "OpenCV environment check failed even after installing headless version."
+}
+
+func_3_2_setup_dep_before_build() {
+    # (Merged A & B)
+    func_1_1_log "🛠️  Starting full environment preparation..." "blue"
+
+    # ********************************************
+    # --- Step 1: System Dependencies (From A) ---
+    func_1_1_log "   [1/6] Installing system dependencies..." "yellow"
+    sudo apt update && sudo apt-get install -y \
+    make build-essential libssl-dev zlib1g-dev libbz2-dev \
+    libreadline-dev libsqlite3-dev wget curl llvm libncurses-dev \
+    xz-utils tk-dev libffi-dev liblzma-dev python3-openssl git \
+    cmake libgl1
+    func_1_1_log "   ✅ System dependencies installed." "green"
+
+    # ********************************************
+    # --- Step 2: Pyenv Setup (From A & B) ---
+    func_1_1_log "   [2/6] Setting up pyenv..." "yellow"
+    if [ ! -d "$PYENV_ROOT" ]; then
+        curl https://pyenv.run | bash
+        export PYENV_ROOT="$HOME/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        eval "$(pyenv init --path)"
+        eval "$(pyenv init -)"
+    else
+        func_1_1_log "   Pyenv already installed." "green"
+    fi
+
+    # Install Python Version if missing
+    if ! pyenv versions --bare | grep -q "^${PYTHON_Target_VERSION}$"; then
+        func_1_1_log "   Installing Python ${PYTHON_Target_VERSION}..."
+        pyenv install ${PYTHON_Target_VERSION}
+    else
+        func_1_1_log "   Python ${PYTHON_Target_VERSION} found." "green"
+    fi
+
+    # ********************************************
+    # --- Step 3: Virtual Environment (From A, enhanced) ---
+    func_1_1_log "   [3/6] Setting up Virtual Environment..." "yellow"
+    if [ ! -d "$LV1_VENV_DIR" ]; then
+        func_1_1_log "   Creating venv in '$LV1_VENV_DIR'..."
+        pyenv local ${PYTHON_Target_VERSION}
+        python -m venv "$LV1_VENV_DIR"
+        pyenv local --unset
+    fi
+
+    # Ensure pip is up to date
+    "${PIP_BIN}" install --upgrade pip
+
+    # Handle Requirements (Load from file only)
+    if [ -f "$DEV_REQUIREMENTS_FILE" ]; then
+        func_1_1_log "   Installing Python packages from $DEV_REQUIREMENTS_FILE..."
+        "${PIP_BIN}" install --no-cache-dir -r "$DEV_REQUIREMENTS_FILE" -i https://pypi.tuna.tsinghua.edu.cn/simple
+    else
+        func_1_1_log "❌ Requirements file not found at: $DEV_REQUIREMENTS_FILE" "red"
+        func_1_1_log "   Please create the file manually before running prepare." "yellow"
+        exit 1
+    fi
+
+    # Auto-fix OpenCV if needed (From B)
+    # This remains critical: even if requirements.txt installed opencv-python,
+    # this function will swap it for headless if the GUI version fails to load.
+    func_3_1_check_opencv_compatibility
+
+    func_1_1_log "   ✅ Python environment ready." "green"
+
+    # ********************************************
+    # --- Step 4: Conan (From A) ---
+    func_1_1_log "   [4/6] Setting up Conan..." "yellow"
+    if ! command -v conan &> /dev/null; then
+        "${PIP_BIN}" install conan
+    fi
+    # Check if profile exists to avoid error
+    if command -v conan &> /dev/null; then
+         conan profile detect --force 2>/dev/null || true
+         func_1_1_log "   ✅ Conan ready." "green"
+    fi
+
+    # ********************************************
+    # --- Step 5: build dir is temporary for restoring temp files and folders
+    if [ ! -d "${LV1_BUILD_DIR}" ];then
+        mkdir -p "${LV1_BUILD_DIR}"
+        func_1_1_log "   [5/6] Setting up build dir successfully..." "yellow"
+    fi
+
+    # ********************************************
+    # --- Step 6: MODNet Links for furthur executing
+    func_1_1_log "   [6/6] Setting up Softlinks for MODNet SDK..." "yellow"
+    func_3_0_setup_modnet_softlinks
+
+    # ********************************************
+    # --- Finilization
+    func_1_1_log "🎉 Preparation complete!" "green"
+}
+
+
+
 # ==============================================================================
 # Level 4: Core Workflows (MODNet & C++)
 # ==============================================================================
@@ -438,15 +468,15 @@ func_4_1_ckpt_2_onnx(){
     func_1_4_start_time_count __TASK_START_TIME
 
     func_1_1_log "🔎 Checking for pre-trained models (.ckpt)..." "blue"
-    mapfile -t ckpt_files < <(find "$PRETRAINED_DIR" -maxdepth 1 -type l -name "*.ckpt" -o -name "*.ckpt")
+    mapfile -t ckpt_files < <(find "$LV5_PRETRAINED_DIR" -maxdepth 1 -type l -name "*.ckpt" -o -name "*.ckpt")
 
     if [ ${#ckpt_files[@]} -eq 0 ]; then
         # Try finding regular files if symlinks fail
-        mapfile -t ckpt_files < <(find "$PRETRAINED_DIR" -maxdepth 1 -type f -name "*.ckpt")
+        mapfile -t ckpt_files < <(find "$LV5_PRETRAINED_DIR" -maxdepth 1 -type f -name "*.ckpt")
     fi
 
     if [ ${#ckpt_files[@]} -eq 0 ]; then
-        func_1_1_log "❌ No .ckpt models found in '$PRETRAINED_DIR'." "red"
+        func_1_1_log "❌ No .ckpt models found in '$LV5_PRETRAINED_DIR'." "red"
         return 1
     fi
 
@@ -457,7 +487,7 @@ func_4_1_ckpt_2_onnx(){
 
     local ckpt_filename=$(basename "$ckpt_path")
     local onnx_filename="${ckpt_filename%.ckpt}.onnx"
-    local onnx_path="${PRETRAINED_DIR}/${onnx_filename}"
+    local onnx_path="${LV5_PRETRAINED_DIR}/${onnx_filename}"
 
     func_1_1_log "   Selected CKPT: $ckpt_filename" "yellow"
     func_1_1_log "   Output ONNX:   $onnx_path" "yellow"
@@ -480,7 +510,7 @@ func_4_2_inference_with_onnx(){
     func_1_4_start_time_count __TASK_START_TIME
 
     func_1_1_log "🔎 Checking for ONNX models..." "blue"
-    mapfile -t onnx_files < <(find "$PRETRAINED_DIR" -maxdepth 1 -type f -name "*.onnx")
+    mapfile -t onnx_files < <(find "$LV5_PRETRAINED_DIR" -maxdepth 1 -type f -name "*.onnx")
     if [ ${#onnx_files[@]} -eq 0 ]; then
         func_1_1_log "❌ No .onnx models found. Run 'convert' first." "red"
         return 1
@@ -544,36 +574,53 @@ func_4_3_build_cpp(){
 # ==============================================================================
 
 func_5_1_clean_project(){
-    # (Merged A & B)
-    func_1_1_log "🧹 Cleanup Options:" "blue"
-    echo "   1. Generated models (.onnx)"
-    echo "   2. Virtual Environment (.venv)"
-    echo "   3. Full Clean (All of above)"
-    echo "   4. Cancel"
-    read -p "   Choice [1-4]: " clean_choice
+    # # (Merged A & B)
+    # func_1_1_log "🧹 Cleanup Options:" "blue"
+    # echo "   1. Generated models (.onnx)"
+    # echo "   2. Virtual Environment (.venv)"
+    # echo "   3. Full Clean (All of above)"
+    # echo "   4. Cancel"
+    # read -p "   Choice [1-4]: " clean_choice
+    _clean_build(){
+        if [ -d "${LV1_BUILD_DIR}" ]; then
+            rm -rf "${LV1_BUILD_DIR}"
+            func_1_1_log "   build dir Has been deleted." "green"
+        else
+            func_1_1_log "  build dir not exist. Remove Skipped." "green"
+        fi
+    }
 
+    _clean_all(){
+        _clean_build
+
+        if [ -d "${LV1_VENV_DIR}" ]; then
+            rm -rf "${LV1_VENV_DIR}"
+            func_1_1_log "  Python Virtual Environment Has been deleted." "green"
+        else
+            func_1_1_log "  Python Virtual Environment not exist. Remove Skipped." "green"
+        fi
+
+        if [ -d "${LV4_MODNET_SDK_DIR}" ]; then
+            rm -rf "${LV4_MODNET_SDK_DIR}"
+            func_1_1_log "  MODNet SDK Has been deleted." "green"
+        else
+            func_1_1_log "  MODNet SDK not exist. Remove Skipped." "green"
+        fi
+    }
+
+    local clean_choice="$1"
+    func_1_1_log "clean_choice=${clean_choice}"
     case $clean_choice in
-        1)
-            find "$PRETRAINED_DIR" -maxdepth 1 -type f -name "*.onnx" -print -delete
-            func_1_1_log "   Models removed." "green"
-            ;;
         2)
-            rm -rf "$LV1_VENV_DIR"
-            func_1_1_log "   Venv removed." "green"
-            ;;
-        3)
-            # Implements B's distclean logic concept
-            find "$PRETRAINED_DIR" -maxdepth 1 -type f -name "*.onnx" -print -delete || true
-            rm -rf "$LV1_VENV_DIR"
-            func_1_1_log "   Full cleanup complete." "green"
+            _clean_all
             ;;
         *)
-            func_1_1_log "   Cancelled." "yellow"
+            _clean_build
             ;;
     esac
 }
 
-func_5_2_finalize() {
+func_5_4_finalize() {
     # (From B) - The "magic" reporting at the end
     local exit_code=$?
     local final_time=$(func_1_3_get_current_milliseconds)
@@ -594,9 +641,10 @@ func_5_2_finalize() {
 # ==============================================================================
 
 main(){
-    func_2_0_load_env
+    # Preparation -- 1. ENV setup
+    func_2_0_setup_env
 
-    # Argument Parsing
+    # Preparation -- 2. Argument Parsing
     local COMMAND=""
     local ARGS=()
 
@@ -605,7 +653,7 @@ main(){
         -h | --help)
             func_1_7_usage; exit 0 ;;
         -v)
-            export V=1; func_2_0_load_env ;; # Reload env to apply verbose
+            export V=1; func_2_0_setup_env ;; # Reload env to apply verbose
         *)
             if [ -z "$COMMAND" ]; then COMMAND="$arg"; else ARGS+=("$arg"); fi ;;
         esac
@@ -613,9 +661,11 @@ main(){
 
     COMMAND=${COMMAND:-"menu"}
 
+
+    # Processing -- 1. Main Loop
     case $COMMAND in
         prepare)
-            func_3_2_prepare_env ;;
+            func_3_2_setup_dep_before_build ;;
         convert)
             func_2_1_check_env_ready && func_4_1_ckpt_2_onnx ;;
         inference)
@@ -632,16 +682,18 @@ main(){
                 echo "2. Convert .ckpt model to .onnx"
                 echo "3. Run Python inference"
                 echo "4. Build C++ Helmsman Engine"
-                echo "5. Clean project"
-                echo "6. Exit"
+                echo "5. Clean build and venv"
+                echo "6. Clean all(Reset Deeply)"
+                echo "7. Exit"
                 read -p "   Select [1-6]: " choice
                 case $choice in
-                    1) func_3_2_prepare_env ;;
+                    1) func_3_2_setup_dep_before_build ;;
                     2) func_2_1_check_env_ready && func_4_1_ckpt_2_onnx ;;
                     3) func_2_1_check_env_ready && func_4_2_inference_with_onnx ;;
                     4) func_2_1_check_env_ready && func_4_3_build_cpp ;;
                     5) func_5_1_clean_project ;;
-                    6) func_1_1_log "👋 Exiting." "green"; exit 0 ;;
+                    6) func_5_1_clean_project 2;;
+                    7) func_1_1_log "👋 Exiting." "green"; exit 0 ;;
                     *) func_1_1_log "Invalid choice." "red" ;;
                 esac
             done
