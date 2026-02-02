@@ -83,24 +83,28 @@ func_1_6_elapsed_time_calculation() {
     func_1_5_format_duration_ms "${elapsed_time}" elapsed_string_ref
 }
 
+# ------------------------------------------------------------------------------
+# func_print_usage
+# Purpose:
+#   Print command-line usage information.
+# ------------------------------------------------------------------------------
 func_1_7_usage() {
-    # (From A)
     echo "Usage: $0 [command] [options]"
-    echo ""
-    echo "Helmsman Project - Top-Level Command Script"
-    echo ""
+    echo
+    echo "Helmsman Project - Unified Build & Management Script"
+    echo
     echo "Commands:"
-    echo "  prepare         Set up the complete development environment."
-    echo "  convert         Convert a .ckpt model to the .onnx format."
-    echo "  inference       Run Python inference on an image."
-    echo "  build           Build the C++ Helmsman Engine."
-    echo "  clean           Clean up generated files and virtual environment."
-    echo "  <no command>    Enter interactive menu mode."
-    echo ""
+    echo "  prepare         Set up the full development environment."
+    echo "  convert         Convert a .ckpt model to ONNX format."
+    echo "  inference       Run Python ONNX inference on an image."
+    echo "  build           Build the C++ Helmsman engine."
+    echo "  clean           Remove build artifacts and environments."
+    echo "  <no command>    Launch interactive menu mode."
+    echo
     echo "Options:"
     echo "  -h, --help      Show this help message."
-    echo "  -v              Enable verbose mode (set -x)."
-    echo ""
+    echo "  -v              Enable verbose/debug mode (set -x)."
+    echo
 }
 
 # ==============================================================================
@@ -146,7 +150,7 @@ func_2_0_setup_env(){
     DEV_REQUIREMENTS_FILE="${LV1_ENVS_DIR}/requirements.txt"
 
     # 2nd-lv: build Dir
-    LV2_MODELS_DOWNLOAD_DIR="${LV1_BUILD_DIR}/modnet-models"
+    LV2_MODELS_DOWNLOAD_DIR="${REPO_TOP_DIR}/modnet-models"
 
     # Virtual Environment Paths
     PYTHON_BIN="${LV1_VENV_DIR}/bin/python"
@@ -189,7 +193,7 @@ func_2_1_check_env_ready(){
     # (From A) Lightweight check
     if [ ! -d "$LV1_VENV_DIR" ]; then
         func_1_1_log "❌ Environment not ready. Virtual environment not found at '$LV1_VENV_DIR'." "red"
-        func_1_1_log "   Please run './build.sh prepare' first." "yellow"
+        func_1_1_log "   Please run './helmsman prepare' first." "yellow"
         exit 1
     fi
     if [ ! -f "$PYTHON_BIN" ]; then
@@ -223,7 +227,7 @@ func_2_1_check_env_ready(){
 
     if [ $missing_count -gt 0 ]; then
         func_1_1_log "   Found $missing_count missing essential file(s)." "yellow"
-        func_1_1_log "   Please run './build.sh prepare' to restore symbolic links." "yellow"
+        func_1_1_log "   Please run './helmsman prepare' to restore symbolic links." "yellow"
         exit 1
     fi
 
@@ -791,7 +795,6 @@ func_4_3_build_dispatch() {
     esac
 }
 
-
 func_4_4_menu_cpp_build() {
 
     echo ""
@@ -807,6 +810,74 @@ func_4_4_menu_cpp_build() {
         func_4_3_build_dispatch cpp "$MENU_CPP_ACTION" "$MENU_CPP_PLATFORM"
     done
 }
+
+func_4_5_generate_golden_interactive() {
+    func_2_1_check_env_ready
+    func_1_4_start_time_count __TASK_START_TIME
+
+    local MEDIA_DIR="${LV1_MEDIA_DIR}"
+    local GOLDEN_DIR="${LV1_BUILD_DIR}/golden"
+    local DEBUG_DIR="${GOLDEN_DIR}/debug"
+
+    mkdir -p "${GOLDEN_DIR}" "${DEBUG_DIR}"
+
+    # --------------------------------------------------
+    # 1. Scan media directory
+    # --------------------------------------------------
+    mapfile -t images < <(find "${MEDIA_DIR}" -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.bmp" \))
+
+    if [ ${#images[@]} -eq 0 ]; then
+        func_1_2_err "No images found under ${MEDIA_DIR}"
+    fi
+
+    func_1_1_log "📷 Select input image (from media/):" "green"
+    select image_path in "${images[@]}"; do
+        [[ -n "$image_path" ]] && break
+        func_1_1_log "Invalid selection." "red"
+    done
+
+    # --------------------------------------------------
+    # 2. Select ONNX model
+    # --------------------------------------------------
+    mapfile -t onnx_models < <(find "${LV2_MODELS_DOWNLOAD_DIR}" -type f -name "*.onnx")
+
+    if [ ${#onnx_models[@]} -eq 0 ]; then
+        func_1_2_err "No ONNX model found. Please convert first."
+    fi
+
+    func_1_1_log "🧠 Select ONNX model:" "green"
+    select model_path in "${onnx_models[@]}"; do
+        [[ -n "$model_path" ]] && break
+        func_1_1_log "Invalid selection." "red"
+    done
+
+    # --------------------------------------------------
+    # 3. Auto-generate output paths
+    # --------------------------------------------------
+    local image_name=$(basename "$image_path")
+    local stem="${image_name%.*}"
+
+    local output_path="${GOLDEN_DIR}/${stem}_matte.png"
+    local debug_path="${DEBUG_DIR}/${stem}_debug.npy"
+
+    func_1_1_log "🚀 Generating golden files..." "blue"
+    func_1_1_log "   Input : ${image_path}" "yellow"
+    func_1_1_log "   Output: ${output_path}" "yellow"
+
+    # --------------------------------------------------
+    # 4. Run MODNet golden generator
+    # --------------------------------------------------
+    cd "${LV4_MODNET_SDK_DIR}"
+
+    "${PYTHON_BIN}" onnx/generate_golden_files.py \
+        --image-path "${image_path}" \
+        --model-path "${model_path}" \
+        --output-path "${output_path}" \
+        --debug-file-path "${debug_path}"
+
+    func_1_1_log "✅ Golden files generated successfully." "green"
+}
+
 
 
 # ==============================================================================
@@ -824,7 +895,7 @@ func_5_1_clean_project(){
     _clean_build(){
         if [ -d "${LV1_BUILD_DIR}" ]; then
             rm -rf "${LV1_BUILD_DIR}"
-            func_1_1_log "   build dir Has been deleted." "green"
+            func_1_1_log "  build dir Has been deleted." "green"
         else
             func_1_1_log "  build dir not exist. Remove Skipped." "green"
         fi
@@ -832,6 +903,13 @@ func_5_1_clean_project(){
 
     _clean_all(){
         _clean_build
+
+        if [ -d "${LV2_MODELS_DOWNLOAD_DIR}" ]; then
+            rm -rf "${LV2_MODELS_DOWNLOAD_DIR}"
+            func_1_1_log "  MODNet Pretrained Models Has been deleted." "green"
+        else
+            func_1_1_log "  MODNet Pretrained Models not exist. Remove Skipped." "green"
+        fi
 
         if [ -d "${LV1_VENV_DIR}" ]; then
             rm -rf "${LV1_VENV_DIR}"
@@ -915,7 +993,9 @@ main(){
 
             func_4_3_build_dispatch "${ARGS[@]}"
             ;;
-
+        golden)
+            func_4_5_generate_golden_interactive
+            ;;
         clean)
             func_5_1_clean_project ;;
         menu)
@@ -925,19 +1005,21 @@ main(){
                 echo "1. Prepare Environment"
                 echo "2. Convert .ckpt model to .onnx"
                 echo "3. Run Python inference"
-                echo "4. Build C++ Helmsman Engine"
-                echo "5. Clean build and venv"
-                echo "6. Clean all(Reset Deeply)"
-                echo "7. Exit"
+                echo "4. Generate Golden Files (Interactive)"
+                echo "5. Build C++ Helmsman Engine"
+                echo "6. Clean build"
+                echo "7. Clean all(build/venv/models/MODNet SDK etc)"
+                echo "8. Exit"
                 read -p "   Select [1-6]: " choice
                 case $choice in
                     1) func_3_2_setup_dep_before_build ;;
                     2) func_2_1_check_env_ready && func_4_1_ckpt_2_onnx ;;
                     3) func_2_1_check_env_ready && func_4_2_inference_with_onnx ;;
-                    4) func_4_4_menu_cpp_build ;;
-                    5) func_5_1_clean_project ;;
-                    6) func_5_1_clean_project 2;;
-                    7) func_1_1_log "👋 Exiting." "green"; exit 0 ;;
+                    4) func_4_5_generate_golden_interactive ;;
+                    5) func_4_4_menu_cpp_build ;;
+                    6) func_5_1_clean_project ;;
+                    7) func_5_1_clean_project 2;;
+                    8) func_1_1_log "👋 Exiting." "green"; exit 0 ;;
                     *) func_1_1_log "Invalid choice." "red" ;;
                 esac
             done

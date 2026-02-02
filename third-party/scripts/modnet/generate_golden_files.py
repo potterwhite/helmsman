@@ -48,6 +48,8 @@ if __name__ == '__main__':
     parser.add_argument('--output-path', type=str, help='paht for saving the predicted alpha matte (a file)')
     parser.add_argument('--model-path', type=str, help='path of the ONNX model')
     parser.add_argument('--debug-file-path', type=str, help='output path of the the debug reference files')
+    parser.add_argument("--artifact-dir", type=str, default=None, help="Directory to store all intermediate and golden artifacts")
+
     args = parser.parse_args()
 
     # check input arguments
@@ -57,9 +59,18 @@ if __name__ == '__main__':
     if not os.path.exists(args.model_path):
         print('Cannot find the ONXX model: {0}'.format(args.model_path))
         exit()
-    if not os.path.exists(args.debug_file_path):
-        print('Cannot find the output debug files path: {0}'.format(args.debug_file_path))
-        exit()
+    if args.debug_file_path:
+        debug_dir = os.path.dirname(args.debug_file_path)
+        if debug_dir:
+            os.makedirs(debug_dir, exist_ok=True)
+            print(f"{debug_dir} not exist so create it first.")
+    # if not os.path.exists(args.debug_file_path):
+    #     print('Cannot find the output debug files path: {0}'.format(args.debug_file_path))
+    #     exit()
+    if os.path.isdir(args.output_path):
+        raise ValueError(
+            f"--output-path must be a file path with extension, got directory: {args.output_path}"
+        )
 
 
     ref_size = 512
@@ -130,4 +141,10 @@ if __name__ == '__main__':
     matte = (np.squeeze(result[0]) * 255).astype('uint8')
     matte = cv2.resize(matte, dsize=(im_w, im_h), interpolation = cv2.INTER_AREA)
 
-    cv2.imwrite(args.output_path, matte)
+    if args.output_path:
+        if os.path.isdir(args.output_path):
+            raise ValueError("--output-path must be a file, not directory")
+
+        cv2.imwrite(args.output_path, matte)
+
+
