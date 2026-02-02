@@ -139,6 +139,7 @@ func_2_0_setup_env(){
     LV1_TOOLS_DIR="${REPO_TOP_DIR}/tools"
     LV1_VENV_DIR="${REPO_TOP_DIR}/.venv"
     LV1_BUILD_DIR="${REPO_TOP_DIR}/build"
+    LV1_MODELS_DOWNLOAD_DIR="${REPO_TOP_DIR}/modnet-models"
 
     # 2nd-lv: third-party
     LV4_MODNET_SDK_DIR="${LV1_3RD_PARTY_DIR}/sdk/MODNet.git"
@@ -150,7 +151,8 @@ func_2_0_setup_env(){
     DEV_REQUIREMENTS_FILE="${LV1_ENVS_DIR}/requirements.txt"
 
     # 2nd-lv: build Dir
-    LV2_MODELS_DOWNLOAD_DIR="${REPO_TOP_DIR}/modnet-models"
+    LV2_GOLDEN_DIR="${LV1_BUILD_DIR}/golden"
+    LV2_GOLDEN_DEBUG_DIR="${LV2_GOLDEN_DIR}/debug"
 
     # Virtual Environment Paths
     PYTHON_BIN="${LV1_VENV_DIR}/bin/python"
@@ -243,8 +245,8 @@ func_3_0_setup_modnet_softlinks() {
     func_1_1_log "🔗 Setting up symbolic links and assets..." "blue"
 
     # Ensure the model source directory exists
-    if [ ! -d "${LV2_MODELS_DOWNLOAD_DIR}" ]; then
-        mkdir -p "${LV2_MODELS_DOWNLOAD_DIR}"
+    if [ ! -d "${LV1_MODELS_DOWNLOAD_DIR}" ]; then
+        mkdir -p "${LV1_MODELS_DOWNLOAD_DIR}"
     fi
 
     # =========================================================
@@ -301,7 +303,7 @@ func_3_0_setup_modnet_softlinks() {
         local filename="$1"
         local url="$2"
         local dest_path="$3"
-        local full_source_path="${LV2_MODELS_DOWNLOAD_DIR}/${filename}"
+        local full_source_path="${LV1_MODELS_DOWNLOAD_DIR}/${filename}"
         local dest_dir=$(dirname "$dest_path")
 
         # 1. Check if source exists; if not, download
@@ -812,22 +814,17 @@ func_4_4_menu_cpp_build() {
 }
 
 func_4_5_generate_golden_interactive() {
-    func_2_1_check_env_ready
     func_1_4_start_time_count __TASK_START_TIME
 
-    local MEDIA_DIR="${LV1_MEDIA_DIR}"
-    local GOLDEN_DIR="${LV1_BUILD_DIR}/golden"
-    local DEBUG_DIR="${GOLDEN_DIR}/debug"
-
-    mkdir -p "${GOLDEN_DIR}" "${DEBUG_DIR}"
+    mkdir -p "${LV2_GOLDEN_DIR}" "${LV2_GOLDEN_DEBUG_DIR}"
 
     # --------------------------------------------------
     # 1. Scan media directory
     # --------------------------------------------------
-    mapfile -t images < <(find "${MEDIA_DIR}" -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.bmp" \))
+    mapfile -t images < <(find "${LV1_MEDIA_DIR}" -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.bmp" \))
 
     if [ ${#images[@]} -eq 0 ]; then
-        func_1_2_err "No images found under ${MEDIA_DIR}"
+        func_1_2_err "No images found under ${LV1_MEDIA_DIR}"
     fi
 
     func_1_1_log "📷 Select input image (from media/):" "green"
@@ -839,7 +836,7 @@ func_4_5_generate_golden_interactive() {
     # --------------------------------------------------
     # 2. Select ONNX model
     # --------------------------------------------------
-    mapfile -t onnx_models < <(find "${LV2_MODELS_DOWNLOAD_DIR}" -type f -name "*.onnx")
+    mapfile -t onnx_models < <(find "${LV1_MODELS_DOWNLOAD_DIR}" -type f -name "*.onnx")
 
     if [ ${#onnx_models[@]} -eq 0 ]; then
         func_1_2_err "No ONNX model found. Please convert first."
@@ -857,8 +854,9 @@ func_4_5_generate_golden_interactive() {
     local image_name=$(basename "$image_path")
     local stem="${image_name%.*}"
 
-    local output_path="${GOLDEN_DIR}/${stem}_matte.png"
-    local debug_path="${DEBUG_DIR}/${stem}_debug.npy"
+    local output_path="${LV2_GOLDEN_DIR}/${stem}_matte.png"
+    # local debug_path="${LV2_GOLDEN_DEBUG_DIR}/${stem}_debug.npy"
+    local debug_path="${LV2_GOLDEN_DEBUG_DIR}"
 
     func_1_1_log "🚀 Generating golden files..." "blue"
     func_1_1_log "   Input : ${image_path}" "yellow"
@@ -904,8 +902,8 @@ func_5_1_clean_project(){
     _clean_all(){
         _clean_build
 
-        if [ -d "${LV2_MODELS_DOWNLOAD_DIR}" ]; then
-            rm -rf "${LV2_MODELS_DOWNLOAD_DIR}"
+        if [ -d "${LV1_MODELS_DOWNLOAD_DIR}" ]; then
+            rm -rf "${LV1_MODELS_DOWNLOAD_DIR}"
             func_1_1_log "  MODNet Pretrained Models Has been deleted." "green"
         else
             func_1_1_log "  MODNet Pretrained Models not exist. Remove Skipped." "green"
@@ -994,8 +992,7 @@ main(){
             func_4_3_build_dispatch "${ARGS[@]}"
             ;;
         golden)
-            func_4_5_generate_golden_interactive
-            ;;
+            func_2_1_check_env_ready && func_4_5_generate_golden_interactive ;;
         clean)
             func_5_1_clean_project ;;
         menu)
@@ -1015,7 +1012,7 @@ main(){
                     1) func_3_2_setup_dep_before_build ;;
                     2) func_2_1_check_env_ready && func_4_1_ckpt_2_onnx ;;
                     3) func_2_1_check_env_ready && func_4_2_inference_with_onnx ;;
-                    4) func_4_5_generate_golden_interactive ;;
+                    4) func_2_1_check_env_ready && func_4_5_generate_golden_interactive ;;
                     5) func_4_4_menu_cpp_build ;;
                     6) func_5_1_clean_project ;;
                     7) func_5_1_clean_project 2;;
