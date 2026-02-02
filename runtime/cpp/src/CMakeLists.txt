@@ -32,6 +32,7 @@ target_compile_definitions(${BIN_NAME} PRIVATE
 target_include_directories(${BIN_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${INCLUDE_DIR}
+    ${OpenCV_INCLUDE_DIRS}
 )
 
 # IV. 链接公共库

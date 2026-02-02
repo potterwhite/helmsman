@@ -105,11 +105,14 @@ set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 # 在这里定义你的项目所需要的所有库。
 # 这样src/CMakeLists.txt就不需要知道具体的依赖了。
 # 对于一个干净的模板，我们先留空。未来Helmsman项目会在这里添加OpenCV等。
-set(COMMON_LIBRARIES
-    "OpenCV::opencv"
-) # 例如: "OpenCV::opencv" "Threads::Threads"
 
 find_package(OpenCV REQUIRED)
+
+set(COMMON_LIBRARIES
+    ${OpenCV_LIBS}
+)
+
+
 # ##################################################################################################
 
 

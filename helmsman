@@ -110,9 +110,11 @@ func_1_7_usage() {
 func_2_0_setup_env(){
     # Merged logic: Uses A's paths but B's robust variable handling
     set -e
+    MAKE_VERBOSE_OPTION=""
     if [[ x"${V}" == x"1" ]];then
         set -x
         DEBUG_MODE=1
+        MAKE_VERBOSE_OPTION="VERBOSE=1"
     fi
 
     # Start Global Timer
@@ -158,8 +160,29 @@ func_2_0_setup_env(){
       eval "$(pyenv init -)"
     fi
 
+    # CPP related options
+    MENU_CPP_ACTION=""
+    MENU_CPP_PLATFORM=""
+
+    # Paths (相对 helmsman repo)
+    CPP_TOP_DIR="${REPO_TOP_DIR}/runtime/cpp"
+    CPP_BUILD_DIR="${CPP_TOP_DIR}/build"
+    CPP_INSTALL_DIR="${CPP_TOP_DIR}/install"
+    CPP_INSTALL_INC_DIR="${CPP_INSTALL_DIR}/include"
+    CPP_INSTALL_BIN_DIR="${CPP_INSTALL_DIR}/bin"
+    CPP_SRC_DIR="${CPP_TOP_DIR}/src"
+    CPP_TOOLCHAINS_DIR="${CPP_TOP_DIR}/toolchains"
+
+    # Commands
+    CPP_CMD_CLEAN="clean"
+    CPP_CMD_BUILD="build"
+    CPP_CMD_CB="cb"
+    CPP_CMD_INSTALL="install"
+    CPP_CMD_TEST="test"
+
     # Ensure Finalization on Exit (From B)
     trap func_5_4_finalize EXIT
+
 }
 
 func_2_1_check_env_ready(){
@@ -468,7 +491,6 @@ func_3_2_setup_dep_before_build() {
 }
 
 
-
 # ==============================================================================
 # Level 4: Core Workflows (MODNet & C++)
 # ==============================================================================
@@ -554,30 +576,238 @@ func_4_2_inference_with_onnx(){
     if [ $? -eq 0 ]; then func_1_1_log "✅ Inference successful! Saved to: $output_path" "green"; else func_1_2_err "Inference failed."; fi
 }
 
-func_4_3_build_cpp(){
-    # (From A)
-    local cpp_build_args=("$@")
-    func_1_4_start_time_count __TASK_START_TIME
+# ==============================================================================
+# CPP Build Module (Fully Inlined)
+# ==============================================================================
 
-    local cpp_dir="${REPO_TOP_DIR}/helmsman-cpp"
-    func_1_1_log "🚀 Commanding C++ build in: $cpp_dir" "blue"
+func_cpp_print_help() {
+    echo
+    echo "CPP Build Commands:"
+    echo "  build cpp clean"
+    echo "  build cpp build [platform]"
+    echo "  build cpp cb [platform]"
+    echo "  build cpp install"
+    echo "  build cpp test"
+    echo
+    echo "Platforms:"
+    echo "  native (default)"
+    if [ -d "${CPP_TOOLCHAINS_DIR}" ]; then
+        for f in "${CPP_TOOLCHAINS_DIR}"/*.cmake; do
+            [ -f "$f" ] || continue
+            echo "  $(basename "$f" .cmake)"
+        done
+    fi
+    echo
+}
 
-    if [ ! -f "${cpp_dir}/build.sh" ]; then
-        func_1_2_err "C++ build script not found at '${cpp_dir}/build.sh'."
+func_cpp_validate_args() {
+    local cmd="$1"
+    case "$cmd" in
+        clean|build|cb|install|test)
+            ;;
+        *)
+            func_1_2_err "Unknown cpp build command: $cmd"
+            ;;
+    esac
+}
+
+func_cpp_prepare_dirs() {
+    mkdir -p "${CPP_BUILD_DIR}"
+    mkdir -p "${CPP_INSTALL_INC_DIR}"
+    mkdir -p "${CPP_INSTALL_BIN_DIR}"
+}
+
+func_cpp_clean_all() {
+    rm -rf "${CPP_BUILD_DIR}"
+    rm -rf "${CPP_INSTALL_DIR}"
+    func_1_1_log "CPP build & install dirs cleaned." "green"
+}
+
+func_cpp_cmake_generate() {
+    local platform="$1"
+
+    local CMAKE_ARGS=(
+        -S "${CPP_TOP_DIR}"
+        -B "${CPP_BUILD_DIR}"
+        "-DCMAKE_INSTALL_PREFIX=${CPP_INSTALL_DIR}"
+    )
+
+    if [ "$platform" != "native" ]; then
+        local tc="${CPP_TOOLCHAINS_DIR}/${platform}.cmake"
+        if [ ! -f "$tc" ]; then
+            func_1_2_err "Toolchain not found: ${tc}"
+        fi
+        func_1_1_log "Using toolchain: $tc" "blue"
+        CMAKE_ARGS+=("-DCMAKE_TOOLCHAIN_FILE=${tc}")
+    else
+        func_1_1_log "Native build: running Conan" "blue"
+        conan install "${CPP_TOP_DIR}" \
+            --output-folder="${CPP_BUILD_DIR}" \
+            --build=missing \
+            --profile:host=default \
+            -c tools.system.package_manager:mode=install \
+            -c tools.system.package_manager:sudo=True
     fi
 
-    # Execute in subshell to preserve path
-    (
-        cd "$cpp_dir"
-        ./build.sh "${cpp_build_args[@]}"
-    )
-    local status=$?
-    if [ $status -eq 0 ]; then
-        func_1_1_log "✅ C++ build successful!" "green"
-    else
-        func_1_2_err "C++ build failed with status $status."
+    cmake "${CMAKE_ARGS[@]}"
+}
+
+func_cpp_make() {
+    make -C "${CPP_BUILD_DIR}" ${MAKE_VERBOSE_OPTION}
+}
+
+func_cpp_install() {
+    cmake --install "${CPP_BUILD_DIR}"
+    func_1_1_log "CPP install completed." "green"
+}
+
+func_cpp_test() {
+    func_cpp_prepare_dirs
+    cmake \
+        -S "${CPP_TOP_DIR}" \
+        -B "${CPP_BUILD_DIR}" \
+        "-DCMAKE_INSTALL_PREFIX=${CPP_INSTALL_DIR}" \
+        "-DBUILD_TEST=TRUE"
+
+    make -C "${CPP_BUILD_DIR}/test" ${MAKE_VERBOSE_OPTION}
+    func_1_1_log "CPP tests built." "green"
+}
+
+func_cpp_list_platforms() {
+    echo "native"
+    # func_1_1_log "CPP_TOOLCHAINS_DIR=${CPP_TOOLCHAINS_DIR}"
+    if [ -d "${CPP_TOOLCHAINS_DIR}" ]; then
+        for f in "${CPP_TOOLCHAINS_DIR}"/*.cmake; do
+            [ -f "$f" ] || continue
+            basename "$f" .cmake
+        done
     fi
 }
+
+func_menu_cpp_select_platform() {
+    local platforms=()
+    mapfile -t platforms < <(func_cpp_list_platforms)
+
+    echo ""
+    func_1_1_log "--- Select C++ Build Platform ---" "blue"
+
+    local i=1
+    for p in "${platforms[@]}"; do
+        echo "${i}. ${p}"
+        ((i++))
+    done
+    echo "${i}. Back"
+
+    read -p "   Select [1-${i}]: " choice
+
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#platforms[@]} )); then
+        MENU_CPP_PLATFORM="${platforms[choice-1]}"
+        # echo "${platforms[choice-1]}"
+        echo "${MENU_CPP_PLATFORM}"
+        return 0
+    fi
+
+    return 1
+}
+
+func_menu_cpp_select_action() {
+    echo ""
+    func_1_1_log "--- Select C++ Build Action ---" "blue"
+    echo "1. build"
+    echo "2. clean + build + install (cb)"
+    echo "3. clean"
+    echo "4. install"
+    echo "5. back"
+
+    read -p "   Select [1-5]: " choice
+
+    case "$choice" in
+        1) MENU_CPP_ACTION="build" ;;
+        2) MENU_CPP_ACTION="cb" ;;
+        3) MENU_CPP_ACTION="clean" ;;
+        4) MENU_CPP_ACTION="install" ;;
+        5) MENU_CPP_ACTION="back" ;;
+        *) func_1_1_log "Invalid choice." "red"; return 1 ;;
+    esac
+}
+
+func_cpp_dispatch() {
+    local cmd="$1"
+    local platform="${2:-native}"
+
+    func_cpp_validate_args "$cmd"
+
+    case "$cmd" in
+        clean)
+            func_cpp_clean_all
+            ;;
+        build)
+            func_cpp_prepare_dirs
+            func_cpp_cmake_generate "$platform"
+            func_cpp_make
+            ;;
+        cb)
+            func_cpp_clean_all
+            func_cpp_prepare_dirs
+            func_cpp_cmake_generate "$platform"
+            func_cpp_make
+            func_cpp_install
+            ;;
+        install)
+            func_cpp_install
+            ;;
+        test)
+            func_cpp_test
+            func_cpp_install
+            ;;
+    esac
+}
+
+func_4_3_build_dispatch() {
+    func_2_1_check_env_ready
+
+    local target="$1"
+    shift || true
+
+    case "$target" in
+        cpp)
+            local cmd="${1:-}"
+            local platform="${2:-native}"
+
+            if [ -z "$cmd" ]; then
+                func_1_2_err \
+                    "Usage: ./helmsman build cpp <clean|build|cb|install|test> [platform]"
+            fi
+
+            func_1_1_log \
+                "🛠️  CPP Build: cmd=${cmd}, platform=${platform}" \
+                "blue"
+
+            func_cpp_dispatch "$cmd" "$platform"
+            ;;
+        *)
+            func_1_2_err "Unknown build target '$target'"
+            ;;
+    esac
+}
+
+
+func_4_4_menu_cpp_build() {
+
+    echo ""
+    while true; do
+        func_menu_cpp_select_action || continue
+
+        if [[ "$MENU_CPP_ACTION" == "back" ]]; then
+            break
+        fi
+
+        func_menu_cpp_select_platform || continue
+
+        func_4_3_build_dispatch cpp "$MENU_CPP_ACTION" "$MENU_CPP_PLATFORM"
+    done
+}
+
 
 # ==============================================================================
 # Level 5: Cleanup & Finalization
@@ -681,7 +911,11 @@ main(){
         inference)
             func_2_1_check_env_ready && func_4_2_inference_with_onnx ;;
         build)
-            func_2_1_check_env_ready && func_4_3_build_cpp "${ARGS[@]}" ;;
+            # func_2_1_check_env_ready && func_4_3_build_cpp "${ARGS[@]}" ;;
+
+            func_4_3_build_dispatch "${ARGS[@]}"
+            ;;
+
         clean)
             func_5_1_clean_project ;;
         menu)
@@ -700,7 +934,7 @@ main(){
                     1) func_3_2_setup_dep_before_build ;;
                     2) func_2_1_check_env_ready && func_4_1_ckpt_2_onnx ;;
                     3) func_2_1_check_env_ready && func_4_2_inference_with_onnx ;;
-                    4) func_2_1_check_env_ready && func_4_3_build_cpp ;;
+                    4) func_4_4_menu_cpp_build ;;
                     5) func_5_1_clean_project ;;
                     6) func_5_1_clean_project 2;;
                     7) func_1_1_log "👋 Exiting." "green"; exit 0 ;;
