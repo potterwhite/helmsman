@@ -1,11 +1,13 @@
-# helmsman-cpp/conanfile.txt
+# runtime/cpp/conanfile.txt
 
 [requires]
-# 我们需要OpenCV
 opencv/4.10.0
 
 [options]
 opencv/*:with_gtk=False
+opencv/*:with_ffmpeg=False
+opencv/*:with_webp=False
+opencv/*:with_wayland=False
 opencv/*:with_jpeg=libjpeg-turbo
 opencv/*:with_png=True
 
