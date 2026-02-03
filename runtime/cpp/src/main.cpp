@@ -116,16 +116,75 @@ cv::Mat ensure3Channel(const cv::Mat& input) {
 	return out;
 }
 
+
+void echoImg(cv::Mat& input){
+    float* p = input.ptr<float>(0);
+    std::cout << std::fixed << std::setprecision(8);
+    for (int i = 0; i < 10; ++i) {
+        std::cout << "v[" << i << "] = " << p[i] << std::endl;
+    }
+
+    unsigned char* bytes = reinterpret_cast<unsigned char*>(p);
+    for (int i = 0; i < 10 * 4; ++i) {
+        printf("%02x ", bytes[i]);
+    }
+    printf("\n");
+}
+
+
 /**
  * @brief Normalize image to range [-1, 1]
  * Formula: (pixel - 127.5) / 127.5
  */
 cv::Mat normalizeToMinusOneToOne(const cv::Mat& input) {
 	cv::Mat floatImg;
+    /*
+     * Method A: Wrong
+     */
 	input.convertTo(floatImg, CV_32FC3, 1.0 / 127.5, -1.0);
+
+    // /*
+    //  * Method B: the same as python
+    //  */
+    // input.convertTo(floatImg, CV_32FC3);   // uint8 → float32
+
+    // floatImg = floatImg - 127.5f;          // 第一次 rounding
+    // floatImg = floatImg / 127.5f;          // 第二次 rounding
+
+    // if (!floatImg.isContinuous()) {
+    //     std::cout << "isContinuous: " << floatImg.isContinuous() << std::endl;
+    //     floatImg = floatImg.clone();
+    // }
+
+    echoImg(floatImg);
 
 	return floatImg;
 }
+
+cv::Mat normalize_exact_numpy(const cv::Mat& input) {
+    CV_Assert(input.type() == CV_8UC3);
+
+    cv::Mat out(input.rows, input.cols, CV_32FC3);
+
+    const float scale = static_cast<float>(1.0 / 127.5);  // 注意：double → float
+    const float bias  = -1.0f;
+
+    for (int y = 0; y < input.rows; ++y) {
+        const cv::Vec3b* src = input.ptr<cv::Vec3b>(y);
+        cv::Vec3f* dst = out.ptr<cv::Vec3f>(y);
+
+        for (int x = 0; x < input.cols; ++x) {
+            dst[x][0] = src[x][0] * scale + bias;
+            dst[x][1] = src[x][1] * scale + bias;
+            dst[x][2] = src[x][2] * scale + bias;
+        }
+    }
+
+    echoImg(out);
+
+    return out;
+}
+
 
 /**
  * @brief Dump raw float data to binary file
@@ -150,30 +209,6 @@ void dumpBinary(const cv::Mat& mat, const std::string& outputPath) {
 }  // namespace helmsman
 
 // // ------------------------------------------------------------
-
-// int main(int argc, char** argv)
-// {
-//     if (argc != 3) {
-//         std::cerr << "Usage: preprocess_normalize <input_image> <output_bin>\n";
-//         return 1;
-//     }
-
-//     const std::string imagePath = argv[1];
-//     const std::string outputBinPath = argv[2];
-
-//     try {
-//         cv::Mat img = helmsman::preprocess::loadImage(imagePath);
-//         img = helmsman::preprocess::ensureRGB3Channel(img);
-//         img = helmsman::preprocess::normalizeToMinusOneToOne(img);
-//         helmsman::preprocess::dumpBinary(img, outputBinPath);
-//     }
-//     catch (const std::exception& e) {
-//         std::cerr << "Error: " << e.what() << std::endl;
-//         return 1;
-//     }
-
-//     return 0;
-// }
 
 int main(int argc, char* argv[]) {
 
@@ -206,8 +241,10 @@ int main(int argc, char* argv[]) {
 		img = helmsman::preprocess::ensure3Channel(img);
 		helmsman::preprocess::dumpBinary(img, outputBinPath + "/cpp_00_03_rgb3.bin");
 
-		img = helmsman::preprocess::normalizeToMinusOneToOne(img);
+		// img = helmsman::preprocess::normalizeToMinusOneToOne(img);
+        img = helmsman::preprocess::normalize_exact_numpy(img);
 		helmsman::preprocess::dumpBinary(img, outputBinPath + "/cpp_00_04_normalized.bin");
+
 	} catch (const std::exception& e) {
 		std::cerr << "Error: " << e.what() << std::endl;
 		return 1;

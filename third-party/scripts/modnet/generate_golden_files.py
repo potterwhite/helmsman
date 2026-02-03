@@ -97,6 +97,19 @@ if __name__ == '__main__':
 
         return x_scale_factor, y_scale_factor
 
+    def echoIMG(input):
+        flat = input.reshape(-1)
+
+        print("first 10 values:", flat[:10])
+        print("min:", flat.min(), "max:", flat.max())
+
+        # byte-level
+        # b = flat[:10].tobytes()
+        # print("bytes:", list(b))
+        raw = flat[:10].tobytes()      # 前 10 个 float = 40 个 byte
+        print(" ".join(f"{b:02x}" for b in raw))
+
+
     ##############################################
     #  Main Inference part
     ##############################################
@@ -118,8 +131,15 @@ if __name__ == '__main__':
     im.tofile(f"{args.debug_file_path}/debug_00_03_rgb3.bin")
 
     # normalize values to scale it between -1 to 1
-    im = (im - 127.5) / 127.5
+    im = im.astype(np.float32)
+    # im = (im - 127.5) / 127.5
+    im = im * np.float32(1.0 / 127.5) - np.float32(1.0)
+    im = np.ascontiguousarray(im, dtype=np.float32)
+    print(im.dtype)
     im.tofile(f"{args.debug_file_path}/debug_01_normalized.bin")
+    print(im.dtype)
+    print(im.flags)
+    echoIMG(im)
 
     im_h, im_w, im_c = im.shape
     x, y = get_scale_factor(im_h, im_w, ref_size)
