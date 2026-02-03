@@ -42,8 +42,8 @@ set(INCLUDE_DIR "${TOP_DIR}/include")
 
 # III. 设置build type
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE "Debug")
-    # set(CMAKE_BUILD_TYPE "Release")
+    #set(CMAKE_BUILD_TYPE "Debug")
+    set(CMAKE_BUILD_TYPE "Release")
     message(STATUS "No build type specified, defaulting to 'Debug'")
 endif()
 add_definitions(-DBUILD_TYPE="${CMAKE_BUILD_TYPE}")
@@ -108,12 +108,10 @@ set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 
 find_package(OpenCV REQUIRED)
 
-if(TARGET opencv::core)
+if(TARGET opencv::opencv)
     message(STATUS "Using modern OpenCV targets")
-    set(HELMAN_OPENCV_LIBS
-        opencv::core
-        opencv::imgproc
-        opencv::imgcodecs
+    set(COMMON_LIBRARIES
+        opencv::opencv
     )
 else()
     message(STATUS "Using legacy OpenCV variables")

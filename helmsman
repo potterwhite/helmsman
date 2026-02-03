@@ -639,6 +639,7 @@ func_cpp_cmake_generate() {
         -S "${CPP_TOP_DIR}"
         -B "${CPP_BUILD_DIR}"
         "-DCMAKE_INSTALL_PREFIX=${CPP_INSTALL_DIR}"
+        "-DCMAKE_BUILD_TYPE=Release"
     )
 
     if [ "$platform" != "native" ]; then
