@@ -108,9 +108,19 @@ set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 
 find_package(OpenCV REQUIRED)
 
-set(COMMON_LIBRARIES
-    ${OpenCV_LIBS}
-)
+if(TARGET opencv::core)
+    message(STATUS "Using modern OpenCV targets")
+    set(HELMAN_OPENCV_LIBS
+        opencv::core
+        opencv::imgproc
+        opencv::imgcodecs
+    )
+else()
+    message(STATUS "Using legacy OpenCV variables")
+    set(COMMON_LIBRARIES
+        ${OpenCV_LIBS}
+    )
+endif()
 
 
 # ##################################################################################################

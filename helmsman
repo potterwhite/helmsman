@@ -197,6 +197,9 @@ func_2_1_check_env_ready(){
         func_1_1_log "❌ Environment not ready. Virtual environment not found at '$LV1_VENV_DIR'." "red"
         func_1_1_log "   Please run './helmsman prepare' first." "yellow"
         exit 1
+    else
+        source ${LV1_VENV_DIR}/bin/activate
+        func_1_1_log "✅Activate Python venv Successfully." "green"
     fi
     if [ ! -f "$PYTHON_BIN" ]; then
         func_1_1_log "❌ Python binary not found in venv." "red"
