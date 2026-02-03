@@ -105,9 +105,7 @@ cv::Mat ensureRGB3Channel(const cv::Mat& input)
 cv::Mat normalizeToMinusOneToOne(const cv::Mat& input)
 {
     cv::Mat floatImg;
-    input.convertTo(floatImg, CV_32FC3);
-
-    floatImg = (floatImg - 127.5f) / 127.5f;
+    input.convertTo(floatImg, CV_32FC3, 1.0 / 127.5, -1.0);
 
     return floatImg;
 }
