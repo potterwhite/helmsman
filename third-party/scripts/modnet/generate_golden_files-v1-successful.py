@@ -103,10 +103,7 @@ if __name__ == '__main__':
 
     # read image
     im = cv2.imread(args.image_path)
-    im.tofile(f"{args.debug_file_path}/debug_00_01_imread.bin")
-
     im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
-    im.tofile(f"{args.debug_file_path}/debug_00_02_cvtColor.bin")
 
     # unify image channels to 3
     if len(im.shape) == 2:
@@ -115,7 +112,6 @@ if __name__ == '__main__':
         im = np.repeat(im, 3, axis=2)
     elif im.shape[2] == 4:
         im = im[:, :, 0:3]
-    im.tofile(f"{args.debug_file_path}/debug_00_03_rgb3.bin")
 
     # normalize values to scale it between -1 to 1
     im = (im - 127.5) / 127.5

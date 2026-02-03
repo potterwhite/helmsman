@@ -18,7 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-
 #include <atomic>
 #include <chrono>
 #include <csignal>  // For signal handling
@@ -29,9 +28,9 @@
 #include <thread>
 #include <vector>
 
-#include <opencv2/opencv.hpp>
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <opencv2/opencv.hpp>
 #include <string>
 
 // 假设 kcurrent_lib_name 在此编译单元中可用
@@ -60,80 +59,95 @@ bool isRelease() {
 	return build_type == "Release";
 }
 
-
 namespace helmsman {
 namespace preprocess {
 
 /**
  * @brief Load image from disk using OpenCV
  */
-cv::Mat loadImage(const std::string& imagePath)
-{
-    cv::Mat img = cv::imread(imagePath, cv::IMREAD_UNCHANGED);
-    if (img.empty()) {
-        throw std::runtime_error("Failed to load image: " + imagePath);
-    }
-    return img;
+cv::Mat loadImage(const std::string& imagePath) {
+	cv::Mat img = cv::imread(imagePath, cv::IMREAD_UNCHANGED);
+	if (img.empty()) {
+		throw std::runtime_error("Failed to load image: " + imagePath);
+	}
+	return img;
 }
 
-/**
- * @brief Ensure image is 3-channel RGB
- */
-cv::Mat ensureRGB3Channel(const cv::Mat& input)
-{
-    cv::Mat img = input;
+// /**
+//  * @brief Ensure image is 3-channel RGB
+//  */
+// cv::Mat ensureRGB3Channel(const cv::Mat& input)
+// {
+//     cv::Mat img = input;
 
-    // Convert grayscale to 3-channel
-    if (img.channels() == 1) {
-        cv::cvtColor(img, img, cv::COLOR_GRAY2RGB);
-    }
-    // Drop alpha channel if exists
-    else if (img.channels() == 4) {
-        cv::cvtColor(img, img, cv::COLOR_BGRA2BGR);
-    }
+//     // Convert grayscale to 3-channel
+//     if (img.channels() == 1) {
+//         cv::cvtColor(img, img, cv::COLOR_GRAY2RGB);
+//     }
+//     // Drop alpha channel if exists
+//     else if (img.channels() == 4) {
+//         cv::cvtColor(img, img, cv::COLOR_BGRA2BGR);
+//     }
 
-    // Convert BGR -> RGB
-    cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
+//     // Convert BGR -> RGB
+//     cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
 
-    return img;
+//     return img;
+// }
+
+cv::Mat bgrToRgb(const cv::Mat& input) {
+	cv::Mat out;
+	cv::cvtColor(input, out, cv::COLOR_BGR2RGB);
+	return out;
+}
+
+cv::Mat ensure3Channel(const cv::Mat& input) {
+	cv::Mat out;
+
+	if (input.channels() == 1) {
+		cv::cvtColor(input, out, cv::COLOR_GRAY2RGB);
+	} else if (input.channels() == 4) {
+		// 等价于 Python 的 im[:, :, 0:3]
+		cv::cvtColor(input, out, cv::COLOR_BGRA2BGR);
+	} else {
+		out = input;
+	}
+
+	return out;
 }
 
 /**
  * @brief Normalize image to range [-1, 1]
  * Formula: (pixel - 127.5) / 127.5
  */
-cv::Mat normalizeToMinusOneToOne(const cv::Mat& input)
-{
-    cv::Mat floatImg;
-    input.convertTo(floatImg, CV_32FC3, 1.0 / 127.5, -1.0);
+cv::Mat normalizeToMinusOneToOne(const cv::Mat& input) {
+	cv::Mat floatImg;
+	input.convertTo(floatImg, CV_32FC3, 1.0 / 127.5, -1.0);
 
-    return floatImg;
+	return floatImg;
 }
 
 /**
  * @brief Dump raw float data to binary file
  */
-void dumpBinary(const cv::Mat& mat, const std::string& outputPath)
-{
-    if (!mat.isContinuous()) {
-        throw std::runtime_error("Mat is not continuous in memory");
-    }
+void dumpBinary(const cv::Mat& mat, const std::string& outputPath) {
+	if (!mat.isContinuous()) {
+		throw std::runtime_error("Mat is not continuous in memory");
+	}
 
-    std::ofstream ofs(outputPath, std::ios::binary);
-    if (!ofs) {
-        throw std::runtime_error("Failed to open output file: " + outputPath);
-    }
+	std::ofstream ofs(outputPath, std::ios::binary);
+	if (!ofs) {
+		throw std::runtime_error("Failed to open output file: " + outputPath);
+	}
 
-    ofs.write(
-        reinterpret_cast<const char*>(mat.ptr<float>(0)),
-        static_cast<std::streamsize>(mat.total() * mat.elemSize())
-    );
+	ofs.write(reinterpret_cast<const char*>(mat.ptr<float>(0)),
+	          static_cast<std::streamsize>(mat.total() * mat.elemSize()));
 
-    ofs.close();
+	ofs.close();
 }
 
-} // namespace preprocess
-} // namespace helmsman
+}  // namespace preprocess
+}  // namespace helmsman
 
 // // ------------------------------------------------------------
 
@@ -161,7 +175,6 @@ void dumpBinary(const cv::Mat& mat, const std::string& outputPath)
 //     return 0;
 // }
 
-
 int main(int argc, char* argv[]) {
 
 	// 1. 设置日志级别 (例如，只记录 Warning 及以上)
@@ -175,24 +188,30 @@ int main(int argc, char* argv[]) {
 	signal(SIGINT, SignalHandler);
 	// signal(SIGTERM, SignalHandler);
 
-    if (argc != 3) {
-        std::cerr << "Usage: preprocess_normalize <input_image> <output_bin>\n";
-        return 1;
-    }
+	if (argc != 3) {
+		std::cerr << "Usage: preprocess_normalize <input_image> <output_bin>\n";
+		return 1;
+	}
 
-    const std::string imagePath = argv[1];
-    const std::string outputBinPath = argv[2];
+	const std::string imagePath = argv[1];
+	const std::string outputBinPath = argv[2];
 
-    try {
-        cv::Mat img = helmsman::preprocess::loadImage(imagePath);
-        img = helmsman::preprocess::ensureRGB3Channel(img);
-        img = helmsman::preprocess::normalizeToMinusOneToOne(img);
-        helmsman::preprocess::dumpBinary(img, outputBinPath);
-    }
-    catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        return 1;
-    }
+	try {
+		cv::Mat img = helmsman::preprocess::loadImage(imagePath);
+		helmsman::preprocess::dumpBinary(img, outputBinPath + "/cpp_00_01_imread.bin");
+
+		img = helmsman::preprocess::bgrToRgb(img);
+		helmsman::preprocess::dumpBinary(img, outputBinPath + "/cpp_00_02_bgrToRgb.bin");
+
+		img = helmsman::preprocess::ensure3Channel(img);
+		helmsman::preprocess::dumpBinary(img, outputBinPath + "/cpp_00_03_rgb3.bin");
+
+		img = helmsman::preprocess::normalizeToMinusOneToOne(img);
+		helmsman::preprocess::dumpBinary(img, outputBinPath + "/cpp_00_04_normalized.bin");
+	} catch (const std::exception& e) {
+		std::cerr << "Error: " << e.what() << std::endl;
+		return 1;
+	}
 
 	std::cout << "hello " << kcurrent_app_name << std::endl;
 
