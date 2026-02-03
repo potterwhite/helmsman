@@ -1,0 +1,1 @@
+generate_golden_files-v2-instrumentation-successful.py
