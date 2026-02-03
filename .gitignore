@@ -2,3 +2,5 @@
 media/
 build
 modnet-models
+
+CMakeUserPresets.json
