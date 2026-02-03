@@ -627,9 +627,17 @@ func_cpp_prepare_dirs() {
 }
 
 func_cpp_clean_all() {
-    rm -rf "${CPP_BUILD_DIR}"
-    rm -rf "${CPP_INSTALL_DIR}"
-    func_1_1_log "CPP build & install dirs cleaned." "green"
+    if [ -d "${CPP_BUILD_DIR}" ]; then
+        rm -rf "${CPP_BUILD_DIR}"
+        func_1_1_log "✅ ${CPP_BUILD_DIR} has been deleted." "green"
+    fi
+
+    if [ -d "${CPP_INSTALL_DIR}" ]; then
+        rm -rf "${CPP_INSTALL_DIR}"
+        func_1_1_log "✅ ${CPP_INSTALL_DIR} has been deleted." "green"
+    fi
+
+    # func_1_1_log "✅ CPP build & install dirs cleaned." "green"
 }
 
 func_cpp_cmake_generate() {
@@ -895,12 +903,16 @@ func_5_1_clean_project(){
     # echo "   4. Cancel"
     # read -p "   Choice [1-4]: " clean_choice
     _clean_build(){
+        func_cpp_clean_all
+
         if [ -d "${LV1_BUILD_DIR}" ]; then
             rm -rf "${LV1_BUILD_DIR}"
-            func_1_1_log "  build dir Has been deleted." "green"
-        else
-            func_1_1_log "  build dir not exist. Remove Skipped." "green"
+            func_1_1_log "✅ build dir Has been deleted." "green"
+        # else
+        #     func_1_1_log "✅ build dir not exist. Remove Skipped." "green"
         fi
+
+        func_1_1_log "✅ 1st Lv Clean has done." "green"
     }
 
     _clean_all(){
@@ -908,28 +920,30 @@ func_5_1_clean_project(){
 
         if [ -d "${LV1_MODELS_DOWNLOAD_DIR}" ]; then
             rm -rf "${LV1_MODELS_DOWNLOAD_DIR}"
-            func_1_1_log "  MODNet Pretrained Models Has been deleted." "green"
-        else
-            func_1_1_log "  MODNet Pretrained Models not exist. Remove Skipped." "green"
+            func_1_1_log "✅ MODNet Pretrained Models Has been deleted." "green"
+        # else
+        #     func_1_1_log "✅ MODNet Pretrained Models not exist. Remove Skipped." "green"
         fi
 
         if [ -d "${LV1_VENV_DIR}" ]; then
             rm -rf "${LV1_VENV_DIR}"
-            func_1_1_log "  Python Virtual Environment Has been deleted." "green"
-        else
-            func_1_1_log "  Python Virtual Environment not exist. Remove Skipped." "green"
+            func_1_1_log "✅ Python Virtual Environment Has been deleted." "green"
+        # else
+        #     func_1_1_log "✅ Python Virtual Environment not exist. Remove Skipped." "green"
         fi
 
         if [ -d "${LV4_MODNET_SDK_DIR}" ]; then
             rm -rf "${LV4_MODNET_SDK_DIR}"
-            func_1_1_log "  MODNet SDK Has been deleted." "green"
-        else
-            func_1_1_log "  MODNet SDK not exist. Remove Skipped." "green"
+            func_1_1_log "✅ MODNet SDK Has been deleted." "green"
+        # else
+        #     func_1_1_log "✅ MODNet SDK not exist. Remove Skipped." "green"
         fi
+
+        func_1_1_log "✅ 2nd Lv Clean has done." "green"
     }
 
     local clean_choice="$1"
-    func_1_1_log "clean_choice=${clean_choice}"
+    # func_1_1_log "clean_choice=${clean_choice}"
     case $clean_choice in
         2)
             _clean_all
