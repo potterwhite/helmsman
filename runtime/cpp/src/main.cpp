@@ -240,8 +240,16 @@ int main(int argc, char* argv[]) {
 
 		img = helmsman::preprocess::ensure3Channel(img);
 		helmsman::preprocess::dumpBinary(img, outputBinPath + "/cpp_00_03_rgb3.bin");
-
-		// img = helmsman::preprocess::normalizeToMinusOneToOne(img);
+        /*
+         * NOTE:
+         * DO NOT use cv::normalize / convertTo here.
+         * This must be bitwise identical to NumPy preprocessing.
+         *
+         * Date: Feb03.2026
+         * Author: PotterWhite
+         *
+         * img = helmsman::preprocess::normalizeToMinusOneToOne(img);
+         */
         img = helmsman::preprocess::normalize_exact_numpy(img);
 		helmsman::preprocess::dumpBinary(img, outputBinPath + "/cpp_00_04_normalized.bin");
 
