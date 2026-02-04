@@ -1,4 +1,4 @@
-# Copyright (c) 2026 PotterWhite
+# Copyright (c) 2025 PotterWhite
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -18,117 +18,92 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# CMakeLists.txt
+cmake_minimum_required(VERSION 3.20)
 
-cmake_minimum_required(VERSION 3.16)
+# ---------------------------------
+# I. Injecting project-local cmake dir to "CMake Module Search Path"-CMAKE_MODULE_PATH
+#    add ArcFunctions module
+# ---------------------------------
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(ArcFunctions)
 
-# --- Conan Integration ---
-# This makes CMakeLists.txt "Conan-aware".
-if(EXISTS "${CMAKE_BINARY_DIR}/conan_toolchain.cmake")
-    include("${CMAKE_BINARY_DIR}/conan_toolchain.cmake")
-endif()
+# ---------------------------------
+# II. Extract version from CHANGELOG.md
+#     result is stored in ARC_PROJECT_VERSION
+# ---------------------------------
+arc_extract_version_from_changelog(ARC_PROJECT_VERSION)
 
-# I. Config PROJECT_NAME And C++ Standards
-set(PROJECT_NAME "helmsman-cpp")
-project(${PROJECT_NAME} CXX)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON) # 通常需要
-
-# II. 追溯顶层目录
-set(TOP_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(SRC_DIR "${TOP_DIR}/src")
-set(INCLUDE_DIR "${TOP_DIR}/include")
-
-# III. 设置build type
-if(NOT CMAKE_BUILD_TYPE)
-    #set(CMAKE_BUILD_TYPE "Debug")
-    set(CMAKE_BUILD_TYPE "Release")
-    message(STATUS "No build type specified, defaulting to 'Debug'")
-endif()
-add_definitions(-DBUILD_TYPE="${CMAKE_BUILD_TYPE}")
-
-#############################################################
-# IV. Compile options Sets global compilation flags
-set(BASIC_COMPILE_OPTIONS -Wall -Wextra -Werror)
-
-# advanced & most serious harsh options let no mistakes go
-set(STRINGENT_COMPILE_OPTIONS
-    -Wconversion
-    -Wsign-conversion
-    -Wfloat-conversion
-    -Wpedantic
-    -Wcast-qual
-    -Wcast-align
-    -Wunused
-    -Woverloaded-virtual
-    -Wformat=2
-    -Wformat-security
-    -Wformat-nonliteral
-    -Wuninitialized
-    -Winit-self
-    -Wswitch-enum
-    -Wswitch-default
-    -Wmissing-include-dirs
-    -Wredundant-decls
-    -Wshadow
-    -Wundef
-    -Wdouble-promotion)
-
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    # Debug: No optimization, with debug info
-    add_compile_options(-Og -g -DDEBUG ${STRINGENT_COMPILE_OPTIONS})
-elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-    # RelWithDebInfo: Full optimization with debug info
-    add_compile_options(-O2 -g -DNDEBUG ${STRINGENT_COMPILE_OPTIONS})
-elseif(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
-    # MinSizeRel: Size optimization
-    add_compile_options(-Os -DNDEBUG ${STRINGENT_COMPILE_OPTIONS})
-    # add_link_options(-s)
-else() # Release
-    # Release: Full optimization, no debug info
-    add_compile_options(-O3 -DNDEBUG ${STRINGENT_COMPILE_OPTIONS})
-    # add_link_options(-s)
-endif()
-
-########################### End of Section V ##################################
-
-# V. 设置 RPATH (关键！让可执行文件在ARM板上运行时能找到 .so 文件) $ORIGIN 表示可执行文件所在的目录。 这意味着你需要把所依赖的所有 lib*.so这些文件 和编译出来的
-# bin(可执行文件)放在ARM板上的【同一个目录】下。
-set(CMAKE_INSTALL_RPATH "$ORIGIN")
-# 在构建时也应用 RPATH，这样你在PC上构建目录中测试（如果架构匹配）或检查RPATH时也能看到效果
-set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+# ---------------------------------
+# III. Project Definitions
+# ---------------------------------
+set(PROJECT_NAMESPACE "ArcForge")
+project(${PROJECT_NAMESPACE}
+    VERSION
+        ${ARC_PROJECT_VERSION}
+    LANGUAGES
+        CXX
+)
 
 
-# ##################################################################################################
-# VI. 依赖管理 (Dependency Management)
-# 在这里定义你的项目所需要的所有库。
-# 这样src/CMakeLists.txt就不需要知道具体的依赖了。
-# 对于一个干净的模板，我们先留空。未来Helmsman项目会在这里添加OpenCV等。
+# ---------------------------------
+# IV. Batch Mode Configure
+#      a. C++ Standard
+#      b. PIC
+#      c. Compile Policy
+#      d. Build Type
+# ---------------------------------
+arc_init_global_settings()
 
-find_package(OpenCV REQUIRED)
+# ---------------------------------
+# V. Bath Mode Configure
+#     a. Global Project Version
+#     b. Author (Name & Email)
+#     c. Build Timestamp
+# ---------------------------------
+arc_init_project_metadata()
 
-if(TARGET opencv::opencv)
-    message(STATUS "Using modern OpenCV targets")
-    set(COMMON_LIBRARIES
-        opencv::opencv
-    )
+# ---------------------------------
+# VI. Install Directory (Refactored)
+# ---------------------------------
+# [CHANGE LOG]:
+# 1. Removed the logic that appended "/${BUILD_TYPE_LOWER}".
+#    Reason: Directory structure should be defined by the caller (CMakePresets.json),
+#    not hardcoded in the script.
+# 2. Logic Simplified: If CMAKE_INSTALL_PREFIX is not set, default to local "install" folder.
+#    Otherwise, trust the path provided by CMakePresets.
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/install"
+        CACHE PATH "Default install prefix" FORCE)
+    message(STATUS "[Configuration] Install Path Defaulted to: ${CMAKE_INSTALL_PREFIX}")
 else()
-    message(STATUS "Using legacy OpenCV variables")
-    set(COMMON_LIBRARIES
-        ${OpenCV_LIBS}
-    )
+    message(STATUS "[Configuration] Install Path Specified: ${CMAKE_INSTALL_PREFIX}")
 endif()
 
+# ---------------------------------
+# VII. Main Executes
+# ---------------------------------
+# Process third-party libraries first (because libs may depend on them)
+# Note the order:
+#                This must be done **before** add_subdirectory(libs)!
+#
+add_subdirectory(third_party)
 
-# ##################################################################################################
+add_subdirectory(libs)
+add_subdirectory(apps)
 
-
-# VII. 添加子目录
-add_subdirectory(${SRC_DIR})
-
-option(BUILD_TEST "Build the tests for the project" OFF)
+# ---------------------------------
+# VIII. [Optional] Test
+# ---------------------------------
 if(BUILD_TEST STREQUAL "TRUE")
-    # enable_testing()
+    # ---------------------------------
+    # Enable CTest
+    #     This allows the use of 'ctest' command to run all tests.
+    # ---------------------------------
+    enable_testing()
+
     add_subdirectory(test)
 endif()
+
+# ---------------------------------
+#               End
+# ---------------------------------

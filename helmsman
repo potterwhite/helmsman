@@ -170,14 +170,15 @@ func_2_0_setup_env(){
     MENU_CPP_ACTION=""
     MENU_CPP_PLATFORM=""
 
-    # Paths (相对 helmsman repo)
+    # Paths
     CPP_TOP_DIR="${REPO_TOP_DIR}/runtime/cpp"
     CPP_BUILD_DIR="${CPP_TOP_DIR}/build"
     CPP_INSTALL_DIR="${CPP_TOP_DIR}/install"
     CPP_INSTALL_INC_DIR="${CPP_INSTALL_DIR}/include"
     CPP_INSTALL_BIN_DIR="${CPP_INSTALL_DIR}/bin"
+    CPP_INSTALL_LIB_DIR="${CPP_INSTALL_DIR}/lib"
     CPP_SRC_DIR="${CPP_TOP_DIR}/src"
-    CPP_TOOLCHAINS_DIR="${CPP_TOP_DIR}/toolchains"
+    CPP_TOOLCHAINS_DIR="${CPP_TOP_DIR}/cmake/toolchains"
 
     # Commands
     CPP_CMD_CLEAN="clean"
@@ -478,7 +479,7 @@ func_3_2_setup_dep_before_build() {
         mkdir -p "${LV1_BUILD_DIR}"
         func_1_1_log "   [5/7] Setting up build dir successfully..." "yellow"
     fi
-
+/development/docker_volumes/src/ai/image-matting/helmsman.git/runtime/cpp/toolchains/rk3588s.cmake
     # ********************************************
     # --- Step 6: Sync MODNet sdk as needed
     if [ ! -d "${LV4_MODNET_SDK_DIR}" ]; then

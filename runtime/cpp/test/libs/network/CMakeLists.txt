@@ -18,26 +18,40 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# test/CMakeLists.txt
+# test/libs/network/CMakeLists.txt
 
 # ---------------------------------
-# I. Integrate Test Framework
-#     Utilize FetchContent to manage GoogleTest dependency.
-#     It includes a "Fail-Fast" mechanism for network issues.
+# I. Protection for standalone Use
 # ---------------------------------
-include(${CMAKE_SOURCE_DIR}/cmake/FetchGTest.cmake)
-
-# ---------------------------------
-# II. Enter Subdirectories (Mirroring Source Structure)
-#     We explicitly check existence to support modular growth.
-# ---------------------------------
-# 1. Library Tests (libs/)
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/libs")
-    add_subdirectory(libs)
+if(NOT DEFINED GLOBAL_VERSION_STRING OR "${GLOBAL_VERSION_STRING}" STREQUAL "")
+    set(GLOBAL_VERSION_STRING "99.99.99")
+    message(WARNING "Expected Version is missing, Using Default Version: ${GLOBAL_VERSION_STRING}")
 endif()
 
-# 2. Application Tests (apps/)
-#    (Reserved for future application-level integration tests)
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/apps")
-    # add_subdirectory(apps)
-endif()
+# ---------------------------------
+# II. Project Name
+# ---------------------------------
+set(PROJECT_NAME "Test_Network")
+project(${PROJECT_NAME}
+    VERSION
+        ${GLOBAL_VERSION_STRING}
+    LANGUAGES
+        CXX
+)
+
+# ---------------------------------
+# III. Register Test Target
+#    Uses the 'arc_add_test' macro to automate:
+#      1. Creating executable 'test_Network'
+#      2. Linking GTest & GMock
+#      3. Linking the target module (ArcForge::Network)
+#      4. Injecting internal 'src' include paths
+# ---------------------------------
+
+set(BE_TEST_MODULE "Network")
+
+# Note: The first argument 'Network' must match the library target name defined in libs/network
+arc_add_test(${BE_TEST_MODULE}
+    test_network.cpp
+)
+

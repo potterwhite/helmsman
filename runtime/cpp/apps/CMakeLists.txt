@@ -18,26 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# test/CMakeLists.txt
+# apps/CMakeLists.txt
 
-# ---------------------------------
-# I. Integrate Test Framework
-#     Utilize FetchContent to manage GoogleTest dependency.
-#     It includes a "Fail-Fast" mechanism for network issues.
-# ---------------------------------
-include(${CMAKE_SOURCE_DIR}/cmake/FetchGTest.cmake)
+add_subdirectory(asr)
 
-# ---------------------------------
-# II. Enter Subdirectories (Mirroring Source Structure)
-#     We explicitly check existence to support modular growth.
-# ---------------------------------
-# 1. Library Tests (libs/)
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/libs")
-    add_subdirectory(libs)
-endif()
-
-# 2. Application Tests (apps/)
-#    (Reserved for future application-level integration tests)
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/apps")
-    # add_subdirectory(apps)
-endif()

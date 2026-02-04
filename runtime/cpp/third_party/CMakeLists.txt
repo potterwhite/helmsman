@@ -18,26 +18,16 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# test/CMakeLists.txt
+# third_party/CMakeLists.txt
+
+#Expand in the future:
+#    we can use the toolchain variables which be imported from CMakePresets.json
+
+# librknnrt should be verified(downloaded) first due to the latter module (sherpa) depend on it
+add_subdirectory(librknnrt)
+
+add_subdirectory(sherpa-onnx)
 
 # ---------------------------------
-# I. Integrate Test Framework
-#     Utilize FetchContent to manage GoogleTest dependency.
-#     It includes a "Fail-Fast" mechanism for network issues.
+#               End
 # ---------------------------------
-include(${CMAKE_SOURCE_DIR}/cmake/FetchGTest.cmake)
-
-# ---------------------------------
-# II. Enter Subdirectories (Mirroring Source Structure)
-#     We explicitly check existence to support modular growth.
-# ---------------------------------
-# 1. Library Tests (libs/)
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/libs")
-    add_subdirectory(libs)
-endif()
-
-# 2. Application Tests (apps/)
-#    (Reserved for future application-level integration tests)
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/apps")
-    # add_subdirectory(apps)
-endif()
