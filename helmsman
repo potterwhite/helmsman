@@ -168,6 +168,9 @@ func_2_0_setup_env(){
 
     # Ensure Finalization on Exit (From B)
     trap func_5_4_finalize EXIT
+
+    # Setup CPP related environments (forcely no matter you use cpp or not)
+    func_6_2_cpp_setup_env
 }
 
 
@@ -461,13 +464,25 @@ func_3_2_setup_dep_before_build() {
 
     # ********************************************
     # --- Step 6: Sync MODNet sdk as needed
-    if [ ! -d "${LV4_MODNET_SDK_DIR}" ]; then
-        cd "${REPO_TOP_DIR}"
-        git submodule update
-        func_1_1_log "   [6/7] Synchronized MODNet SDK Complete." "yellow"
-    else
-        func_1_1_log "   [6/7] MODNet SDK Exist, Skip Downloading." "yellow"
-    fi
+
+    func_1_1_log "   [6/7] Target Submodule: ${LV4_MODNET_SDK_DIR}" "yellow"
+    func_3_3_rebuild_sdk modnet
+
+
+
+
+
+
+
+
+
+    # if [ ! -d "${LV4_MODNET_SDK_DIR}" ]; then
+    #     cd "${REPO_TOP_DIR}"
+    #     git submodule update
+    #     func_1_1_log "   [6/7] Synchronized MODNet SDK Complete." "yellow"
+    # else
+    #     func_1_1_log "   [6/7] MODNet SDK Exist, Skip Downloading." "yellow"
+    # fi
 
     # ********************************************
     # --- Step 7: MODNet Links for furthur executing
@@ -477,6 +492,67 @@ func_3_2_setup_dep_before_build() {
     # ********************************************
     # --- Finilization
     func_1_1_log "🎉 Preparation complete!" "green"
+}
+
+func_3_3_rebuild_sdk(){
+    if [ x"$1" == x"modnet" ]; then
+        # ********************************************
+        # --- Step 6: Force Re-install MODNet sdk
+        cd "${REPO_TOP_DIR}"
+
+        # 定义变量 (确保完全匹配)
+        REL_PATH="third-party/sdk/MODNet.git"
+        REMOTE_URL="https://github.com/ZHKKKe/MODNet.git"
+
+        # ==========================================
+        # Phase 1: 彻底清理所有残留 (Nuclear Clean)
+        # ==========================================
+
+        # 1. 尝试从 git 注册表中反初始化
+        git submodule deinit -f -- "${REL_PATH}" 2>/dev/null || true
+
+        # 2. 从 Git 索引(Index)中强制移除 (这一步解决 pathspec error)
+        # 即使它不在索引里，加了 || true 也不会报错
+        git rm --cached -f "${REL_PATH}" 2>/dev/null || true
+
+        # 3. 物理删除工作目录
+        rm -rf "${REL_PATH}"
+
+        # 4. 【关键】清理 .git/modules 缓存
+        # 根据你提供的 tree 信息，这里可能有残留，我们把相关的全删了
+        rm -rf ".git/modules/third-party/sdk/MODNet.git"
+        # 你截图里多出来的那个奇怪目录也删掉，防止干扰
+        rm -rf ".git/modules/MODNet.git"
+
+        func_1_1_log "   Cleanup complete. Re-adding from scratch..." "yellow"
+
+        # ==========================================
+        # Phase 2: 全新添加 (Re-Add)
+        # ==========================================
+
+        # 使用 'git submodule add' 而不是 'update'
+        # 'add' 命令会自动做三件事：
+        # 1. 下载代码
+        # 2. 写入 .gitmodules
+        # 3. 将 submodule 信息写入 Git 索引 (修复你的核心问题)
+        # --force 允许我们在该目录被 git 认为是 ignored 或有残留时强制执行
+
+        if git submodule add --force "${REMOTE_URL}" "${REL_PATH}"; then
+            func_1_1_log "   Submodule added successfully." "green"
+        else
+            func_1_1_log "   'git submodule add' failed. Checking if it's already there..." "red"
+            # 如果 add 失败，可能是因为清理不彻底，或者网络问题，这里做一个兜底尝试
+            git submodule update --init --recursive --force -- "${REL_PATH}"
+        fi
+
+        # 最后的确认
+        if [ -f "${REL_PATH}/.git" ]; then
+            func_1_1_log " [6/7] MODNet SDK force synced OK." "yellow"
+        else
+            func_1_1_log " [6/7] Force sync failed!" "red"
+            exit 1
+        fi
+    fi
 }
 
 
@@ -643,7 +719,7 @@ func_5_1_clean_project(){
     # echo "   4. Cancel"
     # read -p "   Choice [1-4]: " clean_choice
     _clean_build(){
-        func_cpp_clean_all
+        func_7_1_core_clean_target
 
         if [ -d "${LV1_BUILD_DIR}" ]; then
             rm -rf "${LV1_BUILD_DIR}"
@@ -1288,8 +1364,6 @@ main(){
         inference)
             func_2_1_check_env_ready && func_4_2_inference_with_onnx ;;
         build)
-            # Preparation -- 1. setup cpp used only environments
-            func_6_2_cpp_setup_env
             func_2_1_check_env_ready
             func_8_1_build_dispatch "${ARGS[@]}"
             ;;
@@ -1315,7 +1389,7 @@ main(){
                     2) func_2_1_check_env_ready && func_4_1_ckpt_2_onnx ;;
                     3) func_2_1_check_env_ready && func_4_2_inference_with_onnx ;;
                     4) func_2_1_check_env_ready && func_4_5_generate_golden_interactive ;;
-                    5) func_2_1_check_env_ready && func_6_2_cpp_setup_env && func_9_1_cpp_menu_entry ;;
+                    5) func_2_1_check_env_ready && func_9_1_cpp_menu_entry ;;
                     6) func_5_1_clean_project ;;
                     7) func_5_1_clean_project 2;;
                     8) func_1_1_log "👋 Exiting." "green"; exit 0 ;;
