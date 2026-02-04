@@ -1,3 +1,6 @@
 [submodule "third-party/sdk/MODNet.git"]
 	path = third-party/sdk/MODNet.git
 	url = https://github.com/ZHKKKe/MODNet.git
+[submodule "third-party-sdk-MODNet.git"]
+	path = third-party/sdk/MODNet.git
+	url = https://github.com/ZHKKKe/MODNet.git
