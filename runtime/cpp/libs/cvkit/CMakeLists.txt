@@ -81,6 +81,7 @@ if(NOT TARGET ${PROJECT_NAMESPACE}::Utils)
     find_package(${PROJECT_NAMESPACE}_Utils REQUIRED)
 endif()
 
+message("CMAKE_SYSROOT=${CMAKE_SYSROOT}")
 find_package(OpenCV REQUIRED)
 
 target_link_libraries(${PROJECT_NAME}

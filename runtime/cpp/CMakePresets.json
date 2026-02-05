@@ -98,40 +98,46 @@
     {
       "name": "plat-native",
       "hidden": true,
-      "description": "Native Host Build"
+      "description": "Native Host Build",
+      "cacheVariables": {
+        "CMAKE_PLATFORM": "x86-64;native"
+      }
     },
     {
       "name": "plat-rk3588s",
       "hidden": true,
       "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/rk3588s.cmake"
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/rk3588s.cmake",
+        "CMAKE_PLATFORM": "aarch64;rockchip;rk3588s"
       }
     },
     {
       "name": "plat-rv1126bp",
       "hidden": true,
       "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/rv1126bp.cmake"
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/rv1126bp.cmake",
+        "CMAKE_PLATFORM": "aarch64;rockchip;rv1126bp"
       }
     },
     {
       "name": "plat-aarch64",
       "hidden": true,
       "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/aarch64-toolchain.cmake"
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/aarch64-toolchain.cmake",
+        "CMAKE_PLATFORM": "aarch64"
       }
     },
     {
       "name": "native-release",
-      "inherits": ["base", "plat-native", "cfg-release", "cfg-shared", "mixin-deps-sherpa-linux-x86_64-gcc11_4_0"],
+      "inherits": ["base", "plat-native", "cfg-release", "cfg-shared"],
       "installDir": "${sourceDir}/install/native/release",
       "cacheVariables": {
-        "CMAKE_PREFIX_PATH": "${sourceDir}/install/native/release"
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/native/release"
       }
     },
     {
       "name": "native-debug",
-      "inherits": ["base", "plat-native", "cfg-debug", "cfg-shared", "mixin-deps-sherpa-linux-x86_64-gcc11_4_0"],
+      "inherits": ["base", "plat-native", "cfg-debug", "cfg-shared"],
       "installDir": "${sourceDir}/install/native/debug",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/native/debug"
@@ -139,7 +145,7 @@
     },
     {
       "name": "native-release-static",
-      "inherits": ["base", "plat-native", "cfg-release", "cfg-static", "mixin-deps-sherpa-linux-x86_64-gcc11_4_0"],
+      "inherits": ["base", "plat-native", "cfg-release", "cfg-static"],
       "installDir": "${sourceDir}/install/native/release-static",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/native/release-static"
@@ -147,7 +153,7 @@
     },
     {
       "name": "native-debug-static",
-      "inherits": ["base", "plat-native", "cfg-debug", "cfg-static", "mixin-deps-sherpa-linux-x86_64-gcc11_4_0"],
+      "inherits": ["base", "plat-native", "cfg-debug", "cfg-static"],
       "installDir": "${sourceDir}/install/native/debug-static",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/native/debug-static"
