@@ -18,7 +18,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# apps/CMakeLists.txt
+#
+# apps/asr/client/src/CMakeLists.txt
+#
 
-add_subdirectory(matting)
+set(CLIENT_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/main-client.cpp"
+)
 
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        ${CLIENT_SOURCES}
+)

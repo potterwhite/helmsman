@@ -18,7 +18,18 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# apps/CMakeLists.txt
+#
+# apps/asr/server/src/CMakeLists.txt
+#
 
-add_subdirectory(matting)
+set(SERVER_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/common-types.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/acceptor.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/asr-task-sherpa.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/main-server.cpp"
+)
 
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        ${SERVER_SOURCES}
+)

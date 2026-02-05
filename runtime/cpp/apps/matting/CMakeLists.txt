@@ -18,7 +18,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# apps/CMakeLists.txt
+# apps/matting/CMakeLists.txt
 
-add_subdirectory(matting)
+#add_subdirectory(server)
+add_subdirectory(client)
 
