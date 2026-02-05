@@ -81,25 +81,25 @@ if(NOT TARGET ${PROJECT_NAMESPACE}::Utils)
     find_package(${PROJECT_NAMESPACE}_Utils REQUIRED)
 endif()
 
-message("CMAKE_SYSROOT=${CMAKE_SYSROOT}")
-find_package(OpenCV REQUIRED)
+find_package(OpenCV
+    REQUIRED COMPONENTS
+        core
+        imgproc
+        imgcodecs
+        video
+)
 
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
         ${PROJECT_NAMESPACE}::Utils
-        ${OpenCV_LIBS}
+        opencv_core
+        opencv_imgproc
+        opencv_imgcodecs
+        opencv_video
 )
 
 # ---------------------------------
-# VIII. include files Dependency
-# ---------------------------------
-target_include_directories(${PROJECT_NAME}
-    PUBLIC
-        ${OpenCV_INCLUDE_DIRS}
-)
-
-# ---------------------------------
-# IX. installation rules
+# VIII. installation rules
 # ---------------------------------
 arc_install_library(${PROJECT_NAME} ${INCLUDE_DIR})
 

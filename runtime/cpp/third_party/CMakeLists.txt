@@ -25,7 +25,6 @@
 
 # librknnrt should be verified(downloaded) first due to the latter module (sherpa) depend on it
 
-#message("CMAKE_PLATFORM=${CMAKE_PLATFORM}")
 if(CMAKE_PLATFORM IN_LIST "rockchip")
     add_subdirectory(librknnrt)
 endif()
