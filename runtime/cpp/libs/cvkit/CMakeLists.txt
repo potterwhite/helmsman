@@ -89,6 +89,8 @@ find_package(OpenCV
         video
 )
 
+find_package(onnxruntime)
+
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
         ${PROJECT_NAMESPACE}::Utils
@@ -96,6 +98,7 @@ target_link_libraries(${PROJECT_NAME}
         opencv_imgproc
         opencv_imgcodecs
         opencv_video
+        onnxruntime
 )
 
 # ---------------------------------

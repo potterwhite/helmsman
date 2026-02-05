@@ -18,12 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "CVKit/base/base.h"
 #include "Utils/logger/logger.h"
 #include "Utils/logger/worker/consolesink.h"
 #include "Utils/logger/worker/filesink.h"
+#include "CVKit/base/base.h"
 
-#include <onnxruntime_cxx_api.h>
 #include <chrono>
 #include <csignal>  // For signal handling
 #include <iostream>
@@ -78,8 +77,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
 	// 2. Configure output targets (Sinks)
 	logger.ClearSinks();
-	// logger.AddSink(
-	//     std::make_shared<arcforge::embedded::utils::FileSink>("/root/my_app_client.log"));
+	logger.AddSink(
+	    std::make_shared<arcforge::embedded::utils::FileSink>("/root/my_app_client.log"));
 	logger.AddSink(std::make_shared<arcforge::embedded::utils::ConsoleSink>());
 
 	//----------------------------------
@@ -88,68 +87,37 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	signal(SIGINT, SignalHandler);
 	// signal(SIGTERM, SignalHandler);
 
-	if (argc != 2) {
-		std::cerr << "Usage: load_onnx <onnx_path> \n";
+	if (argc != 3) {
+		std::cerr << "Usage: preprocess_normalize <input_image> <output_bin>\n";
 		return 1;
 	}
 
-	const std::string onnx_path = argv[1];
-
+	const std::string imagePath = argv[1];
+	const std::string outputBinPath = argv[2];
+	auto cvkit_obj = std::make_unique<arcforge::cvkit::Base>();
 	try {
-		Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "onnx-demo");
+		cv::Mat img = cvkit_obj->loadImage(imagePath);
+		cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_00_01_imread.bin");
 
-		// 2. session
-		Ort::SessionOptions session_options;
-		session_options.SetIntraOpNumThreads(1);
-		session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_BASIC);
+		img = cvkit_obj->bgrToRgb(img);
+		cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_00_02_bgrToRgb.bin");
 
-		// 3. create session
-		Ort::Session session(env, onnx_path, session_options);
+		img = cvkit_obj->ensure3Channel(img);
+		cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_00_03_rgb3.bin");
+		/*
+         * NOTE:
+         * DO NOT use cv::normalize / convertTo here.
+         * This must be bitwise identical to NumPy preprocessing.
+         *
+         * Date: Feb03.2026
+         * Author: PotterWhite
+         *
+         * img = cvkit_obj->normalizeToMinusOneToOne(img);
+         */
+		img = cvkit_obj->normalize_exact_numpy(img);
+		cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_00_04_normalized.bin");
 
-		Ort::AllocatorWithDefaultOptions allocator;
-
-		// 4. Echo input message
-		size_t num_inputs = session.GetInputCount();
-		std::count << "Number of inputs: " << num_inputs << std::end;
-
-		for (size_t i = 0; i < num_inputs; i++) {
-			char* input_name = session.GetInputName(i, allocator);
-			auto input_type_info = session.GetInputTypeInfo(i);
-			auto tensor_info = input_type_info.GetTensorTypeAndShapeInfo();
-			auto input_shape = tensor_info.GetShape();
-
-			std::cout << "Input " << i << " name: " << input_name << "\n";
-			std::cout << "Input shape: [ ";
-			for (auto dim : input_shape) {
-				std::cout << dim << " ";
-			}
-			std::cout << "]\n";
-
-			allocator.Free(input_name);
-		}
-
-		// 5. echo output message
-
-		size_t num_outputs = session.GetOutputCount();
-		std::cout << "Number of outputs: " << num_outputs << std::endl;
-
-		for (size_t i = 0; i < num_outputs; i++) {
-			char* output_name = session.GetOutputName(i, allocator);
-			auto output_type_info = session.GetOutputTypeInfo(i);
-			auto tensor_info = output_type_info.GetTensorTypeAndShapeInfo();
-			auto output_shape = tensor_info.GetShape();
-
-			std::cout << "Output " << i << " name: " << output_name << "\n";
-			std::cout << "Output shape: [ ";
-			for (auto dim : output_shape) {
-				std::cout << dim << " ";
-			}
-			std::cout << "]\n";
-
-			allocator.Free(output_name);
-		}
-
-	} catch (const Ort::Exception& e) {
+	} catch (const std::exception& e) {
 		std::cerr << "Error: " << e.what() << std::endl;
 		return 1;
 	}
