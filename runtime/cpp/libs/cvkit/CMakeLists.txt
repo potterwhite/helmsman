@@ -29,7 +29,7 @@ endif()
 # ---------------------------------
 # II. project name
 # ---------------------------------
-set(PROJECT_NAME "Matting_Client")
+set(PROJECT_NAME "CVKit")
 project(${PROJECT_NAME}
     VERSION
         ${GLOBAL_VERSION_STRING}
@@ -47,12 +47,12 @@ set(INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 # ---------------------------------
 # IV. Add the library target using collected sources ---
 # ---------------------------------
-add_executable(${PROJECT_NAME})
+add_library(${PROJECT_NAME})                  # Let ${BUILD_SHARED_LIBS} determine static or shared
 
 if(NOT DEFINED PROJECT_NAMESPACE)
     set(PROJECT_NAMESPACE "ArcForge")
 endif()
-add_executable(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 # ---------------------------------
 # V. enter src directory
@@ -81,23 +81,27 @@ if(NOT TARGET ${PROJECT_NAMESPACE}::Utils)
     find_package(${PROJECT_NAMESPACE}_Utils REQUIRED)
 endif()
 
-if(NOT TARGET ${PROJECT_NAMESPACE}::Network)
-    message(STATUS "Can`t find ${PROJECT_NAMESPACE}::Network, start searching")
-    find_package(${PROJECT_NAMESPACE}_Network REQUIRED)
-endif()
-
+find_package(OpenCV REQUIRED)
 
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
         ${PROJECT_NAMESPACE}::Utils
-        ${PROJECT_NAMESPACE}::Network
-
+    PRIVATE
+        ${OpenCV_LIBS}
 )
 
 # ---------------------------------
-# VIII. installation rules
+# VIII. include files Dependency
 # ---------------------------------
-arc_install_executable(${PROJECT_NAME})
+target_include_directories(${PROJECT_NAME}
+    PRIVATE
+        ${OpenCV_INCLUDE_DIRS}
+)
+
+# ---------------------------------
+# IX. installation rules
+# ---------------------------------
+arc_install_library(${PROJECT_NAME} ${INCLUDE_DIR})
 
 # ---------------------------------
 #               End

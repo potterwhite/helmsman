@@ -36,7 +36,7 @@ arc_extract_version_from_changelog(ARC_PROJECT_VERSION)
 # ---------------------------------
 # III. Project Definitions
 # ---------------------------------
-set(PROJECT_NAMESPACE "ArcForge")
+set(PROJECT_NAMESPACE "Helmsman")
 project(${PROJECT_NAMESPACE}
     VERSION
         ${ARC_PROJECT_VERSION}

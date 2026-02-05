@@ -24,7 +24,8 @@
 # ---------------------------------
 add_subdirectory(utils)
 add_subdirectory(network)
-add_subdirectory(asr_engine)
+#add_subdirectory(asr_engine)
+add_subdirectory(cvkit)
 
 # ---------------------------------
 #               End

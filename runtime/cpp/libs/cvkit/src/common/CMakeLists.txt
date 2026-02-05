@@ -18,16 +18,16 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# third_party/CMakeLists.txt
+#
+# cvkit/src/common/CMakeLists.txt
+#
 
-#Expand in the future:
-#    we can use the toolchain variables which be imported from CMakePresets.json
+set(COMMON_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/common-types.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/system-info.cpp"
+)
 
-# librknnrt should be verified(downloaded) first due to the latter module (sherpa) depend on it
-add_subdirectory(librknnrt)
-
-#add_subdirectory(sherpa-onnx)
-
-# ---------------------------------
-#               End
-# ---------------------------------
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        ${COMMON_SOURCES}
+)

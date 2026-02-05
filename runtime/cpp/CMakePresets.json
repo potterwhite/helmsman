@@ -188,8 +188,7 @@
     {
       "name": "rk3588s-release",
       "inherits": ["base", "plat-rk3588s", "cfg-release", "cfg-shared",
-                    "mixin-deps-librknnrt-2.3.2-linux-aarch64",
-                    "mixin-deps-sherpa-linux-aarch64-gcc11_3_0-v2.3.2"],
+                    "mixin-deps-librknnrt-2.3.2-linux-aarch64"],
       "installDir": "${sourceDir}/install/rk3588s/release",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/rk3588s/release"
@@ -198,8 +197,7 @@
     {
       "name": "rk3588s-debug",
       "inherits": ["base", "plat-rk3588s", "cfg-debug", "cfg-shared",
-                  "mixin-deps-librknnrt-2.3.2-linux-aarch64",
-                  "mixin-deps-sherpa-linux-aarch64-gcc11_3_0-v2.3.2"],
+                  "mixin-deps-librknnrt-2.3.2-linux-aarch64"],
       "installDir": "${sourceDir}/install/rk3588s/debug",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/rk3588s/debug"
@@ -208,8 +206,7 @@
     {
       "name": "rk3588s-release-static",
       "inherits": ["base", "plat-rk3588s", "cfg-release", "cfg-static",
-                    "mixin-deps-librknnrt-2.3.2-linux-aarch64",
-                    "mixin-deps-sherpa-linux-aarch64-gcc11_3_0-v2.3.2"],
+                    "mixin-deps-librknnrt-2.3.2-linux-aarch64"],
       "installDir": "${sourceDir}/install/rk3588s/release-static",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/rk3588s/release-static"
@@ -218,8 +215,7 @@
     {
       "name": "rk3588s-debug-static",
       "inherits": ["base", "plat-rk3588s", "cfg-debug", "cfg-static",
-                  "mixin-deps-librknnrt-2.3.2-linux-aarch64",
-                  "mixin-deps-sherpa-linux-aarch64-gcc11_3_0-v2.3.2"],
+                  "mixin-deps-librknnrt-2.3.2-linux-aarch64"],
       "installDir": "${sourceDir}/install/rk3588s/debug-static",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/rk3588s/debug-static"

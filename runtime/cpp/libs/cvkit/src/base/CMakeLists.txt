@@ -18,16 +18,27 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# third_party/CMakeLists.txt
+#
+# base subdirectory CMakeLists.txt
+#
 
-#Expand in the future:
-#    we can use the toolchain variables which be imported from CMakePresets.json
+set(COMMON_SOURCES
+	"${CMAKE_CURRENT_SOURCE_DIR}/base.cpp"
+)
 
-# librknnrt should be verified(downloaded) first due to the latter module (sherpa) depend on it
-add_subdirectory(librknnrt)
+set(BASE_SOURCES
+	"${CMAKE_CURRENT_SOURCE_DIR}/impl/base-impl.cpp"
+	${COMMON_SOURCES}
+)
 
-#add_subdirectory(sherpa-onnx)
+set(BASE_PUBLIC_HEADERS
+	"${INCLUDE_DIR}/CVKit/base/base.h"
+	# "${INCLUDE_DIR}/CVKit/base/base-config.h"
+	# "${INCLUDE_DIR}/CVKit/base/exception.h"
+)
 
-# ---------------------------------
-#               End
-# ---------------------------------
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        ${COMMON_SOURCES}
+		${BASE_SOURCES}
+)
