@@ -86,12 +86,16 @@ if(NOT TARGET ${PROJECT_NAMESPACE}::Network)
     find_package(${PROJECT_NAMESPACE}_Network REQUIRED)
 endif()
 
+if(NOT TARGET ${PROJECT_NAMESPACE}::CVKit)
+    message(STATUS "Can`t find ${PROJECT_NAMESPACE}::CVKit, start searching")
+    find_package(${PROJECT_NAMESPACE}_CVKit REQUIRED)
+endif()
 
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
         ${PROJECT_NAMESPACE}::Utils
         ${PROJECT_NAMESPACE}::Network
-
+        ${PROJECT_NAMESPACE}::CVKit
 )
 
 # ---------------------------------

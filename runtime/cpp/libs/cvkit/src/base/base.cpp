@@ -21,7 +21,7 @@
 // cvkit/src/base/base.cpp
 
 #include "CVKit/base/base.h"
-#include "CVKit/base/impl/base-impl.h"
+#include "impl/base-impl.h"
 
 namespace arcforge {
 namespace cvkit {

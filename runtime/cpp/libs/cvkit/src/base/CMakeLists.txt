@@ -33,8 +33,6 @@ set(BASE_SOURCES
 
 set(BASE_PUBLIC_HEADERS
 	"${INCLUDE_DIR}/CVKit/base/base.h"
-	# "${INCLUDE_DIR}/CVKit/base/base-config.h"
-	# "${INCLUDE_DIR}/CVKit/base/exception.h"
 )
 
 target_sources(${PROJECT_NAME}

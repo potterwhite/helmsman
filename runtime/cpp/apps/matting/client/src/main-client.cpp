@@ -18,14 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-
 #include "Utils/logger/logger.h"
 #include "Utils/logger/worker/consolesink.h"
 #include "Utils/logger/worker/filesink.h"
+#include "CVKit/base/base.h"
 
 #include <chrono>
 #include <csignal>  // For signal handling
 #include <iostream>
+#include <opencv2/opencv.hpp>
 #include <sstream>  // For std::ostringstream
 #include <string>
 #include <thread>
@@ -85,6 +86,43 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	// setup signal handler
 	signal(SIGINT, SignalHandler);
 	// signal(SIGTERM, SignalHandler);
+
+	if (argc != 3) {
+		std::cerr << "Usage: preprocess_normalize <input_image> <output_bin>\n";
+		return 1;
+	}
+
+	const std::string imagePath = argv[1];
+	const std::string outputBinPath = argv[2];
+	auto cvkit_obj = std::make_unique<arcforge::cvkit::Base>();
+	try {
+		cv::Mat img = cvkit_obj->loadImage(imagePath);
+		cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_00_01_imread.bin");
+
+		img = cvkit_obj->bgrToRgb(img);
+		cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_00_02_bgrToRgb.bin");
+
+		img = cvkit_obj->ensure3Channel(img);
+		cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_00_03_rgb3.bin");
+		/*
+         * NOTE:
+         * DO NOT use cv::normalize / convertTo here.
+         * This must be bitwise identical to NumPy preprocessing.
+         *
+         * Date: Feb03.2026
+         * Author: PotterWhite
+         *
+         * img = cvkit_obj->normalizeToMinusOneToOne(img);
+         */
+		img = cvkit_obj->normalize_exact_numpy(img);
+		cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_00_04_normalized.bin");
+
+	} catch (const std::exception& e) {
+		std::cerr << "Error: " << e.what() << std::endl;
+		return 1;
+	}
+
+	std::cout << "hello " << kcurrent_app_name << std::endl;
 
 	return 0;
 }

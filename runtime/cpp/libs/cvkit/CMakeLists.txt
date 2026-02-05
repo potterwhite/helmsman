@@ -86,7 +86,6 @@ find_package(OpenCV REQUIRED)
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
         ${PROJECT_NAMESPACE}::Utils
-    PRIVATE
         ${OpenCV_LIBS}
 )
 
@@ -94,7 +93,7 @@ target_link_libraries(${PROJECT_NAME}
 # VIII. include files Dependency
 # ---------------------------------
 target_include_directories(${PROJECT_NAME}
-    PRIVATE
+    PUBLIC
         ${OpenCV_INCLUDE_DIRS}
 )
 
