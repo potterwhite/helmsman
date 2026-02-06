@@ -90,6 +90,10 @@ func_6_2_cpp_setup_env(){
 }
 
 func_6_1_cpp_check_preset_existence() {
+    cmake --version
+    pwd -P
+    cmake --list-presets
+
     if ! cmake --list-presets | grep -q "${CPP_PRESET_NAME}"; then
         func_1_2_err "Error: Preset '${CPP_PRESET_NAME}' is not defined in CMakePresets.json."
         exit 1
@@ -145,12 +149,19 @@ func_6_4_cpp_print_every_param(){
 # Level 7: Cpp sencond layer execution unit
 # ==============================================================================
 func_7_1_cpp_core_clean_target() {
-    if [ -d "${CPP_BUILD_DIR}" ]; then
-        echo ">> [Clean] Removing ${CPP_BUILD_DIR}..."
-        rm -rf "${CPP_BUILD_DIR}"
+    if [ -d "${CPP_BUILD_WITH_PLATFORM_DIR}" ]; then
+        echo ">> [Clean] Removing directory: ${CPP_BUILD_WITH_PLATFORM_DIR}"
+        rm -rf "${CPP_BUILD_WITH_PLATFORM_DIR}"
     else
-        echo "[Clean] Directory ${CPP_BUILD_DIR} does not exist."
+        echo "[Clean] Directory ${CPP_BUILD_WITH_PLATFORM_DIR} does not exist."
     fi
+
+    # if [ -d "${CPP_BUILD_DIR}" ]; then
+    #     echo ">> [Clean] Removing ${CPP_BUILD_DIR}..."
+    #     rm -rf "${CPP_BUILD_DIR}"
+    # else
+    #     echo "[Clean] Directory ${CPP_BUILD_DIR} does not exist."
+    # fi
 
     if [ -d "${CPP_INSTALL_DIR}" ]; then
         echo ">> [Clean] Removing ${CPP_INSTALL_DIR}..."
@@ -161,13 +172,15 @@ func_7_1_cpp_core_clean_target() {
 }
 
 func_7_2_cpp_core_configure() {
-    # Accepts optional arguments (e.g., -DBUILD_TEST=ON)
+    # Accepts optional arguments
     local extra_args="$@"
 
     func_6_1_cpp_check_preset_existence
 
-    echo ">> [Configure] Preset: ${CPP_PRESET_NAME}"
-    echo ">> [Configure] Options: ARC_INSTALL_SHERPA_TOOLS=${ARC_INSTALL_SHERPA_TOOLS} ${extra_args}"
+    func_1_1_log ">> [Configure] Using Preset: ${CPP_PRESET_NAME}" "blue"
+
+    # We rely purely on the Preset now.
+    # The Toolchain, CMAKE_BUILD_TYPE, and BUILD_SHARED_LIBS are all in the JSON.
 
     cmake --preset "${CPP_PRESET_NAME}" \
           -DARC_INSTALL_SHERPA_TOOLS="${ARC_INSTALL_SHERPA_TOOLS}" \
@@ -274,28 +287,26 @@ func_8_5_cpp_run_native_conan_configure() {
 }
 
 func_8_4_cpp_dispatch() {
-
     # 1. Pre-execution Validation (Common)
     if [ "$CPP_ACTION" != "clean" ] && [ "$CPP_ACTION" != "cleanall" ] && [ "$CPP_ACTION" != "list" ]; then
         func_8_3_cpp_validate_platform_env
     fi
 
-    # 2. Branch Logic: Native (Conan) vs Others (Presets)
+    # 2. Branch Logic: Native (Keep Conan flow) vs Others (Pure Preset flow)
     if [ "$CPP_PLATFORM" == "native" ] && [ "$CPP_ACTION" != "list" ] && [ "$CPP_ACTION" != "clean" ]; then
 
-        # --- NATIVE / CONAN PATH ---
+        # --- NATIVE / CONAN PATH (Kept logic for safety as requested) ---
         func_1_1_log "🚀 Dispatching Native Build (Conan Powered)..." "green"
-        func_3_4_detect_onnxruntime_version
+        func_3_4_detect_onnxruntime_version # Ensure we have the version
 
         case "$CPP_ACTION" in
             "build")
-                # Flow: Conan Install + CMake Configure -> Build
+                # Native flow still uses the manual Conan injector
                 func_8_5_cpp_run_native_conan_configure "$(func_3_6_echo_ort_root_for_cmake)"
                 func_7_3_cpp_core_build
                 ;;
 
             "cb")
-                # Flow: Clean -> Conan Install + CMake Configure -> Build -> Install
                 func_7_1_cpp_core_clean_target
                 func_8_5_cpp_run_native_conan_configure "$(func_3_6_echo_ort_root_for_cmake)"
                 func_7_3_cpp_core_build
@@ -303,6 +314,7 @@ func_8_4_cpp_dispatch() {
                 ;;
 
             "install")
+                # Install check
                 if [ ! -d "${CPP_BUILD_WITH_PLATFORM_DIR}" ]; then
                     func_1_2_err "Build directory not found. Please build first."
                 fi
@@ -310,26 +322,23 @@ func_8_4_cpp_dispatch() {
                 ;;
 
             "test")
-                # Flow: Re-configure (Test=ON) -> Build -> Test
-                func_1_1_log ">> [Test] Re-configuring with tests enabled..." "green"
                 func_8_5_cpp_run_native_conan_configure "-DBUILD_TEST=TRUE" "$(func_3_6_echo_ort_root_for_cmake)"
-
-                func_1_1_log ">> [Test] Building..." "green"
                 func_7_3_cpp_core_build
-
-                func_1_1_log ">> [Test] Executing..." "green"
                 func_7_5_cpp_core_test
                 ;;
 
             *)
-                 func_1_2_err "Unknown or unsupported command for native mode: '$CPP_ACTION'"
+                 func_1_2_err "Unknown native command '$CPP_ACTION'"
                  ;;
         esac
 
     else
-        # --- CROSS-COMPILE / PRESET PATH (Original Logic) ---
+        # --- CROSS-COMPILE / PURE PRESET PATH ---
+        # This is where the optimization happens.
+        # We no longer manually handle toolchains here, the JSON does it.
+
         if [ "$CPP_PLATFORM" != "native" ]; then
-            func_1_1_log "⚙️  Dispatching Cross-Compile Build (Preset: ${CPP_PRESET_NAME})..." "blue"
+            func_1_1_log "⚙️  Dispatching Preset Build (Target: ${CPP_PRESET_NAME})..." "blue"
         fi
 
         case "$CPP_ACTION" in
@@ -338,15 +347,18 @@ func_8_4_cpp_dispatch() {
                 ;;
 
             "clean")
+                # Uses the directory calculated in func_8_2 based on Preset Name
                 func_7_1_cpp_core_clean_target
                 ;;
 
             "build")
+                # Incremental build
                 func_7_2_cpp_core_configure
                 func_7_3_cpp_core_build
                 ;;
 
             "cb")
+                # Clean -> Configure -> Build -> Install
                 func_7_1_cpp_core_clean_target
                 func_7_2_cpp_core_configure
                 func_7_3_cpp_core_build
@@ -354,27 +366,22 @@ func_8_4_cpp_dispatch() {
                 ;;
 
             "install")
-                func_6_1_cpp_check_preset_existence
+                # Presets usually define installDir, but cmake --install needs build dir
                 if [ ! -d "${CPP_BUILD_WITH_PLATFORM_DIR}" ]; then
-                    func_1_2_err "Build directory not found. Please build first."
-                    exit 1
+                    func_1_2_err "Build directory ${CPP_BUILD_WITH_PLATFORM_DIR} not found."
                 fi
                 func_7_4_cpp_core_install
                 ;;
 
             "test")
-                func_1_1_log ">> [Test] Re-configuring with tests enabled..." "green"
+                # Re-configure with Test ON (passed as extra arg)
                 func_7_2_cpp_core_configure "-DBUILD_TEST=TRUE"
-                func_1_1_log ">> [Test] Building..." "green"
                 func_7_3_cpp_core_build
-                func_1_1_log ">> [Test] Executing..." "green"
                 func_7_5_cpp_core_test
                 ;;
 
             *)
                 func_1_2_err "Unknown CPP command '$CPP_ACTION'"
-                func_6_3_cpp_helper_print
-                exit 1
                 ;;
         esac
     fi
@@ -414,12 +421,20 @@ func_8_3_cpp_validate_platform_env() {
 }
 
 func_8_2_cpp_arguments_parsing() {
-    func_6_4_cpp_print_every_param "$@"
+    # If verbose, print inputs
+    if [ x"${DEBUG_MODE}" == x"1" ];then func_6_4_cpp_print_every_param "$@"; fi
 
     CPP_ACTION=$1
-    shift
+    shift || true
 
-    # --- Existing Logic: Loop through arguments ---
+    # Defaults matching your CMakePresets "base" logic or common sense
+    # You might want to default to empty if you want to force user input,
+    # but here are reasonable defaults based on your script history.
+    CPP_BUILD_TYPE="release"
+    CPP_LIB_TYPE="shared"
+    CPP_PLATFORM="native"
+
+    # --- Loop through arguments ---
     while [ "$#" -gt 0 ]; do
         case "$1" in
             "debug"|"Debug"|"DEBUG")
@@ -435,27 +450,38 @@ func_8_2_cpp_arguments_parsing() {
                 CPP_LIB_TYPE="shared"
                 ;;
             *)
+                # Assuming anything else is the platform (e.g., rv1126bp, rk3588s)
                 CPP_PLATFORM=$1
                 ;;
         esac
         shift
     done
 
+    # -----------------------------------------------------------
+    # [CORE CHANGE] Construct the Preset Name
+    # Mapping logic: <platform>-<build_type>[-static]
+    # Examples based on your JSON:
+    #   native-release
+    #   rv1126bp-debug-static
+    #   rk3588s-release
+    # -----------------------------------------------------------
 
-    # Construct Preset Name
     CPP_PRESET_NAME="${CPP_PLATFORM}-${CPP_BUILD_TYPE}"
+
     if [ "$CPP_LIB_TYPE" == "static" ]; then
         CPP_PRESET_NAME="${CPP_PRESET_NAME}-static"
     fi
 
-    # Derive Build Directory (Matches CMakePresets.json logic)
+    # -----------------------------------------------------------
+    # [SYNC] Align Bash Build Dir with JSON "binaryDir"
+    # JSON Line 68: "binaryDir": "${sourceDir}/build/${presetName}"
+    # -----------------------------------------------------------
     CPP_BUILD_WITH_PLATFORM_DIR="${CPP_TOP_DIR}/build/${CPP_PRESET_NAME}"
 
-    echo "--------------------------------------------"
-    echo "Action:      $CPP_ACTION"
-    echo "Target:      [${CPP_PLATFORM}]"
-    echo "Build Dir:   ${CPP_BUILD_WITH_PLATFORM_DIR}"
-    echo "--------------------------------------------"
+    if [ x"${DEBUG_MODE}" == x"1" ];then
+        func_1_1_log ">> [Preset Logic] Calculated Preset: ${CPP_PRESET_NAME}" "blue"
+        func_1_1_log ">> [Preset Logic] Binary Dir: ${CPP_BUILD_WITH_PLATFORM_DIR}" "blue"
+    fi
 }
 
 func_8_1_cpp_build_dispatch() {
