@@ -119,6 +119,52 @@ void show_output(const Ort::Session& session) {
 	}
 }
 
+std::vector<float> hwcToNchw(const cv::Mat& origin_img) {
+	// 基本检查
+	CV_Assert(origin_img.type() == CV_32FC3);
+	CV_Assert(origin_img.isContinuous());
+
+	const int H = origin_img.rows;
+	const int W = origin_img.cols;
+	const int C = 3;
+
+	// 输出：1 * 3 * H * W
+	std::vector<float> nchw;
+	nchw.resize(C * H * W);
+
+	// OpenCV HWC: [H][W][C]
+	// NCHW: [C][H][W]
+	for (int h = 0; h < H; ++h) {
+		for (int w = 0; w < W; ++w) {
+			const cv::Vec3f& pixel = origin_img.at<cv::Vec3f>(h, w);
+
+			// R
+			nchw[0 * H * W + h * W + w] = pixel[0];
+			// G
+			nchw[1 * H * W + h * W + w] = pixel[1];
+			// B
+			nchw[2 * H * W + h * W + w] = pixel[2];
+		}
+	}
+
+	return nchw;
+}
+
+/**
+ * @brief Dump raw float data to binary file
+ */
+void dumpBinary_from_vector(const std::vector<float>& vec, const std::string& outputPath) {
+
+	std::ofstream ofs(outputPath, std::ios::binary);
+	if (!ofs) {
+		throw std::runtime_error("Failed to open output file: " + outputPath);
+	}
+
+	ofs.write(reinterpret_cast<const char*>(vec.data()), vec.size() * sizeof(float));
+
+	ofs.close();
+}
+
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	// auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 	// logger.setLevel(arcforge::embedded::utils::LoggerLevel::kdebug);
@@ -151,22 +197,48 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		return 1;
 	}
 
-	const std::string onnx_path = argv[1];
-
+	const std::string imagePath = argv[1];
+	const std::string outputBinPath = argv[2];
+	auto cvkit_obj = std::make_unique<arcforge::cvkit::Base>();
 	try {
-		Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "onnx-demo");
+		cv::Mat img = cvkit_obj->loadImage(imagePath);
+		img = cvkit_obj->bgrToRgb(img);
+		img = cvkit_obj->ensure3Channel(img);
+		/*
+         * NOTE:
+         * DO NOT use cv::normalize / convertTo here.
+         * This must be bitwise identical to NumPy preprocessing.
+         *
+         * Date: Feb03.2026
+         * Author: PotterWhite
+         *
+         * img = cvkit_obj->normalizeToMinusOneToOne(img);
+         */
+		img = cvkit_obj->normalize_exact_numpy(img);
+		cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_00_04_normalized.bin");
 
-		// 3. create session
-		Ort::Session session(env, onnx_path.c_str(), init_session_option());
+		std::vector<float> result = hwcToNchw(img);
+		dumpBinary_from_vector(result, outputBinPath + "/cpp_01_nchw_input.bin");
 
-		show_input(session);
-
-		show_output(session);
-
-	} catch (const Ort::Exception& e) {
+	} catch (const std::exception& e) {
 		std::cerr << "Error: " << e.what() << std::endl;
 		return 1;
 	}
+
+	// try {
+	// 	Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "onnx-demo");
+
+	// 	// 3. create session
+	// 	Ort::Session session(env, onnx_path.c_str(), init_session_option());
+
+	// 	show_input(session);
+
+	// 	show_output(session);
+
+	// } catch (const Ort::Exception& e) {
+	// 	std::cerr << "Error: " << e.what() << std::endl;
+	// 	return 1;
+	// }
 
 	std::cout << "hello " << kcurrent_app_name << std::endl;
 
