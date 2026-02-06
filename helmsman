@@ -107,6 +107,17 @@ func_1_7_usage() {
     echo
 }
 
+func_1_8_activate_py_venv(){
+    if [ ! -d "$LV1_VENV_DIR" ]; then
+        func_1_1_log "❌ Environment not ready. Virtual environment not found at '$LV1_VENV_DIR'." "red"
+        func_1_1_log "   Please run './helmsman prepare' first." "yellow"
+        exit 1
+    else
+        source ${LV1_VENV_DIR}/bin/activate
+        func_1_1_log "✅Activate Python venv Successfully." "green"
+    fi
+}
+
 # ==============================================================================
 # Level 2: Environment Variables & Path Definitions
 # ==============================================================================
@@ -179,14 +190,8 @@ func_2_0_setup_env(){
 
 func_2_1_check_env_ready(){
     # (From A) Lightweight check
-    if [ ! -d "$LV1_VENV_DIR" ]; then
-        func_1_1_log "❌ Environment not ready. Virtual environment not found at '$LV1_VENV_DIR'." "red"
-        func_1_1_log "   Please run './helmsman prepare' first." "yellow"
-        exit 1
-    else
-        source ${LV1_VENV_DIR}/bin/activate
-        func_1_1_log "✅Activate Python venv Successfully." "green"
-    fi
+    func_1_8_activate_py_venv
+
     if [ ! -f "$PYTHON_BIN" ]; then
         func_1_1_log "❌ Python binary not found in venv." "red"
         exit 1
@@ -432,7 +437,8 @@ func_3_2_setup_dep_before_build() {
     # Handle Requirements (Load from file only)
     if [ -f "$DEV_REQUIREMENTS_FILE" ]; then
         func_1_1_log "   Installing Python packages from $DEV_REQUIREMENTS_FILE..."
-        "${PIP_BIN}" install --no-cache-dir -r "$DEV_REQUIREMENTS_FILE" -i https://pypi.tuna.tsinghua.edu.cn/simple
+        # "${PIP_BIN}" install --no-cache-dir -r "$DEV_REQUIREMENTS_FILE" -i https://pypi.tuna.tsinghua.edu.cn/simple
+        "${PIP_BIN}" install -r "$DEV_REQUIREMENTS_FILE" -i https://pypi.tuna.tsinghua.edu.cn/simple
     else
         func_1_1_log "❌ Requirements file not found at: $DEV_REQUIREMENTS_FILE" "red"
         func_1_1_log "   Please create the file manually before running prepare." "yellow"
@@ -445,6 +451,8 @@ func_3_2_setup_dep_before_build() {
     func_3_1_check_opencv_compatibility
 
     func_1_1_log "   ✅ Python environment ready." "green"
+
+    func_1_8_activate_py_venv
 
     # ********************************************
     # --- Step 4: Conan (From A) ---
@@ -1558,7 +1566,7 @@ main(){
         clean)
             func_5_1_clean_project ;;
         menu)
-            while true; do
+            # while true; do
                 echo ""
                 func_1_1_log "--- Helmsman Project Main Menu ---" "blue"
                 echo "1. Prepare Environment"
@@ -1581,7 +1589,7 @@ main(){
                     8) func_1_1_log "👋 Exiting." "green"; exit 0 ;;
                     *) func_1_1_log "Invalid choice." "red" ;;
                 esac
-            done
+            # done
             ;;
         *)
             func_1_2_err "Unknown command '$COMMAND'. Use -h for help." ;;

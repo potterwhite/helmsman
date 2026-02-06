@@ -44,7 +44,6 @@ project(${PROJECT_NAMESPACE}
         CXX
 )
 
-
 # ---------------------------------
 # IV. Batch Mode Configure
 #      a. C++ Standard
