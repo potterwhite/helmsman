@@ -474,6 +474,9 @@ func_3_2_setup_dep_before_build() {
     # Processing -- 4.3 Manually install ort into conan
     func_3_5_build_onnxruntime_conan_package
 
+    # Processing -- 4.4 Ensure conan installation and configuration
+    func_8_5_run_native_conan_configure
+
     # ********************************************
     # --- Step 5: build dir is temporary for restoring temp files and folders
     if [ ! -d "${LV1_BUILD_DIR}" ];then
@@ -1085,7 +1088,7 @@ func_8_5_run_native_conan_configure() {
         --output-folder="${CPP_BUILD_DIR}" \
         --build=missing \
         -s build_type="${conan_build_type}" \
-        -s compiler.cppstd=14
+        -s compiler.cppstd=17
 
     if [ $? -ne 0 ]; then
         func_1_2_err "Conan install failed."
@@ -1141,14 +1144,14 @@ func_8_4_cpp_dispatch() {
         case "$CPP_ACTION" in
             "build")
                 # Flow: Conan Install + CMake Configure -> Build
-                func_8_5_run_native_conan_configure
+                # func_8_5_run_native_conan_configure
                 func_7_3_core_build
                 ;;
 
             "cb")
                 # Flow: Clean -> Conan Install + CMake Configure -> Build -> Install
                 func_7_1_core_clean_target
-                func_8_5_run_native_conan_configure
+                # func_8_5_run_native_conan_configure
                 func_7_3_core_build
                 func_7_4_core_install
                 ;;
