@@ -55,3 +55,6 @@ class OnnxRuntimeConan(ConanFile):
 
     def package_info(self):
         self.cpp_info.libs = ["onnxruntime"]
+        # Key & Important: Tell CMakeDeps to generate target
+        self.cpp_info.set_property("cmake_file_name", "onnxruntime")
+        self.cpp_info.set_property("cmake_target_name", "onnxruntime::onnxruntime")

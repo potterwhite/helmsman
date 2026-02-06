@@ -185,9 +185,6 @@ func_2_0_setup_env(){
       eval "$(pyenv init -)"
     fi
 
-    # ORT Version Define - Conan will use it
-    ONNXRUNTIME_VERSION=""
-
     # Ensure Finalization on Exit (From B)
     trap func_5_4_finalize EXIT
 
@@ -482,9 +479,6 @@ func_3_2_setup_dep_before_build() {
     # Processing -- 4.3 Manually install ort into conan
     func_3_5_build_onnxruntime_conan_package
 
-    # Processing -- 4.4 Ensure conan installation and configuration
-    # func_8_5_cpp_run_native_conan_configure
-
     # ********************************************
     # --- Step 5: build dir is temporary for restoring temp files and folders
     if [ ! -d "${LV1_BUILD_DIR}" ];then
@@ -646,7 +640,12 @@ func_3_5_build_onnxruntime_conan_package() {
     func_1_1_log "   ✔ ONNX Runtime ${ONNXRUNTIME_VERSION} successfully installed into Conan cache." "green"
 }
 
-
+func_3_6_echo_ort_root_for_cmake(){
+    # ONNXRUNTIME_ROOT="$(conan cache path onnxruntime/${ONNXRUNTIME_VERSION})"
+    ONNXRUNTIME_ROOT=$(conan cache path onnxruntime/${ONNXRUNTIME_VERSION} | sed 's#/e$#/s#')
+    # func_1_1_log "   ✔ ONNX Runtime root detected: ${ONNXRUNTIME_ROOT}" "green"
+    echo "-DONNXRUNTIME_ROOT=$ONNXRUNTIME_ROOT"
+}
 
 # ==============================================================================
 # Level 4: Core Workflows (MODNet & C++)
@@ -915,6 +914,9 @@ func_6_2_cpp_setup_env(){
     CPP_CMD_INSTALL="install"
     CPP_CMD_TEST="test"
 
+    # ORT Version Define - Conan will use it
+    ONNXRUNTIME_VERSION=""
+    ONNXRUNTIME_ROOT=""
 
     # --- [NEW] Load .env file if it exists ---
     # This exports all variables defined in .env to the current shell
@@ -1053,7 +1055,9 @@ func_7_2_cpp_core_configure() {
 
 func_7_3_cpp_core_build() {
     echo ">> [Build] Directory: ${CPP_BUILD_WITH_PLATFORM_DIR}"
-    cmake --build "${CPP_BUILD_WITH_PLATFORM_DIR}" -j$(nproc)
+    cmake \
+        --build "${CPP_BUILD_WITH_PLATFORM_DIR}" \
+        -j$(nproc)
 }
 
 func_7_4_cpp_core_install() {
@@ -1075,6 +1079,7 @@ func_7_5_cpp_core_test() {
 # ==============================================================================
 func_8_5_cpp_run_native_conan_configure() {
     local extra_args="$@"
+    echo "[1]extra_args=\"${extra_args}\""
 
     # 1. Check Conan existence
     if ! command -v conan &> /dev/null; then
@@ -1137,6 +1142,8 @@ func_8_5_cpp_run_native_conan_configure() {
             ${extra_args}
     else
          func_1_1_log "   Toolchain: $toolchain_file" "green"
+         echo -e "\n\n"
+         echo "[2]extra_args=\"${extra_args}\""
          cmake -S "${CPP_TOP_DIR}" -B "${CPP_BUILD_WITH_PLATFORM_DIR}" \
             -DCMAKE_TOOLCHAIN_FILE="${toolchain_file}" \
             -DCMAKE_BUILD_TYPE="${conan_build_type}" \
@@ -1157,18 +1164,19 @@ func_8_4_cpp_dispatch() {
 
         # --- NATIVE / CONAN PATH ---
         func_1_1_log "🚀 Dispatching Native Build (Conan Powered)..." "green"
+        func_3_4_detect_onnxruntime_version
 
         case "$CPP_ACTION" in
             "build")
                 # Flow: Conan Install + CMake Configure -> Build
-                func_8_5_cpp_run_native_conan_configure
+                func_8_5_cpp_run_native_conan_configure "$(func_3_6_echo_ort_root_for_cmake)"
                 func_7_3_cpp_core_build
                 ;;
 
             "cb")
                 # Flow: Clean -> Conan Install + CMake Configure -> Build -> Install
                 func_7_1_cpp_core_clean_target
-                func_8_5_cpp_run_native_conan_configure
+                func_8_5_cpp_run_native_conan_configure "$(func_3_6_echo_ort_root_for_cmake)"
                 func_7_3_cpp_core_build
                 func_7_4_cpp_core_install
                 ;;
@@ -1183,7 +1191,7 @@ func_8_4_cpp_dispatch() {
             "test")
                 # Flow: Re-configure (Test=ON) -> Build -> Test
                 func_1_1_log ">> [Test] Re-configuring with tests enabled..." "green"
-                func_8_5_cpp_run_native_conan_configure "-DBUILD_TEST=TRUE"
+                func_8_5_cpp_run_native_conan_configure "-DBUILD_TEST=TRUE" "$(func_3_6_echo_ort_root_for_cmake)"
 
                 func_1_1_log ">> [Test] Building..." "green"
                 func_7_3_cpp_core_build

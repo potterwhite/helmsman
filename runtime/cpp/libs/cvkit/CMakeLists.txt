@@ -89,8 +89,6 @@ find_package(OpenCV
         video
 )
 
-find_package(onnxruntime)
-
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
         ${PROJECT_NAMESPACE}::Utils
@@ -98,8 +96,20 @@ target_link_libraries(${PROJECT_NAME}
         opencv_imgproc
         opencv_imgcodecs
         opencv_video
-        onnxruntime
 )
+
+set(ONNXRUNTIME_ROOT "" CACHE PATH "ONNX Runtime root")
+
+target_include_directories(${PROJECT_NAME}
+    PUBLIC
+        ${ONNXRUNTIME_ROOT}/include
+)
+
+target_link_libraries(${PROJECT_NAME}
+    PUBLIC
+        ${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so
+)
+
 
 # ---------------------------------
 # VIII. installation rules
