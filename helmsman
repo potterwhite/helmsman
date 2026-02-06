@@ -89,7 +89,10 @@ func_1_6_elapsed_time_calculation() {
 #   Print command-line usage information.
 # ------------------------------------------------------------------------------
 func_1_7_usage() {
-    echo "Usage: $0 [command] [options]"
+    echo "======================================================="
+    echo
+    echo -e "\n\033[1;33mUsage: $0 <command> [options...]\033[0m"
+    # echo "Usage: $0 [command] [options]"
     echo
     echo "Helmsman Project - Unified Build & Management Script"
     echo
@@ -105,6 +108,10 @@ func_1_7_usage() {
     echo "  -h, --help      Show this help message."
     echo "  -v              Enable verbose/debug mode (set -x)."
     echo
+
+    echo "======================================================="
+
+    func_6_3_cpp_helper_print
 }
 
 func_1_8_activate_py_venv(){
@@ -475,7 +482,7 @@ func_3_2_setup_dep_before_build() {
     func_3_5_build_onnxruntime_conan_package
 
     # Processing -- 4.4 Ensure conan installation and configuration
-    func_8_5_run_native_conan_configure
+    func_8_5_cpp_run_native_conan_configure
 
     # ********************************************
     # --- Step 5: build dir is temporary for restoring temp files and folders
@@ -803,7 +810,7 @@ func_5_1_clean_project(){
     # echo "   4. Cancel"
     # read -p "   Choice [1-4]: " clean_choice
     _clean_build(){
-        func_7_1_core_clean_target
+        func_7_1_cpp_core_clean_target
 
         if [ -d "${LV1_BUILD_DIR}" ]; then
             rm -rf "${LV1_BUILD_DIR}"
@@ -883,6 +890,7 @@ func_6_2_cpp_setup_env(){
     # Paths
     CPP_TOP_DIR="${REPO_TOP_DIR}/runtime/cpp"
     CPP_BUILD_DIR="${CPP_TOP_DIR}/build"
+    CPP_BUILD_WITH_PLATFORM_DIR="${CPP_TOP_DIR}/build"
     CPP_INSTALL_DIR="${CPP_TOP_DIR}/install"
     CPP_INSTALL_INC_DIR="${CPP_INSTALL_DIR}/include"
     CPP_INSTALL_BIN_DIR="${CPP_INSTALL_DIR}/bin"
@@ -949,21 +957,21 @@ func_6_2_cpp_setup_env(){
 
 }
 
-func_6_1_check_preset_existence() {
+func_6_1_cpp_check_preset_existence() {
     if ! cmake --list-presets | grep -q "${CPP_PRESET_NAME}"; then
         func_1_2_err "Error: Preset '${CPP_PRESET_NAME}' is not defined in CMakePresets.json."
         exit 1
     fi
 }
 
-func_6_3_helper_print() {
-    echo -e "\n\033[1;33mUsage: $0 <command> [options...]\033[0m"
+func_6_3_cpp_helper_print() {
+    echo -e "\n\033[1;33mUsage: $0 build cpp <command> [options...]\033[0m"
     echo ""
     echo -e "\033[1mCommands:\033[0m"
     echo "  build                - Configure and Compile (Incremental build)"
     echo "  cb                   - Clean, Build AND Install (Fresh build)"
     echo "  clean                - Remove build directory for current preset"
-    echo "  cleanall             - Remove ALL build and install directories"
+    # echo "  cleanall             - Remove ALL build and install directories"
     echo "  install              - Install the built targets"
     echo "  test                 - Run tests"
     echo "  list                 - List all available CMake Presets"
@@ -975,26 +983,26 @@ func_6_3_helper_print() {
     echo ""
     echo -e "\033[1mExamples:\033[0m"
     echo "  # 1. Default Build (Host PC, Release, Shared Libs)"
-    echo "     $0 build"
+    echo "     $0 build cpp build"
     echo ""
     echo "  # 2. Cross-compile for RV1126 (Release, Shared)"
-    echo "     $0 build rv1126bp"
+    echo "     $0 build cpp build rv1126bp"
     echo ""
     echo "  # 3. Build Debug version for Host PC"
-    echo "     $0 build debug"
+    echo "     $0 build cpp build debug"
     echo ""
     echo "  # 4. Build Static Libraries (Host PC)"
-    echo "     $0 build static"
+    echo "     $0 build cpp build static"
     echo ""
     echo "  # 5. Full Rebuild & Install for RV1126 (Debug mode, Static Libs)"
-    echo "     $0 cb rv1126bp debug static"
+    echo "     $0 build cpp cb rv1126bp debug static"
     echo ""
     echo "  # 6. Just Clean the RV1126 build files"
-    echo "     $0 clean rv1126bp"
+    echo "     $0 build cpp clean rv1126bp"
     echo ""
 }
 
-func_6_4_print_every_param(){
+func_6_4_cpp_print_every_param(){
     local index
     for (( index = 0; index <= $#; index++ )); do
         func_1_1_log "param[${index}]=\"${!index}\""
@@ -1004,7 +1012,7 @@ func_6_4_print_every_param(){
 # ==============================================================================
 # Level 7: Cpp sencond layer execution unit
 # ==============================================================================
-func_7_1_core_clean_target() {
+func_7_1_cpp_core_clean_target() {
     if [ -d "${CPP_BUILD_DIR}" ]; then
         echo ">> [Clean] Removing ${CPP_BUILD_DIR}..."
         rm -rf "${CPP_BUILD_DIR}"
@@ -1020,11 +1028,11 @@ func_7_1_core_clean_target() {
     fi
 }
 
-func_7_2_core_configure() {
+func_7_2_cpp_core_configure() {
     # Accepts optional arguments (e.g., -DBUILD_TEST=ON)
     local extra_args="$@"
 
-    func_6_1_check_preset_existence
+    func_6_1_cpp_check_preset_existence
 
     echo ">> [Configure] Preset: ${CPP_PRESET_NAME}"
     echo ">> [Configure] Options: ARC_INSTALL_SHERPA_TOOLS=${ARC_INSTALL_SHERPA_TOOLS} ${extra_args}"
@@ -1034,19 +1042,19 @@ func_7_2_core_configure() {
           ${extra_args}
 }
 
-func_7_3_core_build() {
-    echo ">> [Build] Directory: ${CPP_BUILD_DIR}"
-    cmake --build "${CPP_BUILD_DIR}" -j$(nproc)
+func_7_3_cpp_core_build() {
+    echo ">> [Build] Directory: ${CPP_BUILD_WITH_PLATFORM_DIR}"
+    cmake --build "${CPP_BUILD_WITH_PLATFORM_DIR}" -j$(nproc)
 }
 
-func_7_4_core_install() {
+func_7_4_cpp_core_install() {
     echo ">> [Install] Installing to prefix..."
-    cmake --install "${CPP_BUILD_DIR}"
+    cmake --install "${CPP_BUILD_WITH_PLATFORM_DIR}"
 }
 
-func_7_5_core_test() {
+func_7_5_cpp_core_test() {
     echo ">> [Test] Running CTest..."
-    ctest --test-dir "${CPP_BUILD_DIR}" --output-on-failure --verbose
+    ctest --test-dir "${CPP_BUILD_WITH_PLATFORM_DIR}" --output-on-failure --verbose
 }
 
 
@@ -1056,7 +1064,7 @@ func_7_5_core_test() {
 # ==============================================================================
 # [NEW] Helper: Conan configuration workflow for Native platform
 # ==============================================================================
-func_8_5_run_native_conan_configure() {
+func_8_5_cpp_run_native_conan_configure() {
     local extra_args="$@"
 
     # 1. Check Conan existence
@@ -1073,7 +1081,7 @@ func_8_5_run_native_conan_configure() {
     conan profile detect --force 2>/dev/null || true
 
     func_1_1_log ">> [Conan] Installing dependencies..." "blue"
-    func_1_1_log "   Output Dir: ${CPP_BUILD_DIR}"
+    func_1_1_log "   Output Dir: ${CPP_BUILD_WITH_PLATFORM_DIR}"
     func_1_1_log "   Build Type: ${CPP_BUILD_TYPE}"
 
     # Conan Install
@@ -1085,7 +1093,7 @@ func_8_5_run_native_conan_configure() {
     fi
 
     conan install "${CPP_TOP_DIR}" \
-        --output-folder="${CPP_BUILD_DIR}" \
+        --output-folder="${CPP_BUILD_WITH_PLATFORM_DIR}" \
         --build=missing \
         -s build_type="${conan_build_type}" \
         -s compiler.cppstd=17
@@ -1100,27 +1108,27 @@ func_8_5_run_native_conan_configure() {
     # Instead of --preset, we manually specify the toolchain generated by Conan.
     # Conan 2.x usually generates 'conan_toolchain.cmake' in the output folder (or build/ generators).
 
-    local toolchain_file="${CPP_BUILD_DIR}/conan_toolchain.cmake"
+    local toolchain_file="${CPP_BUILD_WITH_PLATFORM_DIR}/conan_toolchain.cmake"
 
     # Fallback check for generators folder (common in some Conan configs)
     if [ ! -f "$toolchain_file" ]; then
-        toolchain_file="${CPP_BUILD_DIR}/build/Release/generators/conan_toolchain.cmake"
+        toolchain_file="${CPP_BUILD_WITH_PLATFORM_DIR}/build/Release/generators/conan_toolchain.cmake"
     fi
 
     # If still not found, try a generic search inside build dir (robustness)
     if [ ! -f "$toolchain_file" ]; then
-        toolchain_file=$(find "${CPP_BUILD_DIR}" -name "conan_toolchain.cmake" | head -n 1)
+        toolchain_file=$(find "${CPP_BUILD_WITH_PLATFORM_DIR}" -name "conan_toolchain.cmake" | head -n 1)
     fi
 
     if [ -z "$toolchain_file" ] || [ ! -f "$toolchain_file" ]; then
          func_1_1_log "⚠️  Could not locate conan_toolchain.cmake. Attempting standard configure..." "yellow"
-         cmake -S "${CPP_TOP_DIR}" -B "${CPP_BUILD_DIR}" \
+         cmake -S "${CPP_TOP_DIR}" -B "${CPP_BUILD_WITH_PLATFORM_DIR}" \
             -DCMAKE_BUILD_TYPE="${conan_build_type}" \
             -DARC_INSTALL_SHERPA_TOOLS="${ARC_INSTALL_SHERPA_TOOLS}" \
             ${extra_args}
     else
          func_1_1_log "   Toolchain: $toolchain_file" "green"
-         cmake -S "${CPP_TOP_DIR}" -B "${CPP_BUILD_DIR}" \
+         cmake -S "${CPP_TOP_DIR}" -B "${CPP_BUILD_WITH_PLATFORM_DIR}" \
             -DCMAKE_TOOLCHAIN_FILE="${toolchain_file}" \
             -DCMAKE_BUILD_TYPE="${conan_build_type}" \
             -DARC_INSTALL_SHERPA_TOOLS="${ARC_INSTALL_SHERPA_TOOLS}" \
@@ -1132,7 +1140,7 @@ func_8_4_cpp_dispatch() {
 
     # 1. Pre-execution Validation (Common)
     if [ "$CPP_ACTION" != "clean" ] && [ "$CPP_ACTION" != "cleanall" ] && [ "$CPP_ACTION" != "list" ]; then
-        func_8_3_validate_platform_env
+        func_8_3_cpp_validate_platform_env
     fi
 
     # 2. Branch Logic: Native (Conan) vs Others (Presets)
@@ -1144,35 +1152,35 @@ func_8_4_cpp_dispatch() {
         case "$CPP_ACTION" in
             "build")
                 # Flow: Conan Install + CMake Configure -> Build
-                # func_8_5_run_native_conan_configure
-                func_7_3_core_build
+                # func_8_5_cpp_run_native_conan_configure
+                func_7_3_cpp_core_build
                 ;;
 
             "cb")
                 # Flow: Clean -> Conan Install + CMake Configure -> Build -> Install
-                func_7_1_core_clean_target
-                # func_8_5_run_native_conan_configure
-                func_7_3_core_build
-                func_7_4_core_install
+                func_7_1_cpp_core_clean_target
+                # func_8_5_cpp_run_native_conan_configure
+                func_7_3_cpp_core_build
+                func_7_4_cpp_core_install
                 ;;
 
             "install")
-                if [ ! -d "${CPP_BUILD_DIR}" ]; then
+                if [ ! -d "${CPP_BUILD_WITH_PLATFORM_DIR}" ]; then
                     func_1_2_err "Build directory not found. Please build first."
                 fi
-                func_7_4_core_install
+                func_7_4_cpp_core_install
                 ;;
 
             "test")
                 # Flow: Re-configure (Test=ON) -> Build -> Test
                 func_1_1_log ">> [Test] Re-configuring with tests enabled..." "green"
-                func_8_5_run_native_conan_configure "-DBUILD_TEST=TRUE"
+                func_8_5_cpp_run_native_conan_configure "-DBUILD_TEST=TRUE"
 
                 func_1_1_log ">> [Test] Building..." "green"
-                func_7_3_core_build
+                func_7_3_cpp_core_build
 
                 func_1_1_log ">> [Test] Executing..." "green"
-                func_7_5_core_test
+                func_7_5_cpp_core_test
                 ;;
 
             *)
@@ -1192,49 +1200,49 @@ func_8_4_cpp_dispatch() {
                 ;;
 
             "clean")
-                func_7_1_core_clean_target
+                func_7_1_cpp_core_clean_target
                 ;;
 
             "build")
-                func_7_2_core_configure
-                func_7_3_core_build
+                func_7_2_cpp_core_configure
+                func_7_3_cpp_core_build
                 ;;
 
             "cb")
-                func_7_1_core_clean_target
-                func_7_2_core_configure
-                func_7_3_core_build
-                func_7_4_core_install
+                func_7_1_cpp_core_clean_target
+                func_7_2_cpp_core_configure
+                func_7_3_cpp_core_build
+                func_7_4_cpp_core_install
                 ;;
 
             "install")
-                func_6_1_check_preset_existence
-                if [ ! -d "${CPP_BUILD_DIR}" ]; then
+                func_6_1_cpp_check_preset_existence
+                if [ ! -d "${CPP_BUILD_WITH_PLATFORM_DIR}" ]; then
                     func_1_2_err "Build directory not found. Please build first."
                     exit 1
                 fi
-                func_7_4_core_install
+                func_7_4_cpp_core_install
                 ;;
 
             "test")
                 func_1_1_log ">> [Test] Re-configuring with tests enabled..." "green"
-                func_7_2_core_configure "-DBUILD_TEST=TRUE"
+                func_7_2_cpp_core_configure "-DBUILD_TEST=TRUE"
                 func_1_1_log ">> [Test] Building..." "green"
-                func_7_3_core_build
+                func_7_3_cpp_core_build
                 func_1_1_log ">> [Test] Executing..." "green"
-                func_7_5_core_test
+                func_7_5_cpp_core_test
                 ;;
 
             *)
                 func_1_2_err "Unknown CPP command '$CPP_ACTION'"
-                func_6_3_helper_print
+                func_6_3_cpp_helper_print
                 exit 1
                 ;;
         esac
     fi
 }
 
-func_8_3_validate_platform_env() {
+func_8_3_cpp_validate_platform_env() {
     # If platform is native, we rely on host compiler, no SDK root needed usually.
     if [ "$CPP_PLATFORM" == "native" ]; then
         return 0
@@ -1267,10 +1275,8 @@ func_8_3_validate_platform_env() {
     echo ">> [Env Check] Platform SDK: ${var_name}=${sdk_path}"
 }
 
-
-func_8_2_arguments_parsing() {
-
-    func_6_4_print_every_param "$@"
+func_8_2_cpp_arguments_parsing() {
+    func_6_4_cpp_print_every_param "$@"
 
     CPP_ACTION=$1
     shift
@@ -1305,26 +1311,26 @@ func_8_2_arguments_parsing() {
     fi
 
     # Derive Build Directory (Matches CMakePresets.json logic)
-    CPP_BUILD_DIR="${CPP_TOP_DIR}/build/${CPP_PRESET_NAME}"
+    CPP_BUILD_WITH_PLATFORM_DIR="${CPP_TOP_DIR}/build/${CPP_PRESET_NAME}"
 
     echo "--------------------------------------------"
     echo "Action:      $CPP_ACTION"
     echo "Target:      [${CPP_PLATFORM}]"
-    echo "Build Dir:   ${CPP_BUILD_DIR}"
+    echo "Build Dir:   ${CPP_BUILD_WITH_PLATFORM_DIR}"
     echo "--------------------------------------------"
 }
 
-func_8_1_build_dispatch() {
+func_8_1_cpp_build_dispatch() {
     if [ x"${DEBUG_MODE}" == x"1" ];then
-        func_6_4_print_every_param "$@"
+        func_6_4_cpp_print_every_param "$@"
     fi
 
     local target="$1"
     # shift || true   # shed the bin name $0
     shift || true   # shed the "cpp" indicator
 
-    # func_6_4_print_every_param "$@"
-    func_8_2_arguments_parsing "$@"
+    # func_6_4_cpp_print_every_param "$@"
+    func_8_2_cpp_arguments_parsing "$@"
 
     if [ -d "${CPP_TOP_DIR}" ];then
         cd "${CPP_TOP_DIR}"
@@ -1368,7 +1374,7 @@ func_9_4_cpp_list_platforms() {
     fi
 }
 
-func_9_3_menu_cpp_select_platform() {
+func_9_3_cpp_menu_select_platform() {
     local platforms=()
     mapfile -t platforms < <(func_9_4_cpp_list_platforms)
 
@@ -1394,7 +1400,7 @@ func_9_3_menu_cpp_select_platform() {
     return 1
 }
 
-func_9_2_menu_cpp_select_action() {
+func_9_2_cpp_menu_select_action() {
     local timeout=10
 
     echo
@@ -1438,7 +1444,7 @@ func_9_2_menu_cpp_select_action() {
     # ---------------------------------------
     # Step 1: Platform Selection
     # ---------------------------------------
-    func_9_3_menu_cpp_select_platform
+    func_9_3_cpp_menu_select_platform
     # echo "---------------------------------------"
     # echo "Select Platform:"
     # echo "  1) native   (Default)"
@@ -1516,13 +1522,13 @@ func_9_2_menu_cpp_select_action() {
 func_9_1_cpp_menu_entry() {
     echo ""
     # while true; do
-        func_9_2_menu_cpp_select_action
+        func_9_2_cpp_menu_select_action
 
         if [[ "$CPP_ACTION" == "back" ]]; then
             return
         fi
 
-        func_8_1_build_dispatch cpp "$CPP_ACTION" "$CPP_PLATFORM" || return
+        func_8_1_cpp_build_dispatch cpp "$CPP_ACTION" "$CPP_PLATFORM" || return
     # done
 }
 
@@ -1562,7 +1568,7 @@ main(){
             func_2_1_check_env_ready && func_4_2_inference_with_onnx ;;
         build)
             func_2_1_check_env_ready
-            func_8_1_build_dispatch "${ARGS[@]}"
+            func_8_1_cpp_build_dispatch "${ARGS[@]}"
             ;;
         golden)
             func_2_1_check_env_ready && func_4_5_generate_golden_interactive ;;
