@@ -90,9 +90,9 @@ func_6_2_cpp_setup_env(){
 }
 
 func_6_1_cpp_check_preset_existence() {
-    cmake --version
-    pwd -P
-    cmake --list-presets
+    # cmake --version
+    # pwd -P
+    # cmake --list-presets
 
     if ! cmake --list-presets | grep -q "${CPP_PRESET_NAME}"; then
         func_1_2_err "Error: Preset '${CPP_PRESET_NAME}' is not defined in CMakePresets.json."
@@ -240,11 +240,14 @@ func_8_5_cpp_run_native_conan_configure() {
         conan_build_type="Debug"
     fi
 
+    # move to build/${CPP_PLATFORM} to exec conan install to avoid any potential problem
+    mkdir -p "${CPP_BUILD_WITH_PLATFORM_DIR}" && cd "${CPP_BUILD_WITH_PLATFORM_DIR}" || exit 1
     conan install "${CPP_TOP_DIR}" \
-        --output-folder="${CPP_BUILD_WITH_PLATFORM_DIR}" \
+        --output-folder="." \
         --build=missing \
         -s build_type="${conan_build_type}" \
-        -s compiler.cppstd=17
+        -s compiler.cppstd=17 \
+        -c tools.cmake.cmaketoolchain:user_presets=""
 
     if [ $? -ne 0 ]; then
         func_1_2_err "Conan install failed."
@@ -515,7 +518,7 @@ func_8_1_cpp_build_dispatch() {
             fi
 
             func_1_1_log \
-                "🛠️  CPP Build: cmd=${CPP_ACTION}, platform=${CPP_PLATFORM}" \
+                "🛠️  CPP Build: cmd=${CPP_ACTION}, platform=${CPP_PLATFORM}, build_type=${CPP_BUILD_TYPE}, lib_type=${CPP_LIB_TYPE}" \
                 "blue"
 
             # func_8_4_cpp_dispatch "$CPP_ACTION" "$CPP_PLATFORM"
