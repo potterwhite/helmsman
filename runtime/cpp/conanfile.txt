@@ -2,6 +2,7 @@
 
 [requires]
 opencv/4.10.0
+onnxruntime/1.6.0
 
 [options]
 opencv/*:with_gtk=False
