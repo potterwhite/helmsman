@@ -43,6 +43,8 @@ const std::string ksocket_path = "/tmp/soCket.paTh";
 // static bool g_stop_signal_received = false;
 static std::atomic<bool> g_stop_signal_received(false);
 
+auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+
 void SignalHandler(int signal_num) {
 	g_stop_signal_received = true;
 	std::ostringstream oss;
@@ -60,6 +62,63 @@ bool isRelease() {
 	return build_type == "Release";
 }
 
+Ort::SessionOptions init_session_option(void) {
+	Ort::SessionOptions opt;
+	opt.SetIntraOpNumThreads(1);
+	opt.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_BASIC);
+
+	return opt;
+}
+
+void show_input(const Ort::Session& session) {
+	Ort::AllocatorWithDefaultOptions allocator;
+
+	// 4. Echo input message
+	size_t num_inputs = session.GetInputCount();
+	// std::count << "Number of inputs: " << num_inputs << std::end;
+	logger.Info("Number of inputs: " + std::to_string(num_inputs));
+
+	for (size_t i = 0; i < num_inputs; i++) {
+		char* input_name = session.GetInputName(i, allocator);
+		auto input_type_info = session.GetInputTypeInfo(i);
+		auto tensor_info = input_type_info.GetTensorTypeAndShapeInfo();
+		auto input_shape = tensor_info.GetShape();
+
+		std::cout << "Input " << i << " name: " << input_name << "\n";
+		std::cout << "Input shape: [ ";
+		for (auto dim : input_shape) {
+			std::cout << dim << " ";
+		}
+		std::cout << "]\n";
+
+		allocator.Free(input_name);
+	}
+}
+
+void show_output(const Ort::Session& session) {
+	Ort::AllocatorWithDefaultOptions allocator;
+
+	// 5. echo output message
+	size_t num_outputs = session.GetOutputCount();
+	std::cout << "Number of outputs: " << num_outputs << std::endl;
+
+	for (size_t i = 0; i < num_outputs; i++) {
+		char* output_name = session.GetOutputName(i, allocator);
+		auto output_type_info = session.GetOutputTypeInfo(i);
+		auto tensor_info = output_type_info.GetTensorTypeAndShapeInfo();
+		auto output_shape = tensor_info.GetShape();
+
+		std::cout << "Output " << i << " name: " << output_name << "\n";
+		std::cout << "Output shape: [ ";
+		for (auto dim : output_shape) {
+			std::cout << dim << " ";
+		}
+		std::cout << "]\n";
+
+		allocator.Free(output_name);
+	}
+}
+
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	// auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 	// logger.setLevel(arcforge::embedded::utils::LoggerLevel::kdebug);
@@ -67,7 +126,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	//*****************************************************
 	// logger level configuration
 	// obtain logger unique instance
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 
 	// 1. Configure logger level
 	if (isRelease() == true) {
@@ -98,57 +156,12 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	try {
 		Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "onnx-demo");
 
-		// 2. session
-		Ort::SessionOptions session_options;
-		session_options.SetIntraOpNumThreads(1);
-		session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_BASIC);
-
 		// 3. create session
-		Ort::Session session(env, onnx_path.c_str(), session_options);
+		Ort::Session session(env, onnx_path.c_str(), init_session_option());
 
-		Ort::AllocatorWithDefaultOptions allocator;
+		show_input(session);
 
-		// 4. Echo input message
-		size_t num_inputs = session.GetInputCount();
-		// std::count << "Number of inputs: " << num_inputs << std::end;
-		logger.Info("Number of inputs:" + num_inputs);
-
-		for (size_t i = 0; i < num_inputs; i++) {
-			char* input_name = session.GetInputName(i, allocator);
-			auto input_type_info = session.GetInputTypeInfo(i);
-			auto tensor_info = input_type_info.GetTensorTypeAndShapeInfo();
-			auto input_shape = tensor_info.GetShape();
-
-			std::cout << "Input " << i << " name: " << input_name << "\n";
-			std::cout << "Input shape: [ ";
-			for (auto dim : input_shape) {
-				std::cout << dim << " ";
-			}
-			std::cout << "]\n";
-
-			allocator.Free(input_name);
-		}
-
-		// 5. echo output message
-
-		size_t num_outputs = session.GetOutputCount();
-		std::cout << "Number of outputs: " << num_outputs << std::endl;
-
-		for (size_t i = 0; i < num_outputs; i++) {
-			char* output_name = session.GetOutputName(i, allocator);
-			auto output_type_info = session.GetOutputTypeInfo(i);
-			auto tensor_info = output_type_info.GetTensorTypeAndShapeInfo();
-			auto output_shape = tensor_info.GetShape();
-
-			std::cout << "Output " << i << " name: " << output_name << "\n";
-			std::cout << "Output shape: [ ";
-			for (auto dim : output_shape) {
-				std::cout << dim << " ";
-			}
-			std::cout << "]\n";
-
-			allocator.Free(output_name);
-		}
+		show_output(session);
 
 	} catch (const Ort::Exception& e) {
 		std::cerr << "Error: " << e.what() << std::endl;
