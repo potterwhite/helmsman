@@ -104,13 +104,14 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_BASIC);
 
 		// 3. create session
-		Ort::Session session(env, onnx_path, session_options);
+		Ort::Session session(env, onnx_path.c_str(), session_options);
 
 		Ort::AllocatorWithDefaultOptions allocator;
 
 		// 4. Echo input message
 		size_t num_inputs = session.GetInputCount();
-		std::count << "Number of inputs: " << num_inputs << std::end;
+		// std::count << "Number of inputs: " << num_inputs << std::end;
+		logger.Info("Number of inputs:" + num_inputs);
 
 		for (size_t i = 0; i < num_inputs; i++) {
 			char* input_name = session.GetInputName(i, allocator);
