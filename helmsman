@@ -102,6 +102,7 @@ func_1_7_usage() {
     echo "  inference       Run Python ONNX inference on an image."
     echo "  build           Build the C++ Helmsman engine."
     echo "  clean           Remove build artifacts and environments."
+    echo "  cleanall        Remove build/models/modnet-sdk/venv/cpp-build etc"
     echo "  <no command>    Launch interactive menu mode."
     echo
     echo "Options:"
@@ -482,7 +483,7 @@ func_3_2_setup_dep_before_build() {
     func_3_5_build_onnxruntime_conan_package
 
     # Processing -- 4.4 Ensure conan installation and configuration
-    func_8_5_cpp_run_native_conan_configure
+    # func_8_5_cpp_run_native_conan_configure
 
     # ********************************************
     # --- Step 5: build dir is temporary for restoring temp files and folders
@@ -889,8 +890,16 @@ func_6_2_cpp_setup_env(){
 
     # Paths
     CPP_TOP_DIR="${REPO_TOP_DIR}/runtime/cpp"
+    # ------------------
+    # CPP_BUILD_DIR only used in cleaning execution
     CPP_BUILD_DIR="${CPP_TOP_DIR}/build"
-    CPP_BUILD_WITH_PLATFORM_DIR="${CPP_TOP_DIR}/build"
+    # ------------------
+    # CPP_BUILD_WITH_PLATFORM_DIR will be assigned after params parsing
+    # and all build progress occurs in this place
+    # it will be assigned like: runtime/cpp/build/native-release
+    # ------------------
+    CPP_BUILD_WITH_PLATFORM_DIR=""
+    # ------------------
     CPP_INSTALL_DIR="${CPP_TOP_DIR}/install"
     CPP_INSTALL_INC_DIR="${CPP_INSTALL_DIR}/include"
     CPP_INSTALL_BIN_DIR="${CPP_INSTALL_DIR}/bin"
@@ -1152,14 +1161,14 @@ func_8_4_cpp_dispatch() {
         case "$CPP_ACTION" in
             "build")
                 # Flow: Conan Install + CMake Configure -> Build
-                # func_8_5_cpp_run_native_conan_configure
+                func_8_5_cpp_run_native_conan_configure
                 func_7_3_cpp_core_build
                 ;;
 
             "cb")
                 # Flow: Clean -> Conan Install + CMake Configure -> Build -> Install
                 func_7_1_cpp_core_clean_target
-                # func_8_5_cpp_run_native_conan_configure
+                func_8_5_cpp_run_native_conan_configure
                 func_7_3_cpp_core_build
                 func_7_4_cpp_core_install
                 ;;
@@ -1321,6 +1330,10 @@ func_8_2_cpp_arguments_parsing() {
 }
 
 func_8_1_cpp_build_dispatch() {
+    # ------------------------------
+    # This is CPP Functionalities Entry
+    # ------------------------------
+
     if [ x"${DEBUG_MODE}" == x"1" ];then
         func_6_4_cpp_print_every_param "$@"
     fi
@@ -1542,6 +1555,7 @@ main(){
 
     # Preparation -- 2. Argument Parsing
     local COMMAND=""
+    local cmd_lower_case=""
     local ARGS=()
 
     for arg in "$@"; do
@@ -1556,25 +1570,27 @@ main(){
     done
 
     COMMAND=${COMMAND:-"menu"}
-
+    local cmd_lower_case=$(echo "$COMMAND" | tr '[:upper:]' '[:lower:]')
 
     # Processing -- 1. Main Loop
-    case $COMMAND in
-        prepare)
+    case $cmd_lower_case in
+        "pre" | "prepare")
             func_3_2_setup_dep_before_build ;;
-        convert)
+        "conv" | "cvt" | "convert")
             func_2_1_check_env_ready && func_4_1_ckpt_2_onnx ;;
-        inference)
+        "inf" | "inference")
             func_2_1_check_env_ready && func_4_2_inference_with_onnx ;;
-        build)
+        "b" | "build")
             func_2_1_check_env_ready
             func_8_1_cpp_build_dispatch "${ARGS[@]}"
             ;;
-        golden)
+        "g" | "golden")
             func_2_1_check_env_ready && func_4_5_generate_golden_interactive ;;
-        clean)
+        "c" | "clean")
             func_5_1_clean_project ;;
-        menu)
+        "ca" | "cleanall")
+            func_5_1_clean_project 2;;
+        "menu")
             # while true; do
                 echo ""
                 func_1_1_log "--- Helmsman Project Main Menu ---" "blue"
