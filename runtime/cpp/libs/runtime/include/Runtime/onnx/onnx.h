@@ -37,6 +37,8 @@ static const std::string k_empty_socket_path_sentinel = "";
 
 class RuntimeONNX {
    public:
+	static RuntimeONNX& GetInstance();
+
 	explicit RuntimeONNX();
 	virtual ~RuntimeONNX();
 

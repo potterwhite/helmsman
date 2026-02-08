@@ -36,6 +36,12 @@ RuntimeONNX::RuntimeONNX(RuntimeONNX&& other) noexcept = default;
 
 RuntimeONNX& RuntimeONNX::operator=(RuntimeONNX&& other) noexcept = default;
 
+RuntimeONNX& RuntimeONNX::GetInstance() {
+	static RuntimeONNX instance;
+    
+	return instance;
+}
+
 void RuntimeONNX::show_input(const Ort::Session& session) {
 	if (impl_ != nullptr) {
 		impl_->show_input(session);

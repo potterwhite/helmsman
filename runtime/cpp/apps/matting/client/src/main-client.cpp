@@ -20,10 +20,11 @@
 
 #include "CVKit/base/base.h"
 #include "Utils/file/file-utils.h"
-#include "Utils/math/math-utils.h"
+#include "Runtime/onnx/onnx.h"
 #include "Utils/logger/logger.h"
 #include "Utils/logger/worker/consolesink.h"
 #include "Utils/logger/worker/filesink.h"
+#include "Utils/math/math-utils.h"
 
 #include <onnxruntime_cxx_api.h>
 #include <algorithm>
@@ -50,6 +51,7 @@ static std::atomic<bool> g_stop_signal_received(false);
 auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 auto& file_utils = arcforge::utils::FileUtils::GetInstance();
 auto& math_utils = arcforge::utils::MathUtils::GetInstance();
+auto& runtime = arcforge::runtime::RuntimeONNX::GetInstance();
 
 void SignalHandler(int signal_num) {
 	g_stop_signal_received = true;
@@ -152,73 +154,79 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	signal(SIGINT, SignalHandler);
 	// signal(SIGTERM, SignalHan/development/docker_volumes/src/ai/image-matting/helmsman.git/runtime/cpp/build/native-release/debug/dler);
 
-	if (argc != 3) {
-		std::cerr << "Usage: preprocess_normalize <input_image> <output_bin>\n";
-		return 1;
-	}
+	// if (argc != 3) {
+	// 	std::cerr << "Usage: preprocess_normalize <input_image> <output_bin>\n";
+	// 	return 1;
+	// }
 
-	const std::string imagePath = argv[1];
-	const std::string outputBinPath = argv[2];
-	auto cvkit_obj = std::make_unique<arcforge::cvkit::Base>();
-	try {
-		cv::Mat img = cvkit_obj->loadImage(imagePath);
-		img = cvkit_obj->bgrToRgb(img);
-		img = cvkit_obj->ensure3Channel(img);
-		/*
-         * NOTE:
-         * DO NOT use cv::normalize / convertTo here.
-         * This must be bitwise identical to NumPy preprocessing.
-         *
-         * Date: Feb03.2026
-         * Author: PotterWhite
-         *
-         * img = cvkit_obj->normalizeToMinusOneToOne(img);
-         */
-		img = cvkit_obj->normalize_exact_numpy(img);
-		cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_00_04_normalized.bin");
-
-		// 1. resize to fit model input size
-		constexpr int ref_size = 512;
-		auto scale_factor = math_utils.getScaleFactor(img.rows, img.cols, ref_size);
-		std::cout << std::setprecision(17) << "x_scale_factor=" << scale_factor.first
-		          << ", y_scale_factor=" << scale_factor.second << std::endl;
-		cv::resize(img,                  // src
-		           img,                  // dst（可以原地）
-		           cv::Size(),           // dsize 为空
-		           scale_factor.first,   // fx
-		           scale_factor.second,  // fy
-		           cv::INTER_AREA        // interpolation
-		);
-		logger.Info("Resized Width=" + std::to_string(img.cols) +
-		                ", Resized Height=" + std::to_string(img.rows),
-		            kcurrent_app_name);
-
-		// 2. convert to NCHW
-		// std::vector<float> result = hwcToNchw(img);
-		std::vector<float> result = cvkit_obj->hwcToNchw(img, 3);
-
-		// 3. dump binary
-		file_utils.dumpBinary(result, outputBinPath + "/cpp_01_nchw_input.bin");
-
-	} catch (const std::exception& e) {
-		std::cerr << "Error: " << e.what() << std::endl;
-		return 1;
-	}
-
+	// const std::string imagePath = argv[1];
+	// const std::string outputBinPath = argv[2];
+	// auto cvkit_obj = std::make_unique<arcforge::cvkit::Base>();
 	// try {
-	// 	Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "onnx-demo");
+	// 	cv::Mat img = cvkit_obj->loadImage(imagePath);
+	// 	img = cvkit_obj->bgrToRgb(img);
+	// 	img = cvkit_obj->ensure3Channel(img);
+	// 	/*
+	//      * NOTE:
+	//      * DO NOT use cv::normalize / convertTo here.
+	//      * This must be bitwise identical to NumPy preprocessing.
+	//      *
+	//      * Date: Feb03.2026
+	//      * Author: PotterWhite
+	//      *
+	//      * img = cvkit_obj->normalizeToMinusOneToOne(img);
+	//      */
+	// 	img = cvkit_obj->normalize_exact_numpy(img);
+	// 	cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_00_04_normalized.bin");
 
-	// 	// 3. create session
-	// 	Ort::Session session(env, onnx_path.c_str(), init_session_option());
+	// 	// 1. resize to fit model input size
+	// 	constexpr int ref_size = 512;
+	// 	auto scale_factor = math_utils.getScaleFactor(img.rows, img.cols, ref_size);
+	// 	std::cout << std::setprecision(17) << "x_scale_factor=" << scale_factor.first
+	// 	          << ", y_scale_factor=" << scale_factor.second << std::endl;
+	// 	cv::resize(img,                  // src
+	// 	           img,                  // dst（可以原地）
+	// 	           cv::Size(),           // dsize 为空
+	// 	           scale_factor.first,   // fx
+	// 	           scale_factor.second,  // fy
+	// 	           cv::INTER_AREA        // interpolation
+	// 	);
+	// 	logger.Info("Resized Width=" + std::to_string(img.cols) +
+	// 	                ", Resized Height=" + std::to_string(img.rows),
+	// 	            kcurrent_app_name);
 
-	// 	show_input(session);
+	// 	// 2. convert to NCHW
+	// 	// std::vector<float> result = hwcToNchw(img);
+	// 	std::vector<float> result = cvkit_obj->hwcToNchw(img, 3);
 
-	// 	show_output(session);
+	// 	// 3. dump binary
+	// 	file_utils.dumpBinary(result, outputBinPath + "/cpp_01_nchw_input.bin");
 
-	// } catch (const Ort::Exception& e) {
+	// } catch (const std::exception& e) {
 	// 	std::cerr << "Error: " << e.what() << std::endl;
 	// 	return 1;
 	// }
+
+	if (argc != 2) {
+		std::cerr << "Usage: load_onnx <onnx_path> \n";
+		return 1;
+	}
+	const std::string onnx_path = argv[1];
+
+	try {
+		Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "onnx-demo");
+
+		// 3. create session
+		Ort::Session session(env, onnx_path.c_str(), init_session_option());
+
+		runtime.show_input(session);
+
+		runtime.show_output(session);
+
+	} catch (const Ort::Exception& e) {
+		std::cerr << "Error: " << e.what() << std::endl;
+		return 1;
+	}
 
 	std::cout << "hello " << kcurrent_app_name << std::endl;
 
