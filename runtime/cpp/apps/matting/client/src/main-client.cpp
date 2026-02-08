@@ -20,6 +20,7 @@
 
 #include "CVKit/base/base.h"
 #include "Utils/logger/logger.h"
+#include "Utils/file/file-utils.h"
 #include "Utils/logger/worker/consolesink.h"
 #include "Utils/logger/worker/filesink.h"
 
@@ -46,6 +47,7 @@ const std::string ksocket_path = "/tmp/soCket.paTh";
 static std::atomic<bool> g_stop_signal_received(false);
 
 auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+auto& file_utils = arcforge::utils::FileUtils::GetInstance();
 
 void SignalHandler(int signal_num) {
 	g_stop_signal_received = true;
@@ -183,22 +185,6 @@ std::pair<double, double> getScaleFactor(int im_h, int im_w, int ref_size) {
 	return {x_scale_factor, y_scale_factor};
 }
 
-/**
- * @brief Dump raw float data to binary file
- */
-void dumpBinary_from_vector(const std::vector<float>& vec, const std::string& outputPath) {
-
-	std::ofstream ofs(outputPath, std::ios::binary);
-	if (!ofs) {
-		throw std::runtime_error("Failed to open output file: " + outputPath);
-	}
-
-	ofs.write(reinterpret_cast<const char*>(vec.data()),
-	          static_cast<std::streamsize>(vec.size() * sizeof(float)));
-
-	ofs.close();
-}
-
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	// auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 	// logger.setLevel(arcforge::embedded::utils::LoggerLevel::kdebug);
@@ -271,7 +257,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		std::vector<float> result = hwcToNchw(img);
 
 		// 3. dump binary
-		dumpBinary_from_vector(result, outputBinPath + "/cpp_01_nchw_input.bin");
+		file_utils.dumpBinary(result, outputBinPath + "/cpp_01_nchw_input.bin");
 
 	} catch (const std::exception& e) {
 		std::cerr << "Error: " << e.what() << std::endl;
