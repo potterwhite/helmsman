@@ -18,16 +18,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+#
+# runtime/src/CMakeLists.txt
+#
 
-# ---------------------------------
-# I. Main Executes
-# ---------------------------------
-add_subdirectory(utils)
-add_subdirectory(network)
-#add_subdirectory(asr_engine)
-add_subdirectory(cvkit)
-add_subdirectory(runtime)
+add_subdirectory(common)
+add_subdirectory(onnx)
 
-# ---------------------------------
-#               End
-# ---------------------------------
+

@@ -18,16 +18,25 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+#
+# onnx subdirectory CMakeLists.txt
+#
 
-# ---------------------------------
-# I. Main Executes
-# ---------------------------------
-add_subdirectory(utils)
-add_subdirectory(network)
-#add_subdirectory(asr_engine)
-add_subdirectory(cvkit)
-add_subdirectory(runtime)
+set(COMMON_SOURCES
+	"${CMAKE_CURRENT_SOURCE_DIR}/onnx.cpp"
+)
 
-# ---------------------------------
-#               End
-# ---------------------------------
+set(ONNX_SOURCES
+	"${CMAKE_CURRENT_SOURCE_DIR}/impl/impl.cpp"
+	${COMMON_SOURCES}
+)
+
+set(ONNX_PUBLIC_HEADERS
+	"${INCLUDE_DIR}/Runtime/onnx/onnx.h"
+)
+
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        ${COMMON_SOURCES}
+		${ONNX_SOURCES}
+)

@@ -76,87 +76,53 @@ Ort::SessionOptions init_session_option(void) {
 	return opt;
 }
 
-void show_input(const Ort::Session& session) {
-	Ort::AllocatorWithDefaultOptions allocator;
+// void show_input(const Ort::Session& session) {
+// 	Ort::AllocatorWithDefaultOptions allocator;
 
-	// 4. Echo input message
-	size_t num_inputs = session.GetInputCount();
-	// std::count << "Number of inputs: " << num_inputs << std::end;
-	logger.Info("Number of inputs: " + std::to_string(num_inputs));
+// 	// 4. Echo input message
+// 	size_t num_inputs = session.GetInputCount();
+// 	// std::count << "Number of inputs: " << num_inputs << std::end;
+// 	logger.Info("Number of inputs: " + std::to_string(num_inputs));
 
-	for (size_t i = 0; i < num_inputs; i++) {
-		char* input_name = session.GetInputName(i, allocator);
-		auto input_type_info = session.GetInputTypeInfo(i);
-		auto tensor_info = input_type_info.GetTensorTypeAndShapeInfo();
-		auto input_shape = tensor_info.GetShape();
+// 	for (size_t i = 0; i < num_inputs; i++) {
+// 		char* input_name = session.GetInputName(i, allocator);
+// 		auto input_type_info = session.GetInputTypeInfo(i);
+// 		auto tensor_info = input_type_info.GetTensorTypeAndShapeInfo();
+// 		auto input_shape = tensor_info.GetShape();
 
-		std::cout << "Input " << i << " name: " << input_name << "\n";
-		std::cout << "Input shape: [ ";
-		for (auto dim : input_shape) {
-			std::cout << dim << " ";
-		}
-		std::cout << "]\n";
-
-		allocator.Free(input_name);
-	}
-}
-
-void show_output(const Ort::Session& session) {
-	Ort::AllocatorWithDefaultOptions allocator;
-
-	// 5. echo output message
-	size_t num_outputs = session.GetOutputCount();
-	std::cout << "Number of outputs: " << num_outputs << std::endl;
-
-	for (size_t i = 0; i < num_outputs; i++) {
-		char* output_name = session.GetOutputName(i, allocator);
-		auto output_type_info = session.GetOutputTypeInfo(i);
-		auto tensor_info = output_type_info.GetTensorTypeAndShapeInfo();
-		auto output_shape = tensor_info.GetShape();
-
-		std::cout << "Output " << i << " name: " << output_name << "\n";
-		std::cout << "Output shape: [ ";
-		for (auto dim : output_shape) {
-			std::cout << dim << " ";
-		}
-		std::cout << "]\n";
-
-		allocator.Free(output_name);
-	}
-}
-
-// std::vector<float> hwcToNchw(const cv::Mat& origin_img) {
-// 	// 基本检查
-// 	CV_Assert(origin_img.type() == CV_32FC3);
-// 	CV_Assert(origin_img.isContinuous());
-
-// 	const size_t H = static_cast<size_t>(origin_img.rows);
-// 	const size_t W = static_cast<size_t>(origin_img.cols);
-// 	const size_t C = 3;
-
-// 	// 输出：1 * 3 * H * W
-// 	std::vector<float> nchw;
-// 	nchw.resize(C * H * W);
-
-// 	// OpenCV HWC: [H][W][C]
-// 	// NCHW: [C][H][W]
-// 	for (size_t h = 0; h < H; ++h) {
-// 		for (size_t w = 0; w < W; ++w) {
-// 			const cv::Vec3f& pixel =
-// 			    origin_img.at<cv::Vec3f>(static_cast<int>(h), static_cast<int>(w));
-
-// 			// R
-// 			nchw[0 * H * W + h * W + w] = pixel[0];
-// 			// G
-// 			nchw[1 * H * W + h * W + w] = pixel[1];
-// 			// B
-// 			nchw[2 * H * W + h * W + w] = pixel[2];
+// 		std::cout << "Input " << i << " name: " << input_name << "\n";
+// 		std::cout << "Input shape: [ ";
+// 		for (auto dim : input_shape) {
+// 			std::cout << dim << " ";
 // 		}
+// 		std::cout << "]\n";
+
+// 		allocator.Free(input_name);
 // 	}
+// }
 
-// 	logger.Info("Width=" + std::to_string(W) + ", Height=" + std::to_string(H), kcurrent_app_name);
+// void show_output(const Ort::Session& session) {
+// 	Ort::AllocatorWithDefaultOptions allocator;
 
-// 	return nchw;
+// 	// 5. echo output message
+// 	size_t num_outputs = session.GetOutputCount();
+// 	std::cout << "Number of outputs: " << num_outputs << std::endl;
+
+// 	for (size_t i = 0; i < num_outputs; i++) {
+// 		char* output_name = session.GetOutputName(i, allocator);
+// 		auto output_type_info = session.GetOutputTypeInfo(i);
+// 		auto tensor_info = output_type_info.GetTensorTypeAndShapeInfo();
+// 		auto output_shape = tensor_info.GetShape();
+
+// 		std::cout << "Output " << i << " name: " << output_name << "\n";
+// 		std::cout << "Output shape: [ ";
+// 		for (auto dim : output_shape) {
+// 			std::cout << dim << " ";
+// 		}
+// 		std::cout << "]\n";
+
+// 		allocator.Free(output_name);
+// 	}
 // }
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
