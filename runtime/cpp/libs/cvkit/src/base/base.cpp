@@ -88,5 +88,13 @@ void Base::dumpBinary(const cv::Mat& mat, const std::string& outputPath) {
 	}
 }
 
+std::vector<float> Base::hwcToNchw(const cv::Mat& origin_img, const size_t channels) {
+	if (impl_ != nullptr) {
+		return impl_->hwcToNchw(origin_img, channels);
+	}
+
+	return std::vector<float>{};
+}
+
 }  // namespace cvkit
 }  // namespace arcforge

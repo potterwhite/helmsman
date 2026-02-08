@@ -157,5 +157,38 @@ void BaseImpl::dumpBinary(const cv::Mat& mat, const std::string& outputPath) {
 	ofs.close();
 }
 
+std::vector<float> BaseImpl::hwcToNchw(const cv::Mat& origin_img, const size_t channels) {
+	// 基本检查
+	CV_Assert(origin_img.type() == CV_32FC3);
+	CV_Assert(origin_img.isContinuous());
+
+	const size_t H = static_cast<size_t>(origin_img.rows);
+	const size_t W = static_cast<size_t>(origin_img.cols);
+
+	// 输出：1 * 3 * H * W
+	std::vector<float> nchw;
+	nchw.resize(channels * H * W);
+
+	// OpenCV HWC: [H][W][C]
+	// NCHW: [C][H][W]
+	for (size_t h = 0; h < H; ++h) {
+		for (size_t w = 0; w < W; ++w) {
+			const cv::Vec3f& pixel =
+			    origin_img.at<cv::Vec3f>(static_cast<int>(h), static_cast<int>(w));
+
+			// R
+			nchw[0 * H * W + h * W + w] = pixel[0];
+			// G
+			nchw[1 * H * W + h * W + w] = pixel[1];
+			// B
+			nchw[2 * H * W + h * W + w] = pixel[2];
+		}
+	}
+
+	// logger.Info("Width=" + std::to_string(W) + ", Height=" + std::to_string(H), kcurrent_app_name);
+
+	return nchw;
+}
+
 }  // namespace cvkit
 }  // namespace arcforge

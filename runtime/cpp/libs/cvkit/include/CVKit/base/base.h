@@ -54,6 +54,7 @@ class Base {
 	cv::Mat normalizeToMinusOneToOne(const cv::Mat& input);
 	cv::Mat normalize_exact_numpy(const cv::Mat& input);
 	void dumpBinary(const cv::Mat& mat, const std::string& outputPath);
+	std::vector<float> hwcToNchw(const cv::Mat& origin_img, const size_t channels);
 
    private:
 	explicit Base(std::unique_ptr<BaseImpl>);

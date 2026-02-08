@@ -125,39 +125,39 @@ void show_output(const Ort::Session& session) {
 	}
 }
 
-std::vector<float> hwcToNchw(const cv::Mat& origin_img) {
-	// 基本检查
-	CV_Assert(origin_img.type() == CV_32FC3);
-	CV_Assert(origin_img.isContinuous());
+// std::vector<float> hwcToNchw(const cv::Mat& origin_img) {
+// 	// 基本检查
+// 	CV_Assert(origin_img.type() == CV_32FC3);
+// 	CV_Assert(origin_img.isContinuous());
 
-	const size_t H = static_cast<size_t>(origin_img.rows);
-	const size_t W = static_cast<size_t>(origin_img.cols);
-	const size_t C = 3;
+// 	const size_t H = static_cast<size_t>(origin_img.rows);
+// 	const size_t W = static_cast<size_t>(origin_img.cols);
+// 	const size_t C = 3;
 
-	// 输出：1 * 3 * H * W
-	std::vector<float> nchw;
-	nchw.resize(C * H * W);
+// 	// 输出：1 * 3 * H * W
+// 	std::vector<float> nchw;
+// 	nchw.resize(C * H * W);
 
-	// OpenCV HWC: [H][W][C]
-	// NCHW: [C][H][W]
-	for (size_t h = 0; h < H; ++h) {
-		for (size_t w = 0; w < W; ++w) {
-			const cv::Vec3f& pixel =
-			    origin_img.at<cv::Vec3f>(static_cast<int>(h), static_cast<int>(w));
+// 	// OpenCV HWC: [H][W][C]
+// 	// NCHW: [C][H][W]
+// 	for (size_t h = 0; h < H; ++h) {
+// 		for (size_t w = 0; w < W; ++w) {
+// 			const cv::Vec3f& pixel =
+// 			    origin_img.at<cv::Vec3f>(static_cast<int>(h), static_cast<int>(w));
 
-			// R
-			nchw[0 * H * W + h * W + w] = pixel[0];
-			// G
-			nchw[1 * H * W + h * W + w] = pixel[1];
-			// B
-			nchw[2 * H * W + h * W + w] = pixel[2];
-		}
-	}
+// 			// R
+// 			nchw[0 * H * W + h * W + w] = pixel[0];
+// 			// G
+// 			nchw[1 * H * W + h * W + w] = pixel[1];
+// 			// B
+// 			nchw[2 * H * W + h * W + w] = pixel[2];
+// 		}
+// 	}
 
-	logger.Info("Width=" + std::to_string(W) + ", Height=" + std::to_string(H), kcurrent_app_name);
+// 	logger.Info("Width=" + std::to_string(W) + ", Height=" + std::to_string(H), kcurrent_app_name);
 
-	return nchw;
-}
+// 	return nchw;
+// }
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	// auto& logger = arcforge::embedded::utils::Logger::GetInstance();
@@ -228,7 +228,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		            kcurrent_app_name);
 
 		// 2. convert to NCHW
-		std::vector<float> result = hwcToNchw(img);
+		// std::vector<float> result = hwcToNchw(img);
+		std::vector<float> result = cvkit_obj->hwcToNchw(img, 3);
 
 		// 3. dump binary
 		file_utils.dumpBinary(result, outputBinPath + "/cpp_01_nchw_input.bin");
