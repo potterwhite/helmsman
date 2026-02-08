@@ -19,8 +19,9 @@
 // SOFTWARE.
 
 #include "CVKit/base/base.h"
-#include "Utils/logger/logger.h"
 #include "Utils/file/file-utils.h"
+#include "Utils/math/math-utils.h"
+#include "Utils/logger/logger.h"
 #include "Utils/logger/worker/consolesink.h"
 #include "Utils/logger/worker/filesink.h"
 
@@ -48,6 +49,7 @@ static std::atomic<bool> g_stop_signal_received(false);
 
 auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 auto& file_utils = arcforge::utils::FileUtils::GetInstance();
+auto& math_utils = arcforge::utils::MathUtils::GetInstance();
 
 void SignalHandler(int signal_num) {
 	g_stop_signal_received = true;
@@ -157,34 +159,6 @@ std::vector<float> hwcToNchw(const cv::Mat& origin_img) {
 	return nchw;
 }
 
-std::pair<double, double> getScaleFactor(int im_h, int im_w, int ref_size) {
-	int im_rh;
-	int im_rw;
-
-	if (std::max(im_h, im_w) < ref_size || std::min(im_h, im_w) > ref_size) {
-		if (im_w >= im_h) {
-			im_rh = ref_size;
-			im_rw = static_cast<int>(static_cast<double>(im_w) / im_h * ref_size);
-		} else {
-			im_rw = ref_size;
-			im_rh = static_cast<int>(static_cast<double>(im_h) / im_w * ref_size);
-		}
-	} else {
-		im_rh = im_h;
-		im_rw = im_w;
-	}
-
-	// 对齐到 32 倍数
-	im_rw = im_rw - (im_rw % 32);
-	im_rh = im_rh - (im_rh % 32);
-
-	double x_scale_factor = static_cast<double>(im_rw) / im_w;
-
-	double y_scale_factor = static_cast<double>(im_rh) / im_h;
-
-	return {x_scale_factor, y_scale_factor};
-}
-
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	// auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 	// logger.setLevel(arcforge::embedded::utils::LoggerLevel::kdebug);
@@ -239,7 +213,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
 		// 1. resize to fit model input size
 		constexpr int ref_size = 512;
-		auto scale_factor = getScaleFactor(img.rows, img.cols, ref_size);
+		auto scale_factor = math_utils.getScaleFactor(img.rows, img.cols, ref_size);
 		std::cout << std::setprecision(17) << "x_scale_factor=" << scale_factor.first
 		          << ", y_scale_factor=" << scale_factor.second << std::endl;
 		cv::resize(img,                  // src

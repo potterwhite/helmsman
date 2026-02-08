@@ -19,14 +19,13 @@
 # SOFTWARE.
 
 #
-# libs/utils/src/CMakeLists.txt
+# utils/src/math/CMakeLists.txt
 #
 
-# ------------------------
-# The order of subdir adding could not be reversed
-# because they MAY have DEPENDENCIES with each other
-# ------------------------
-add_subdirectory(common)
-add_subdirectory(logger)
-add_subdirectory(file)
-add_subdirectory(math)
+set(LOGGER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/math-utils.cpp")
+
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        ${LOGGER_SOURCES}
+)
+
