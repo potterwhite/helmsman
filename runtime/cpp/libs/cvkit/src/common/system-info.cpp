@@ -24,27 +24,27 @@
 #include "system-info.h"
 
 namespace arcforge {
-namespace helmsman {
+namespace cvkit {
 
-std::string get_arcforge_helmsman_library_version() {
+std::string get_arcforge_cvkit_library_version() {
 
 	return VERSION_STRING;
 }
 
-std::string get_arcforge_helmsman_library_author() {
+std::string get_arcforge_cvkit_library_author() {
 
 	return AUTHOR_NAME;
 }
 
-std::string get_arcforge_helmsman_library_author_email() {
+std::string get_arcforge_cvkit_library_author_email() {
 
 	return AUTHOR_EMAIL;
 }
 
-std::string get_arcforge_helmsman_library_build_timestamp() {
+std::string get_arcforge_cvkit_library_build_timestamp() {
 
 	return BUILD_TIMESTAMP;
 }
 
-}  // namespace embedded
+}  // namespace cvkit
 }  // namespace arcforge
