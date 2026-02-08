@@ -24,6 +24,7 @@
 #include "Utils/logger/worker/filesink.h"
 
 #include <onnxruntime_cxx_api.h>
+#include <algorithm>
 #include <chrono>
 #include <csignal>  // For signal handling
 #include <iostream>
@@ -31,6 +32,7 @@
 #include <sstream>  // For std::ostringstream
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 using namespace arcforge::embedded;
@@ -124,9 +126,9 @@ std::vector<float> hwcToNchw(const cv::Mat& origin_img) {
 	CV_Assert(origin_img.type() == CV_32FC3);
 	CV_Assert(origin_img.isContinuous());
 
-	const int H = origin_img.rows;
-	const int W = origin_img.cols;
-	const int C = 3;
+	const size_t H = static_cast<size_t>(origin_img.rows);
+	const size_t W = static_cast<size_t>(origin_img.cols);
+	const size_t C = 3;
 
 	// 输出：1 * 3 * H * W
 	std::vector<float> nchw;
@@ -134,9 +136,10 @@ std::vector<float> hwcToNchw(const cv::Mat& origin_img) {
 
 	// OpenCV HWC: [H][W][C]
 	// NCHW: [C][H][W]
-	for (int h = 0; h < H; ++h) {
-		for (int w = 0; w < W; ++w) {
-			const cv::Vec3f& pixel = origin_img.at<cv::Vec3f>(h, w);
+	for (size_t h = 0; h < H; ++h) {
+		for (size_t w = 0; w < W; ++w) {
+			const cv::Vec3f& pixel =
+			    origin_img.at<cv::Vec3f>(static_cast<int>(h), static_cast<int>(w));
 
 			// R
 			nchw[0 * H * W + h * W + w] = pixel[0];
@@ -147,7 +150,37 @@ std::vector<float> hwcToNchw(const cv::Mat& origin_img) {
 		}
 	}
 
+	logger.Info("Width=" + std::to_string(W) + ", Height=" + std::to_string(H), kcurrent_app_name);
+
 	return nchw;
+}
+
+std::pair<double, double> getScaleFactor(int im_h, int im_w, int ref_size) {
+	int im_rh;
+	int im_rw;
+
+	if (std::max(im_h, im_w) < ref_size || std::min(im_h, im_w) > ref_size) {
+		if (im_w >= im_h) {
+			im_rh = ref_size;
+			im_rw = static_cast<int>(static_cast<double>(im_w) / im_h * ref_size);
+		} else {
+			im_rw = ref_size;
+			im_rh = static_cast<int>(static_cast<double>(im_h) / im_w * ref_size);
+		}
+	} else {
+		im_rh = im_h;
+		im_rw = im_w;
+	}
+
+	// 对齐到 32 倍数
+	im_rw = im_rw - (im_rw % 32);
+	im_rh = im_rh - (im_rh % 32);
+
+	double x_scale_factor = static_cast<double>(im_rw) / im_w;
+
+	double y_scale_factor = static_cast<double>(im_rh) / im_h;
+
+	return {x_scale_factor, y_scale_factor};
 }
 
 /**
@@ -160,7 +193,8 @@ void dumpBinary_from_vector(const std::vector<float>& vec, const std::string& ou
 		throw std::runtime_error("Failed to open output file: " + outputPath);
 	}
 
-	ofs.write(reinterpret_cast<const char*>(vec.data()), vec.size() * sizeof(float));
+	ofs.write(reinterpret_cast<const char*>(vec.data()),
+	          static_cast<std::streamsize>(vec.size() * sizeof(float)));
 
 	ofs.close();
 }
@@ -190,10 +224,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
 	// setup signal handler
 	signal(SIGINT, SignalHandler);
-	// signal(SIGTERM, SignalHandler);
+	// signal(SIGTERM, SignalHan/development/docker_volumes/src/ai/image-matting/helmsman.git/runtime/cpp/build/native-release/debug/dler);
 
-	if (argc != 2) {
-		std::cerr << "Usage: load_onnx <onnx_path> \n";
+	if (argc != 3) {
+		std::cerr << "Usage: preprocess_normalize <input_image> <output_bin>\n";
 		return 1;
 	}
 
@@ -217,7 +251,26 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		img = cvkit_obj->normalize_exact_numpy(img);
 		cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_00_04_normalized.bin");
 
+		// 1. resize to fit model input size
+		constexpr int ref_size = 512;
+		auto scale_factor = getScaleFactor(img.rows, img.cols, ref_size);
+		std::cout << std::setprecision(17) << "x_scale_factor=" << scale_factor.first
+		          << ", y_scale_factor=" << scale_factor.second << std::endl;
+		cv::resize(img,                  // src
+		           img,                  // dst（可以原地）
+		           cv::Size(),           // dsize 为空
+		           scale_factor.first,   // fx
+		           scale_factor.second,  // fy
+		           cv::INTER_AREA        // interpolation
+		);
+		logger.Info("Resized Width=" + std::to_string(img.cols) +
+		                ", Resized Height=" + std::to_string(img.rows),
+		            kcurrent_app_name);
+
+		// 2. convert to NCHW
 		std::vector<float> result = hwcToNchw(img);
+
+		// 3. dump binary
 		dumpBinary_from_vector(result, outputBinPath + "/cpp_01_nchw_input.bin");
 
 	} catch (const std::exception& e) {
