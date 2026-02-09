@@ -17,7 +17,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 """
 Inference ONNX model of MODNet
 
@@ -40,15 +39,27 @@ from PIL import Image
 import onnx
 import onnxruntime
 
-
 if __name__ == '__main__':
     # define cmd arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('--image-path', type=str, help='path of the input image (a file)')
-    parser.add_argument('--output-path', type=str, help='paht for saving the predicted alpha matte (a file)')
-    parser.add_argument('--model-path', type=str, help='path of the ONNX model')
-    parser.add_argument('--debug-file-path', type=str, help='output path of the the debug reference files')
-    parser.add_argument("--artifact-dir", type=str, default=None, help="Directory to store all intermediate and golden artifacts")
+    parser.add_argument('--image-path',
+                        type=str,
+                        help='path of the input image (a file)')
+    parser.add_argument(
+        '--output-path',
+        type=str,
+        help='paht for saving the predicted alpha matte (a file)')
+    parser.add_argument('--model-path',
+                        type=str,
+                        help='path of the ONNX model')
+    parser.add_argument('--debug-file-path',
+                        type=str,
+                        help='output path of the the debug reference files')
+    parser.add_argument(
+        "--artifact-dir",
+        type=str,
+        default=None,
+        help="Directory to store all intermediate and golden artifacts")
 
     args = parser.parse_args()
 
@@ -71,7 +82,6 @@ if __name__ == '__main__':
         raise ValueError(
             f"--output-path must be a file path with extension, got directory: {args.output_path}"
         )
-
 
     ref_size = 512
 
@@ -106,9 +116,8 @@ if __name__ == '__main__':
         # byte-level
         # b = flat[:10].tobytes()
         # print("bytes:", list(b))
-        raw = flat[:10].tobytes()      # 前 10 个 float = 40 个 byte
+        raw = flat[:10].tobytes()  # 前 10 个 float = 40 个 byte
         print(" ".join(f"{b:02x}" for b in raw))
-
 
     ##############################################
     #  Main Inference part
@@ -131,7 +140,7 @@ if __name__ == '__main__':
     # im.tofile(f"{args.debug_file_path}/debug_00_03_rgb3.bin")
 
     # --------------------------------------------------
-    # normalize values to scale it between -1 to 1
+    # Processing -- 1st. normalize values to scale it between -1 to 1
 
     # # *** Method A ***
     # # *** error due to float64 ***
@@ -147,43 +156,76 @@ if __name__ == '__main__':
 
     # Save to Local Disk
     # print(im.dtype)
-    im.tofile(f"{args.debug_file_path}/debug_01_normalized.bin")
+    first_bin_name = "debug_01_normalized.bin"
+    im.tofile(f"{args.debug_file_path}/{first_bin_name}")
     # print(im.dtype)
     # print(im.flags)
     # echoIMG(im)
-    # --------------------------------------------------
+    print(f"1st-Dumped {args.debug_file_path}/{first_bin_name} successfully.")
 
+    # --------------------------------------------------
+    # Processing -- 2nd. resize image
     im_h, im_w, im_c = im.shape
     print(f"Width={im_w}, Height={im_h}, Channel={im_c}")
     x, y = get_scale_factor(im_h, im_w, ref_size)
     print(f"x_scale_factor={x}, y_scale_factor={y}")
 
     # resize image
-    im = cv2.resize(im, None, fx = x, fy = y, interpolation = cv2.INTER_AREA)
-    print(f"Resized Width={im.shape[1]}, Resized Height={im.shape[0]}, Channel={im.shape[2]}")
-    im.tofile(f"{args.debug_file_path}/debug_02_resized.bin")
+    im = cv2.resize(im, None, fx=x, fy=y, interpolation=cv2.INTER_AREA)
+    print(
+        f"Resized Width={im.shape[1]}, Resized Height={im.shape[0]}, Channel={im.shape[2]}"
+    )
+    second_bin_name = "debug_02_resized.bin"
+    im.tofile(f"{args.debug_file_path}/{second_bin_name}")
+    print(f"2nd-Dumped {args.debug_file_path}/{second_bin_name} successfully.")
 
+    # --------------------------------------------------
+    # Processing -- 3rd. transpose image shape from HWC to CHW
     # prepare input shape
     im = np.transpose(im)
     im = np.swapaxes(im, 1, 2)
-    im.tofile(f"{args.debug_file_path}/debug_03_transposed.bin")
-    im = np.expand_dims(im, axis = 0).astype('float32')
-    im.tofile(f"{args.debug_file_path}/golden_reference_tensor.bin")
+    third_bin_name = "debug_03_transposed.bin"
+    im.tofile(f"{args.debug_file_path}/{third_bin_name}")
+    print(f"3rd-Dumped {args.debug_file_path}/{third_bin_name} successfully.")
 
+    # --------------------------------------------------
+    # Processing -- 4th. golden file: add batch dimension & convert to float32
+    im = np.expand_dims(im, axis=0).astype('float32')
+    fourth_bin_name = "debug_04_golden_reference_tensor-Input.bin"
+    im.tofile(f"{args.debug_file_path}/{fourth_bin_name}")
+    print(f"4th-Dumped {args.debug_file_path}/{fourth_bin_name} successfully.")
+
+    # ############################
+    # IMPORTANT: INFERENCE STEP
     # Initialize session and get prediction
     session = onnxruntime.InferenceSession(args.model_path, None)
     input_name = session.get_inputs()[0].name
     output_name = session.get_outputs()[0].name
     result = session.run([output_name], {input_name: im})
+    # ############################
 
+    # ------------------------
+    # 5th. Output tensor dump
+    output_tensor = result[0]  # 形状通常是 [1, 1, H, W]
+
+    print("Output shape:", output_tensor.shape)
+    print("Output dtype:", output_tensor.dtype)
+
+    # 确保连续内存（非常重要）
+    output_tensor = np.ascontiguousarray(output_tensor, dtype=np.float32)
+
+    # ⭐ Dump 原始推理输出（不要 squeeze）
+    fifth_bin_name = "debug_05_inference-Output.bin"
+    output_tensor.tofile(f"{args.debug_file_path}/{fifth_bin_name}")
+    print(f"5th-Dumped {args.debug_file_path}/{fifth_bin_name} successfully.")
+
+    # ------------------------
     # refine matte
     matte = (np.squeeze(result[0]) * 255).astype('uint8')
-    matte = cv2.resize(matte, dsize=(im_w, im_h), interpolation = cv2.INTER_AREA)
+    matte = cv2.resize(matte, dsize=(im_w, im_h), interpolation=cv2.INTER_AREA)
 
     if args.output_path:
         if os.path.isdir(args.output_path):
             raise ValueError("--output-path must be a file, not directory")
 
         cv2.imwrite(args.output_path, matte)
-
-
