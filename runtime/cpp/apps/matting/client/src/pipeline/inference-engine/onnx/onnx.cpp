@@ -17,6 +17,12 @@ InferenceEngineONNX::~InferenceEngineONNX() {
 	arcforge::embedded::utils::Logger::GetInstance().Info("InferenceEngineONNX cleaned up.");
 }
 
+
+void InferenceEngineONNX::setOutputBinPath(const std::string& path) {
+	output_bin_path_ = path;
+}
+
+
 void InferenceEngineONNX::load(const std::string& model_path) {
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 	auto& runtime = arcforge::runtime::RuntimeONNX::GetInstance();
@@ -31,8 +37,11 @@ void InferenceEngineONNX::load(const std::string& model_path) {
 	Ort::AllocatorWithDefaultOptions allocator;
 
 	// these two API maybe deprecated, need to check later
-	input_name_ = static_cast<std::string>(session_->GetInputName(0, allocator));
-	output_name_ = static_cast<std::string>(session_->GetOutputName(0, allocator));
+	char* input_name = session_->GetInputName(0, allocator);
+	char* output_name = session_->GetOutputName(0, allocator);
+
+	input_name_ = std::string(input_name);
+	output_name_ = std::string(output_name);
 
 	std::vector<int64_t> input_shape =
 	    session_->GetInputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
@@ -46,12 +55,13 @@ void InferenceEngineONNX::load(const std::string& model_path) {
 	}
 	logger.Info("\n");
 
-	allocator.Free(input_name_.data());
-	allocator.Free(output_name_.data());
+	allocator.Free(input_name);
+	allocator.Free(output_name);
 }
 
 TensorData InferenceEngineONNX::infer(const TensorData& input) {
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+	auto& file_utils_ = arcforge::utils::FileUtils::GetInstance();
 
 	//---------------
 	// Processing -- 3. process input tensor shape
@@ -104,6 +114,12 @@ TensorData InferenceEngineONNX::infer(const TensorData& input) {
 	for (auto s : output_shape) {
 		output_tensor_size *= static_cast<size_t>(s);
 	}
+
+	// --------------------
+	// Processing -- Dump output tensor to binary file
+	std::vector<float> output_vector(output_data, output_data + output_tensor_size);
+
+	file_utils_.dumpBinary(output_vector, output_bin_path_ + "cpp_08_inference-Output.bin");
 
 	// --------------------
 	// Assemble output TensorData

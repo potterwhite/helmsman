@@ -147,10 +147,19 @@ int Pipeline::run() {
 	InferenceEngineONNX engine;
 	// MattingBackend backend;
 
-	engine.load(onnx_path_);
-
+	// --------
+	// 1st. Frontend: preprocess
+	frontend.setOutputBinPath(output_bin_path_);
 	auto input = frontend.preprocess(image_path_);
+
+	// --------
+	// 2nd. Inference Engine: load model and infer
+	engine.setOutputBinPath(output_bin_path_);
+	engine.load(onnx_path_);
 	auto output = engine.infer(input);
+
+	// --------
+	// 3rd. Backend: postprocess
 	// auto result = backend.postprocess(...);
 
 	return 0;
