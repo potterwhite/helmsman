@@ -38,7 +38,6 @@
 #include <utility>
 #include <vector>
 #include "main-client.h"
-#include "pipeline/pipeline.h"
 
 using namespace arcforge::embedded;
 
@@ -54,7 +53,6 @@ auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 auto& file_utils = arcforge::utils::FileUtils::GetInstance();
 auto& math_utils = arcforge::utils::MathUtils::GetInstance();
 auto& runtime = arcforge::runtime::RuntimeONNX::GetInstance();
-auto& pipeline = Pipeline::GetInstance();
 
 void SignalHandler(int signal_num) {
 	g_stop_signal_received = true;
@@ -72,7 +70,6 @@ bool isRelease() {
 	constexpr std::string_view build_type = BUILD_TYPE;
 	return build_type == "Release";
 }
-
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	// auto& logger = arcforge::embedded::utils::Logger::GetInstance();
@@ -112,10 +109,100 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	const std::string onnx_path = argv[2];
 	// const std::string input_bin_path = argv[3];
 	const std::string output_bin_path = argv[3];
-	pipeline.init(image_path, onnx_path, output_bin_path);
 
-	pipeline.main_pipeline();
+	try {
+		// ----------------
+		// Processing -- 1. create ONNX Runtime environment and session
+		Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "v1.3.3-inference-execution");
 
+		Ort::Session session(env, onnx_path.c_str(), runtime.init_session_option());
+
+		Ort::AllocatorWithDefaultOptions allocator;
+
+		const char* input_name = session.GetInputName(0, allocator);
+		const char* output_name = session.GetOutputName(0, allocator);
+
+		std::vector<int64_t> input_shape =
+		    session.GetInputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
+
+		logger.Info("Input Name: " + std::string(input_name));
+		logger.Info("Output Name: " + std::string(output_name));
+
+		logger.Info("Input Shape: ");
+		for (auto s : input_shape) {
+			logger.Info(std::to_string(s) + " ");
+		}
+		logger.Info("\n");
+
+		// ----------------
+		// Processing -- 2. obtain std::vector<float> input tensor from preprocessing pipeline
+		TensorData tensor_data;
+		std::vector<float> input_tensor_values;
+		tensor_data = processing_pipeline(image_path, output_bin_path, tensor_data);
+		input_tensor_values = tensor_data.data;
+		logger.Info("Loaded input tensor size: " + std::to_string(input_tensor_values.size()));
+
+		//---------------
+		// Processing -- 3. process input tensor shape
+		int64_t N = 1;
+		int64_t C = 3;
+		int64_t H = tensor_data.height;
+		int64_t W = tensor_data.width;
+
+		std::vector<int64_t> real_input_shape = {N, C, H, W};
+
+		size_t input_tensor_size = static_cast<size_t>(N * C * H * W);
+
+		logger.Info("Input tensor size: " + std::to_string(input_tensor_size));
+		logger.Info("Input tensor actual size: " + std::to_string(input_tensor_values.size()));
+		if (input_tensor_size != input_tensor_values.size()) {
+			logger.Error("❌ Size mismatch! expected " + std::to_string(input_tensor_size) +
+			             " got " + std::to_string(input_tensor_values.size()));
+			return 1;
+		}
+
+		//----------------
+		// Processing -- 4. create input tensor object and run inference
+		Ort::MemoryInfo memory_info =
+		    Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+
+		Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
+		    memory_info, input_tensor_values.data(), input_tensor_size, real_input_shape.data(),
+		    real_input_shape.size());
+
+		auto output_tensors =
+		    session.Run(Ort::RunOptions{nullptr}, &input_name, &input_tensor, 1, &output_name, 1);
+
+		// ----------------
+		// Processing -- Echo output tensor
+		float* output_data = output_tensors[0].GetTensorMutableData<float>();
+
+		auto output_shape = output_tensors[0].GetTensorTypeAndShapeInfo().GetShape();
+
+		logger.Info("Output Shape: ");
+		for (auto s : output_shape) {
+			logger.Info(std::to_string(s) + " ");
+		}
+		logger.Info("\n");
+
+		size_t output_tensor_size = 1;
+		for (auto s : output_shape) {
+			output_tensor_size *= static_cast<size_t>(s);
+		}
+
+		// --------------------
+		// Processing -- Dump output tensor to binary file
+		std::vector<float> output_vector(output_data, output_data + output_tensor_size);
+
+		file_utils.dumpBinary(output_vector,
+		                      output_bin_path + "cpp_08_inference-Output.bin");
+
+		logger.Info("✅ Inference done. Output dumped.");
+
+	} catch (const Ort::Exception& e) {
+		std::cerr << "Error: " << e.what() << std::endl;
+		return 1;
+	}
 #endif
 
 #if 0

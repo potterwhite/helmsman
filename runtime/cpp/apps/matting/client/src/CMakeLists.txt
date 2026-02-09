@@ -22,12 +22,16 @@
 # apps/asr/client/src/CMakeLists.txt
 #
 
+set(PIPELINE_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/pipeline.cpp"
+)
+
 set(CLIENT_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/main-client.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/main-client.h"
 )
 
 target_sources(${PROJECT_NAME}
     PRIVATE
         ${CLIENT_SOURCES}
+        ${PIPELINE_SOURCES}
 )
