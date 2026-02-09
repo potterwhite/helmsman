@@ -71,8 +71,10 @@ TensorData ImageFrontend::preprocess(const std::string& image_path) {
 	tensor_data.data = cvkit_obj->hwcToNchw(img, 3);
 	//the number of 06 & 07 is according to python debug file naming
 	file_utils_.dumpBinary(tensor_data.data, outputBinPath_ + "/cpp_06-07_hwcToNchw.bin");
-	tensor_data.height = static_cast<int64_t>(img.rows);
-	tensor_data.width = static_cast<int64_t>(img.cols);
+	// NCHW
+	tensor_data.shape = {1, 3, static_cast<int64_t>(img.rows), static_cast<int64_t>(img.cols)};
+	// tensor_data.height = static_cast<int64_t>(img.rows);
+	// tensor_data.width = static_cast<int64_t>(img.cols);
 
 	return tensor_data;
 }

@@ -17,11 +17,9 @@ InferenceEngineONNX::~InferenceEngineONNX() {
 	arcforge::embedded::utils::Logger::GetInstance().Info("InferenceEngineONNX cleaned up.");
 }
 
-
 void InferenceEngineONNX::setOutputBinPath(const std::string& path) {
 	output_bin_path_ = path;
 }
-
 
 void InferenceEngineONNX::load(const std::string& model_path) {
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
@@ -65,14 +63,18 @@ TensorData InferenceEngineONNX::infer(const TensorData& input) {
 
 	//---------------
 	// Processing -- 3. process input tensor shape
-	int64_t N = 1;
-	int64_t C = 3;
-	int64_t H = input.height;
-	int64_t W = input.width;
+	// int64_t N = 1;
+	// int64_t C = 3;
+	// int64_t H = input.height;
+	// int64_t W = input.width;
 
-	std::vector<int64_t> real_input_shape = {N, C, H, W};
+	// std::vector<int64_t> real_input_shape = {N, C, H, W};
+	// size_t input_tensor_size = static_cast<size_t>(N * C * H * W);
+	std::vector<int64_t> real_input_shape = input.shape;
 
-	size_t input_tensor_size = static_cast<size_t>(N * C * H * W);
+	size_t input_tensor_size = 1;
+	for (auto s : real_input_shape)
+		input_tensor_size *= static_cast<size_t>(s);
 
 	logger.Info("Input tensor size: " + std::to_string(input_tensor_size));
 	logger.Info("Input tensor actual size: " + std::to_string(input.data.size()));
@@ -126,8 +128,9 @@ TensorData InferenceEngineONNX::infer(const TensorData& input) {
 
 	TensorData output;
 	output.data.assign(output_data, output_data + output_tensor_size);
-	output.height = output_shape[2];
-	output.width = output_shape[3];
+	output.shape = output_shape;
+	// output.height = output_shape[2];
+	// output.width = output_shape[3];
 
 	return output;
 }
