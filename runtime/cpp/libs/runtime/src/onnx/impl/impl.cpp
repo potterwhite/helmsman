@@ -89,5 +89,13 @@ void Impl::show_output(const Ort::Session& session) {
 	}
 }
 
+Ort::SessionOptions Impl::init_session_option(void) {
+	Ort::SessionOptions opt;
+	opt.SetIntraOpNumThreads(1);
+	opt.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_BASIC);
+
+	return opt;
+}
+
 }  // namespace runtime
 }  // namespace arcforge

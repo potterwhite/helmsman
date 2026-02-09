@@ -70,61 +70,12 @@ bool isRelease() {
 	return build_type == "Release";
 }
 
-Ort::SessionOptions init_session_option(void) {
-	Ort::SessionOptions opt;
-	opt.SetIntraOpNumThreads(1);
-	opt.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_BASIC);
+// Ort::SessionOptions init_session_option(void) {
+// 	Ort::SessionOptions opt;
+// 	opt.SetIntraOpNumThreads(1);
+// 	opt.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_BASIC);
 
-	return opt;
-}
-
-// void show_input(const Ort::Session& session) {
-// 	Ort::AllocatorWithDefaultOptions allocator;
-
-// 	// 4. Echo input message
-// 	size_t num_inputs = session.GetInputCount();
-// 	// std::count << "Number of inputs: " << num_inputs << std::end;
-// 	logger.Info("Number of inputs: " + std::to_string(num_inputs));
-
-// 	for (size_t i = 0; i < num_inputs; i++) {
-// 		char* input_name = session.GetInputName(i, allocator);
-// 		auto input_type_info = session.GetInputTypeInfo(i);
-// 		auto tensor_info = input_type_info.GetTensorTypeAndShapeInfo();
-// 		auto input_shape = tensor_info.GetShape();
-
-// 		std::cout << "Input " << i << " name: " << input_name << "\n";
-// 		std::cout << "Input shape: [ ";
-// 		for (auto dim : input_shape) {
-// 			std::cout << dim << " ";
-// 		}
-// 		std::cout << "]\n";
-
-// 		allocator.Free(input_name);
-// 	}
-// }
-
-// void show_output(const Ort::Session& session) {
-// 	Ort::AllocatorWithDefaultOptions allocator;
-
-// 	// 5. echo output message
-// 	size_t num_outputs = session.GetOutputCount();
-// 	std::cout << "Number of outputs: " << num_outputs << std::endl;
-
-// 	for (size_t i = 0; i < num_outputs; i++) {
-// 		char* output_name = session.GetOutputName(i, allocator);
-// 		auto output_type_info = session.GetOutputTypeInfo(i);
-// 		auto tensor_info = output_type_info.GetTensorTypeAndShapeInfo();
-// 		auto output_shape = tensor_info.GetShape();
-
-// 		std::cout << "Output " << i << " name: " << output_name << "\n";
-// 		std::cout << "Output shape: [ ";
-// 		for (auto dim : output_shape) {
-// 			std::cout << dim << " ";
-// 		}
-// 		std::cout << "]\n";
-
-// 		allocator.Free(output_name);
-// 	}
+// 	return opt;
 // }
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
@@ -154,59 +105,62 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	signal(SIGINT, SignalHandler);
 	// signal(SIGTERM, SignalHan/development/docker_volumes/src/ai/image-matting/helmsman.git/runtime/cpp/build/native-release/debug/dler);
 
-	// if (argc != 3) {
-	// 	std::cerr << "Usage: preprocess_normalize <input_image> <output_bin>\n";
-	// 	return 1;
-	// }
+	#if 0
+	if (argc != 3) {
+		std::cerr << "Usage: preprocess_normalize <input_image> <output_bin>\n";
+		return 1;
+	}
 
-	// const std::string imagePath = argv[1];
-	// const std::string outputBinPath = argv[2];
-	// auto cvkit_obj = std::make_unique<arcforge::cvkit::Base>();
-	// try {
-	// 	cv::Mat img = cvkit_obj->loadImage(imagePath);
-	// 	img = cvkit_obj->bgrToRgb(img);
-	// 	img = cvkit_obj->ensure3Channel(img);
-	// 	/*
-	//      * NOTE:
-	//      * DO NOT use cv::normalize / convertTo here.
-	//      * This must be bitwise identical to NumPy preprocessing.
-	//      *
-	//      * Date: Feb03.2026
-	//      * Author: PotterWhite
-	//      *
-	//      * img = cvkit_obj->normalizeToMinusOneToOne(img);
-	//      */
-	// 	img = cvkit_obj->normalize_exact_numpy(img);
-	// 	cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_00_04_normalized.bin");
+	const std::string imagePath = argv[1];
+	const std::string outputBinPath = argv[2];
+	auto cvkit_obj = std::make_unique<arcforge::cvkit::Base>();
+	try {
+		cv::Mat img = cvkit_obj->loadImage(imagePath);
+		img = cvkit_obj->bgrToRgb(img);
+		img = cvkit_obj->ensure3Channel(img);
+		/*
+	     * NOTE:
+	     * DO NOT use cv::normalize / convertTo here.
+	     * This must be bitwise identical to NumPy preprocessing.
+	     *
+	     * Date: Feb03.2026
+	     * Author: PotterWhite
+	     *
+	     * img = cvkit_obj->normalizeToMinusOneToOne(img);
+	     */
+		img = cvkit_obj->normalize_exact_numpy(img);
+		cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_00_04_normalized.bin");
 
-	// 	// 1. resize to fit model input size
-	// 	constexpr int ref_size = 512;
-	// 	auto scale_factor = math_utils.getScaleFactor(img.rows, img.cols, ref_size);
-	// 	std::cout << std::setprecision(17) << "x_scale_factor=" << scale_factor.first
-	// 	          << ", y_scale_factor=" << scale_factor.second << std::endl;
-	// 	cv::resize(img,                  // src
-	// 	           img,                  // dst（可以原地）
-	// 	           cv::Size(),           // dsize 为空
-	// 	           scale_factor.first,   // fx
-	// 	           scale_factor.second,  // fy
-	// 	           cv::INTER_AREA        // interpolation
-	// 	);
-	// 	logger.Info("Resized Width=" + std::to_string(img.cols) +
-	// 	                ", Resized Height=" + std::to_string(img.rows),
-	// 	            kcurrent_app_name);
+		// 1. resize to fit model input size
+		constexpr int ref_size = 512;
+		auto scale_factor = math_utils.getScaleFactor(img.rows, img.cols, ref_size);
+		std::cout << std::setprecision(17) << "x_scale_factor=" << scale_factor.first
+		          << ", y_scale_factor=" << scale_factor.second << std::endl;
+		cv::resize(img,                  // src
+		           img,                  // dst（可以原地）
+		           cv::Size(),           // dsize 为空
+		           scale_factor.first,   // fx
+		           scale_factor.second,  // fy
+		           cv::INTER_AREA        // interpolation
+		);
+		logger.Info("Resized Width=" + std::to_string(img.cols) +
+		                ", Resized Height=" + std::to_string(img.rows),
+		            kcurrent_app_name);
 
-	// 	// 2. convert to NCHW
-	// 	// std::vector<float> result = hwcToNchw(img);
-	// 	std::vector<float> result = cvkit_obj->hwcToNchw(img, 3);
+		// 2. convert to NCHW
+		// std::vector<float> result = hwcToNchw(img);
+		std::vector<float> result = cvkit_obj->hwcToNchw(img, 3);
 
-	// 	// 3. dump binary
-	// 	file_utils.dumpBinary(result, outputBinPath + "/cpp_01_nchw_input.bin");
+		// 3. dump binary
+		file_utils.dumpBinary(result, outputBinPath + "/cpp_01_nchw_input.bin");
 
-	// } catch (const std::exception& e) {
-	// 	std::cerr << "Error: " << e.what() << std::endl;
-	// 	return 1;
-	// }
+	} catch (const std::exception& e) {
+		std::cerr << "Error: " << e.what() << std::endl;
+		return 1;
+	}
+	#endif
 
+	#if 1
 	if (argc != 2) {
 		std::cerr << "Usage: load_onnx <onnx_path> \n";
 		return 1;
@@ -217,7 +171,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "onnx-demo");
 
 		// 3. create session
-		Ort::Session session(env, onnx_path.c_str(), init_session_option());
+		Ort::Session session(env, onnx_path.c_str(), runtime.init_session_option());
 
 		runtime.show_input(session);
 
@@ -227,6 +181,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		std::cerr << "Error: " << e.what() << std::endl;
 		return 1;
 	}
+	#endif
 
 	std::cout << "hello " << kcurrent_app_name << std::endl;
 

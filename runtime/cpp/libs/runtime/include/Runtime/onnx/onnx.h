@@ -53,6 +53,8 @@ class RuntimeONNX {
 	void show_input(const Ort::Session& session);
 	void show_output(const Ort::Session& session);
 
+	Ort::SessionOptions init_session_option(void);
+
    private:
 	explicit RuntimeONNX(std::unique_ptr<Impl>);
 	std::unique_ptr<Impl> impl_;

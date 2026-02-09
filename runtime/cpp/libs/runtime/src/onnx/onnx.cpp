@@ -38,7 +38,7 @@ RuntimeONNX& RuntimeONNX::operator=(RuntimeONNX&& other) noexcept = default;
 
 RuntimeONNX& RuntimeONNX::GetInstance() {
 	static RuntimeONNX instance;
-    
+
 	return instance;
 }
 
@@ -52,6 +52,14 @@ void RuntimeONNX::show_output(const Ort::Session& session) {
 	if (impl_ != nullptr) {
 		impl_->show_output(session);
 	}
+}
+
+Ort::SessionOptions RuntimeONNX::init_session_option(void) {
+	if (impl_ != nullptr) {
+		return impl_->init_session_option();
+	}
+
+	return Ort::SessionOptions{};
 }
 
 }  // namespace runtime

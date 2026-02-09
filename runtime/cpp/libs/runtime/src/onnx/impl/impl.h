@@ -50,6 +50,7 @@ class Impl {
 
 	void show_input(const Ort::Session& session);
 	void show_output(const Ort::Session& session);
+	Ort::SessionOptions init_session_option(void);
 
    private:
 	// member functions
