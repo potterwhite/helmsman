@@ -24,6 +24,7 @@
 
 set(CLIENT_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/main-client.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/main-client.h"
 )
 
 target_sources(${PROJECT_NAME}
