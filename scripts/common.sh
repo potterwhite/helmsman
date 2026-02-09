@@ -95,7 +95,7 @@ func_2_0_setup_env(){
 
     DEV_REQUIREMENTS_FILE="${LV1_ENVS_DIR}/requirements.txt"
     LV2_GOLDEN_DIR="${LV1_BUILD_DIR}/golden"
-    LV2_GOLDEN_DEBUG_DIR="${LV2_GOLDEN_DIR}/debug"
+    LV2_GOLDEN_DEBUG_DIR="${LV2_GOLDEN_DIR}/python"
 
     PYTHON_BIN="${LV1_VENV_DIR}/bin/python"
     PIP_BIN="${LV1_VENV_DIR}/bin/pip"

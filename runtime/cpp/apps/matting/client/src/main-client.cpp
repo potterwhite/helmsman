@@ -76,8 +76,13 @@ TensorData& processing_pipeline(const std::string& imagePath, const std::string&
 	auto cvkit_obj = std::make_unique<arcforge::cvkit::Base>();
 
 	cv::Mat img = cvkit_obj->loadImage(imagePath);
+	cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_01_loadimage.bin");
+
 	img = cvkit_obj->bgrToRgb(img);
+	cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_02_bgrToRgb.bin");
+
 	img = cvkit_obj->ensure3Channel(img);
+	cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_03_ensure3Channel.bin");
 	/*
 	     * NOTE:
 	     * DO NOT use cv::normalize / convertTo here.
@@ -89,7 +94,7 @@ TensorData& processing_pipeline(const std::string& imagePath, const std::string&
 	     * img = cvkit_obj->normalizeToMinusOneToOne(img);
 	     */
 	img = cvkit_obj->normalize_exact_numpy(img);
-	cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_00_04_normalized.bin");
+	cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_04_normalized.bin");
 
 	// 1. resize to fit model input size
 	constexpr int ref_size = 512;
@@ -106,10 +111,13 @@ TensorData& processing_pipeline(const std::string& imagePath, const std::string&
 	logger.Info("Resized Width=" + std::to_string(img.cols) +
 	                ", Resized Height=" + std::to_string(img.rows),
 	            kcurrent_app_name);
+	cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_05_resized.bin");
 
 	// 2. convert to NCHW
 	// std::vector<float> result = hwcToNchw(img);
 	tensor_data.data = cvkit_obj->hwcToNchw(img, 3);
+	//the number of 06 & 07 is according to python debug file naming
+	file_utils.dumpBinary(tensor_data.data, outputBinPath + "/cpp_06-07_hwcToNchw.bin");
 	tensor_data.height = static_cast<int64_t>(img.rows);
 	tensor_data.width = static_cast<int64_t>(img.cols);
 
@@ -207,7 +215,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		}
 
 		//----------------
-		//
+		// Processing -- 4. create input tensor object and run inference
 		Ort::MemoryInfo memory_info =
 		    Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
@@ -218,6 +226,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		auto output_tensors =
 		    session.Run(Ort::RunOptions{nullptr}, &input_name, &input_tensor, 1, &output_name, 1);
 
+		// ----------------
+		// Processing -- Echo output tensor
 		float* output_data = output_tensors[0].GetTensorMutableData<float>();
 
 		auto output_shape = output_tensors[0].GetTensorTypeAndShapeInfo().GetShape();
@@ -233,10 +243,12 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 			output_tensor_size *= static_cast<size_t>(s);
 		}
 
+		// --------------------
+		// Processing -- Dump output tensor to binary file
 		std::vector<float> output_vector(output_data, output_data + output_tensor_size);
 
 		file_utils.dumpBinary(output_vector,
-		                      output_bin_path + "debug_v1.3.3_inference_execution.bin");
+		                      output_bin_path + "cpp_08_inference-Output.bin");
 
 		logger.Info("✅ Inference done. Output dumped.");
 

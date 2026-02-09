@@ -125,10 +125,14 @@ if __name__ == '__main__':
 
     # read image
     im = cv2.imread(args.image_path)
-    # im.tofile(f"{args.debug_file_path}/debug_00_01_imread.bin")
+    first_bin_name = "py_01_imread.bin"
+    im.tofile(f"{args.debug_file_path}/{first_bin_name}")
+    print(f"1st-Dumped {args.debug_file_path}/{first_bin_name} successfully.")
 
     im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
-    # im.tofile(f"{args.debug_file_path}/debug_00_02_cvtColor.bin")
+    second_bin_name = "py_02_cvtColor.bin"
+    im.tofile(f"{args.debug_file_path}/{second_bin_name}")
+    print(f"2nd-Dumped {args.debug_file_path}/{second_bin_name} successfully.")
 
     # unify image channels to 3
     if len(im.shape) == 2:
@@ -137,7 +141,9 @@ if __name__ == '__main__':
         im = np.repeat(im, 3, axis=2)
     elif im.shape[2] == 4:
         im = im[:, :, 0:3]
-    # im.tofile(f"{args.debug_file_path}/debug_00_03_rgb3.bin")
+    third_bin_name = "py_03_ensure3Channel.bin"
+    im.tofile(f"{args.debug_file_path}/{third_bin_name}")
+    print(f"3rd-Dumped {args.debug_file_path}/{third_bin_name} successfully.")
 
     # --------------------------------------------------
     # Processing -- 1st. normalize values to scale it between -1 to 1
@@ -156,12 +162,12 @@ if __name__ == '__main__':
 
     # Save to Local Disk
     # print(im.dtype)
-    first_bin_name = "debug_01_normalized.bin"
-    im.tofile(f"{args.debug_file_path}/{first_bin_name}")
+    fourth_bin_name = "py_04_normalized.bin"
+    im.tofile(f"{args.debug_file_path}/{fourth_bin_name}")
     # print(im.dtype)
     # print(im.flags)
     # echoIMG(im)
-    print(f"1st-Dumped {args.debug_file_path}/{first_bin_name} successfully.")
+    print(f"4th-Dumped {args.debug_file_path}/{fourth_bin_name} successfully.")
 
     # --------------------------------------------------
     # Processing -- 2nd. resize image
@@ -175,25 +181,25 @@ if __name__ == '__main__':
     print(
         f"Resized Width={im.shape[1]}, Resized Height={im.shape[0]}, Channel={im.shape[2]}"
     )
-    second_bin_name = "debug_02_resized.bin"
-    im.tofile(f"{args.debug_file_path}/{second_bin_name}")
-    print(f"2nd-Dumped {args.debug_file_path}/{second_bin_name} successfully.")
+    fifth_bin_name = "py_05_resized.bin"
+    im.tofile(f"{args.debug_file_path}/{fifth_bin_name}")
+    print(f"5th-Dumped {args.debug_file_path}/{fifth_bin_name} successfully.")
 
     # --------------------------------------------------
     # Processing -- 3rd. transpose image shape from HWC to CHW
     # prepare input shape
     im = np.transpose(im)
     im = np.swapaxes(im, 1, 2)
-    third_bin_name = "debug_03_transposed.bin"
-    im.tofile(f"{args.debug_file_path}/{third_bin_name}")
-    print(f"3rd-Dumped {args.debug_file_path}/{third_bin_name} successfully.")
+    sixth_bin_name = "py_06_transposed.bin"
+    im.tofile(f"{args.debug_file_path}/{sixth_bin_name}")
+    print(f"6th-Dumped {args.debug_file_path}/{sixth_bin_name} successfully.")
 
     # --------------------------------------------------
     # Processing -- 4th. golden file: add batch dimension & convert to float32
     im = np.expand_dims(im, axis=0).astype('float32')
-    fourth_bin_name = "debug_04_golden_reference_tensor-Input.bin"
-    im.tofile(f"{args.debug_file_path}/{fourth_bin_name}")
-    print(f"4th-Dumped {args.debug_file_path}/{fourth_bin_name} successfully.")
+    seventh_bin_name = "py_07_golden_reference_tensor-Input.bin"
+    im.tofile(f"{args.debug_file_path}/{seventh_bin_name}")
+    print(f"7th-Dumped {args.debug_file_path}/{seventh_bin_name} successfully.")
 
     # ############################
     # IMPORTANT: INFERENCE STEP
@@ -215,9 +221,9 @@ if __name__ == '__main__':
     output_tensor = np.ascontiguousarray(output_tensor, dtype=np.float32)
 
     # ⭐ Dump 原始推理输出（不要 squeeze）
-    fifth_bin_name = "debug_05_inference-Output.bin"
-    output_tensor.tofile(f"{args.debug_file_path}/{fifth_bin_name}")
-    print(f"5th-Dumped {args.debug_file_path}/{fifth_bin_name} successfully.")
+    eighth_bin_name = "py_08_inference-Output.bin"
+    output_tensor.tofile(f"{args.debug_file_path}/{eighth_bin_name}")
+    print(f"8th-Dumped {args.debug_file_path}/{eighth_bin_name} successfully.")
 
     # ------------------------
     # refine matte
