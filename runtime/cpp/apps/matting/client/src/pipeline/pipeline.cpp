@@ -18,7 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-
 #include "pipeline/pipeline.h"
 #include "pipeline/backend/backend.h"
 #include "pipeline/frontend/frontend.h"
@@ -31,7 +30,6 @@ Pipeline& Pipeline::GetInstance() {
 }
 
 Pipeline::Pipeline() {
-
 	arcforge::embedded::utils::Logger::GetInstance().Info("Pipeline object constructed.");
 }
 
@@ -57,6 +55,34 @@ void Pipeline::verify_parameters_necessary() {
 		throw std::invalid_argument("Output binary path is empty.");
 	}
 }
+
+int Pipeline::run() {
+	verify_parameters_necessary();
+
+	ImageFrontend frontend;
+	InferenceEngineONNX engine;
+	MattingBackend backend;
+
+	// --------
+	// 1st. Frontend: preprocess
+	frontend.setOutputBinPath(output_bin_path_);
+	auto input = frontend.preprocess(image_path_);
+
+	// --------
+	// 2nd. Inference Engine: load model and infer
+	engine.setOutputBinPath(output_bin_path_);
+	engine.load(onnx_path_);
+	auto output_tensor = engine.infer(input);
+
+	// --------
+	// 3rd. Backend: postprocess
+	backend.setOutputPath(output_bin_path_);
+	auto result = backend.postprocess(output_tensor);
+
+	return 0;
+}
+
+// ----
 
 // int Pipeline::main_pipeline() {
 
@@ -161,26 +187,3 @@ void Pipeline::verify_parameters_necessary() {
 
 // 	return 0;
 // }
-
-int Pipeline::run() {
-	ImageFrontend frontend;
-	InferenceEngineONNX engine;
-	// MattingBackend backend;
-
-	// --------
-	// 1st. Frontend: preprocess
-	frontend.setOutputBinPath(output_bin_path_);
-	auto input = frontend.preprocess(image_path_);
-
-	// --------
-	// 2nd. Inference Engine: load model and infer
-	engine.setOutputBinPath(output_bin_path_);
-	engine.load(onnx_path_);
-	auto output = engine.infer(input);
-
-	// --------
-	// 3rd. Backend: postprocess
-	// auto result = backend.postprocess(...);
-
-	return 0;
-}
