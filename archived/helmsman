@@ -1,0 +1,1632 @@
+#!/bin/bash
+
+# ===================================================================================
+#
+#   Helmsman Project - Unified Build & Management Script (Merged Version C - Static Req)
+#
+#   Copyright (C) 2025, potterwhite
+#   All rights reserved.
+#
+#   Description:
+#   This script automates the setup, model conversion, inference, and C++ build
+#   processes for the MODNet component. It integrates robust environment management,
+#   execution timing, and intelligent dependency handling.
+#
+# ===================================================================================
+
+# Global Timers
+__START_TIME=
+__TASK_START_TIME=
+
+# ==============================================================================
+# Level 1: Helpers & Logging (Merged from A & B)
+# ==============================================================================
+
+func_1_1_log() {
+    # Enhanced logging with colors (From A, optimized style)
+    local message="$1"
+    local color_name="$2"
+    local color_code=""
+    case "$color_name" in
+        green)  color_code="\033[1;32m" ;; # Bold Green
+        yellow) color_code="\033[1;33m" ;; # Bold Yellow
+        red)    color_code="\033[1;31m" ;; # Bold Red
+        blue)   color_code="\033[1;34m" ;; # Bold Blue
+        *)      color_code="\033[0m"    ;;
+    esac
+    local color_reset="\033[0m"
+    echo -e "${color_code}[Helmsman] ${message}${color_reset}"
+}
+
+func_1_2_err() {
+    # Error handling (From B)
+    func_1_1_log "ERROR: $1" "red"
+    exit 1
+}
+
+func_1_3_get_current_milliseconds() {
+    # (From B)
+    date +%s%3N
+}
+
+func_1_4_start_time_count() {
+    # (From B)
+    local -n _timer_ref=$1
+    _timer_ref="$(func_1_3_get_current_milliseconds)"
+}
+
+func_1_5_format_duration_ms() {
+    # (From B) Format duration from milliseconds to human readable string
+    local ms=$1
+    local -n _out_ref=$2
+
+    if (( ms < 1000 )); then
+        _out_ref="${ms} ms"
+        return
+    fi
+    if (( ms < 60000 )); then
+        _out_ref=$(printf "%.2f seconds" "$(awk "BEGIN { print $ms / 1000 }")")
+        return
+    fi
+    local total_seconds=$(( ms / 1000 ))
+    local minutes=$(( total_seconds / 60 ))
+    local remaining_ms=$(( ms % 60000 ))
+    _out_ref=$(printf "%d minutes %.2f seconds" "$minutes" "$(awk "BEGIN { print $remaining_ms / 1000 }")")
+}
+
+func_1_6_elapsed_time_calculation() {
+    # (From B)
+    local start_time=$1
+    local end_time=$2
+    local -n elapsed_string_ref=$3
+    local elapsed_time=$((end_time - start_time))
+    func_1_5_format_duration_ms "${elapsed_time}" elapsed_string_ref
+}
+
+# ------------------------------------------------------------------------------
+# func_print_usage
+# Purpose:
+#   Print command-line usage information.
+# ------------------------------------------------------------------------------
+func_1_7_usage() {
+    echo "======================================================="
+    echo
+    echo -e "\n\033[1;33mUsage: $0 <command> [options...]\033[0m"
+    # echo "Usage: $0 [command] [options]"
+    echo
+    echo "Helmsman Project - Unified Build & Management Script"
+    echo
+    echo "Commands:"
+    echo "  prepare         Set up the full development environment."
+    echo "  convert         Convert a .ckpt model to ONNX format."
+    echo "  inference       Run Python ONNX inference on an image."
+    echo "  build           Build the C++ Helmsman engine."
+    echo "  clean           Remove build artifacts and environments."
+    echo "  cleanall        Remove build/models/modnet-sdk/venv/cpp-build etc"
+    echo "  <no command>    Launch interactive menu mode."
+    echo
+    echo "Options:"
+    echo "  -h, --help      Show this help message."
+    echo "  -v              Enable verbose/debug mode (set -x)."
+    echo
+
+    echo "======================================================="
+
+    func_6_3_cpp_helper_print
+}
+
+func_1_8_activate_py_venv(){
+    if [ ! -d "$LV1_VENV_DIR" ]; then
+        func_1_1_log "❌ Environment not ready. Virtual environment not found at '$LV1_VENV_DIR'." "red"
+        func_1_1_log "   Please run './helmsman prepare' first." "yellow"
+        exit 1
+    else
+        source ${LV1_VENV_DIR}/bin/activate
+        func_1_1_log "✅Activate Python venv Successfully." "green"
+    fi
+}
+
+# ==============================================================================
+# Level 2: Environment Variables & Path Definitions
+# ==============================================================================
+
+func_2_0_setup_env(){
+    # Merged logic: Uses A's paths but B's robust variable handling
+    set -e
+    MAKE_VERBOSE_OPTION=""
+    if [[ x"${V}" == x"1" ]];then
+        set -x
+        DEBUG_MODE=1
+        MAKE_VERBOSE_OPTION="VERBOSE=1"
+    fi
+
+    # Start Global Timer
+    func_1_4_start_time_count __START_TIME
+
+    # Define Target Python Version (From A)
+    export PYTHON_Target_VERSION="3.8.10"
+
+    # Top Directoriess
+    BUILD_SCRIPT_PATH="$(realpath ${BASH_SOURCE})"
+    BUILD_SCRIPT_DIR="$(dirname ${BUILD_SCRIPT_PATH})"
+    REPO_TOP_DIR="${BUILD_SCRIPT_DIR}"
+    LV1_DOC_DIR="${REPO_TOP_DIR}/docs"
+    LV1_ENVS_DIR="${REPO_TOP_DIR}/envs"
+    LV1_MEDIA_DIR="${REPO_TOP_DIR}/media"
+    LV1_RUNTIME_DIR="${REPO_TOP_DIR}/runtime"
+    LV1_3RD_PARTY_DIR="${REPO_TOP_DIR}/third-party"
+    LV1_TOOLS_DIR="${REPO_TOP_DIR}/tools"
+    LV1_VENV_DIR="${REPO_TOP_DIR}/.venv"
+    LV1_BUILD_DIR="${REPO_TOP_DIR}/build"
+    LV1_MODELS_DOWNLOAD_DIR="${REPO_TOP_DIR}/modnet-models"
+
+    # 2nd-lv: third-party
+    LV4_MODNET_SDK_DIR="${LV1_3RD_PARTY_DIR}/sdk/MODNet.git"
+    LV4_MODNET_SCRIPTS_DIR="${LV1_3RD_PARTY_DIR}/scripts/modnet"
+    LV4_MODNET_MODELS_DIR="${LV1_3RD_PARTY_DIR}/models/modnet"
+    LV5_PRETRAINED_DIR="${LV4_MODNET_SDK_DIR}/pretrained"
+
+    # 2nd-lv: envs Dir
+    DEV_REQUIREMENTS_FILE="${LV1_ENVS_DIR}/requirements.txt"
+
+    # 2nd-lv: build Dir
+    LV2_GOLDEN_DIR="${LV1_BUILD_DIR}/golden"
+    LV2_GOLDEN_DEBUG_DIR="${LV2_GOLDEN_DIR}/debug"
+
+    # Virtual Environment Paths
+    PYTHON_BIN="${LV1_VENV_DIR}/bin/python"
+    PIP_BIN="${LV1_VENV_DIR}/bin/pip"
+
+    # Pyenv Setup (From A & B)
+    export PYENV_ROOT="$HOME/.pyenv"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    if command -v pyenv 1>/dev/null 2>&1; then
+      eval "$(pyenv init --path)"
+      eval "$(pyenv init -)"
+    fi
+
+    # Ensure Finalization on Exit (From B)
+    trap func_5_4_finalize EXIT
+
+    # Setup CPP related environments (forcely no matter you use cpp or not)
+    func_6_2_cpp_setup_env
+}
+
+
+func_2_1_check_env_ready(){
+    # (From A) Lightweight check
+    func_1_8_activate_py_venv
+
+    if [ ! -f "$PYTHON_BIN" ]; then
+        func_1_1_log "❌ Python binary not found in venv." "red"
+        exit 1
+    fi
+
+    # --- 2. Check Essential Links/Files (New Logic) ---
+    # func_1_1_log "🔎 Verifying file integrity..." "blue"
+
+    local missing_count=0
+    # List of critical files that MUST exist at the destination
+    # These match the targets in func_3_0_setup_modnet_softlinks
+    local required_files=(
+        "${LV4_MODNET_SDK_DIR}/onnx/export_onnx.py"
+        "${LV4_MODNET_SDK_DIR}/onnx/inference_onnx.py"
+        "${LV4_MODNET_SDK_DIR}/onnx/generate_golden_files.py"
+        "${LV4_MODNET_SDK_DIR}/pretrained/mobilenetv2_human_seg.ckpt"
+        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_photographic_portrait_matting.ckpt"
+        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_photographic_portrait_matting.onnx"
+        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_webcam_portrait_matting.ckpt"
+    )
+
+    for target_file in "${required_files[@]}"; do
+        if [ ! -f "$target_file" ]; then
+            # -f returns false if file is missing OR if it's a broken symlink
+            func_1_1_log "❌ Missing or broken link: $target_file" "red"
+            missing_count=$((missing_count + 1))
+        fi
+    done
+
+    if [ $missing_count -gt 0 ]; then
+        func_1_1_log "   Found $missing_count missing essential file(s)." "yellow"
+        func_1_1_log "   Please run './helmsman prepare' to restore symbolic links." "yellow"
+        exit 1
+    fi
+
+    # func_1_1_log "✅ Environment and links are ready." "green"
+
+}
+
+# ==============================================================================
+# Level 3: Environment Preparation Logic
+# ==============================================================================
+
+func_3_0_setup_modnet_softlinks() {
+    func_1_1_log "🔗 Setting up symbolic links and assets..." "blue"
+
+    # Ensure the model source directory exists
+    if [ ! -d "${LV1_MODELS_DOWNLOAD_DIR}" ]; then
+        mkdir -p "${LV1_MODELS_DOWNLOAD_DIR}"
+    fi
+
+    # =========================================================
+    # Part 1: Local Script Links (Source: BUILD_SCRIPT_DIR)
+    # =========================================================
+
+    #   1ST field                       2nd Field                     3rd field
+    #   file name                       source dir                    destination dir
+    declare -a SCRIPT_LINKS=(
+        "requirements.txt          ${LV1_ENVS_DIR}              ${LV4_MODNET_SDK_DIR}/onnx/requirements.txt"
+        "export_onnx.py            ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx.py"
+        "inference_onnx.py         ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/inference_onnx.py"
+        "generate_golden_files.py  ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/generate_golden_files.py"
+    )
+
+    for entry in "${SCRIPT_LINKS[@]}"; do
+        read -r filename src_dir dest_path <<< "$entry"
+        # func_1_1_log "+++++ filename=${filename}; src_dir=${src_dir} ; dest_path=${dest_path}"
+        local full_source_path="${src_dir}/${filename}"
+        local dest_dir=$(dirname "$dest_path")
+
+        # Robustness: Check source
+        if [ ! -f "$full_source_path" ]; then
+            func_1_1_log "   ❌ Script ${filename} not found in ${src_dir}" "red"
+            continue
+        fi
+
+        # Robustness: Create dest dir
+        if [ ! -d "$dest_dir" ]; then mkdir -p "$dest_dir"; fi
+
+        # Action: Link
+        ln -sf "${full_source_path}" "${dest_path}"
+
+        # Check Link and Echo
+        ln -sf "${full_source_path}" "${dest_path}"
+        if [ -L "${dest_path}" ]; then
+            func_1_1_log "   ✅ Linked: ${filename}" "green"
+        fi
+    done
+
+    # =========================================================
+    # Part 2: Model Links with Auto-Download
+    # =========================================================
+
+    # --- [CONFIG] HARDCODE YOUR URLs HERE ---
+    local URL_MOBILENET="https://huggingface.co/PotterWhite/MODNet/resolve/main/mobilenetv2_human_seg.ckpt"
+    local URL_PHOTO_CKPT="https://huggingface.co/PotterWhite/MODNet/resolve/main/modnet_photographic_portrait_matting.ckpt"
+    local URL_PHOTO_ONNX="https://huggingface.co/PotterWhite/MODNet/resolve/main/modnet_photographic_portrait_matting.onnx"
+    local URL_WEBCAM="https://huggingface.co/PotterWhite/MODNet/resolve/main/modnet_webcam_portrait_matting.ckpt"
+    # ----------------------------------------
+
+    # Internal helper to handle the logic: Check -> Wget -> Link
+    _process_model() {
+        local filename="$1"
+        local url="$2"
+        local dest_path="$3"
+        local full_source_path="${LV1_MODELS_DOWNLOAD_DIR}/${filename}"
+        local dest_dir=$(dirname "$dest_path")
+
+        # 1. Check if source exists; if not, download
+        if [ ! -f "$full_source_path" ]; then
+            func_1_1_log "   📥 Model missing: ${filename}" "yellow"
+
+            if [[ "$url" == "YOUR_URL_HERE" || -z "$url" ]]; then
+                func_1_1_log "   ⚠️  URL not set. Skipping download." "yellow"
+                return
+            fi
+
+            func_1_1_log "      Downloading from: $url" "blue"
+            if ! command -v wget > /dev/null; then
+                func_1_2_err "wget not found. Please install it."
+            fi
+
+            wget -O "$full_source_path" "$url"
+            if [ $? -ne 0 ]; then
+                func_1_1_log "      ❌ Download failed." "red"
+                rm -f "$full_source_path" # Remove empty/corrupt file
+                return
+            fi
+            func_1_1_log "   ✅ Download success." "green"
+        fi
+
+        # 2. Create Destination Directory
+        if [ ! -d "$dest_dir" ]; then mkdir -p "$dest_dir"; fi
+
+        # 3. Create Symlink
+        if [ -f "$full_source_path" ]; then
+            ln -sf "${full_source_path}" "${dest_path}"
+            if [ -L "${dest_path}" ]; then
+                func_1_1_log "   ✅ Linked: ${filename}" "green"
+            fi
+        fi
+    }
+
+    # --- Execute Process (Explicit Calls) ---
+
+    _process_model \
+        "mobilenetv2_human_seg.ckpt" \
+        "$URL_MOBILENET" \
+        "${LV4_MODNET_SDK_DIR}/pretrained/mobilenetv2_human_seg.ckpt"
+
+    _process_model \
+        "modnet_photographic_portrait_matting.ckpt" \
+        "$URL_PHOTO_CKPT" \
+        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_photographic_portrait_matting.ckpt"
+
+    _process_model \
+        "modnet_photographic_portrait_matting.onnx" \
+        "$URL_PHOTO_ONNX" \
+        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_photographic_portrait_matting.onnx"
+
+    _process_model \
+        "modnet_webcam_portrait_matting.ckpt" \
+        "$URL_WEBCAM" \
+        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_webcam_portrait_matting.ckpt"
+
+    func_1_1_log "✅ Link setup and model verification complete." "green"
+}
+
+func_3_1_check_opencv_compatibility() {
+    # (Transplanted from B)
+    # Checks if OpenCV works. If not (common in servers), switches to headless.
+    func_1_1_log "   Verifying OpenCV environment inside the venv..." "blue"
+
+    # First try with whatever is currently installed
+    if "${PYTHON_BIN}" -c "import cv2" &> /dev/null; then
+        func_1_1_log "   ✅ OpenCV import succeeded." "green"
+        return 0
+    fi
+
+    func_1_1_log "   ⚠️ OpenCV import failed (likely missing GUI libs). Switching to opencv-python-headless..." "yellow"
+
+    # Switch to headless
+    "${PIP_BIN}" uninstall -y opencv-python || true
+    "${PIP_BIN}" install "opencv-python-headless==4.5.1.48" || func_1_2_err "Failed to install opencv-python-headless."
+
+    # Re-check
+    if "${PYTHON_BIN}" -c "import cv2" &> /dev/null; then
+        func_1_1_log "   ✅ OpenCV (headless) import succeeded." "green"
+        return 0
+    fi
+
+    func_1_2_err "OpenCV environment check failed even after installing headless version."
+}
+
+func_3_2_setup_dep_before_build() {
+    # (Merged A & B)
+    func_1_1_log "🛠️  Starting full environment preparation..." "blue"
+
+    # ********************************************
+    # --- Step 1: System Dependencies (From A) ---
+    func_1_1_log "   [1/7] Installing system dependencies..." "yellow"
+    sudo apt update && sudo apt-get install -y \
+    make build-essential libssl-dev zlib1g-dev libbz2-dev \
+    libreadline-dev libsqlite3-dev wget curl llvm libncurses-dev \
+    xz-utils tk-dev libffi-dev liblzma-dev python3-openssl git \
+    cmake libgl1
+    func_1_1_log "   ✅ System dependencies installed." "green"
+
+    # ********************************************
+    # --- Step 2: Pyenv Setup (From A & B) ---
+    func_1_1_log "   [2/7] Setting up pyenv..." "yellow"
+    if [ ! -d "$PYENV_ROOT" ]; then
+        curl https://pyenv.run | bash
+        export PYENV_ROOT="$HOME/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        eval "$(pyenv init --path)"
+        eval "$(pyenv init -)"
+    else
+        func_1_1_log "   Pyenv already installed." "green"
+    fi
+
+    # Install Python Version if missing
+    if ! pyenv versions --bare | grep -q "^${PYTHON_Target_VERSION}$"; then
+        func_1_1_log "   Installing Python ${PYTHON_Target_VERSION}..."
+        pyenv install ${PYTHON_Target_VERSION}
+    else
+        func_1_1_log "   Python ${PYTHON_Target_VERSION} found." "green"
+    fi
+
+    # ********************************************
+    # --- Step 3: Virtual Environment (From A, enhanced) ---
+    func_1_1_log "   [3/7] Setting up Virtual Environment..." "yellow"
+    if [ ! -d "$LV1_VENV_DIR" ]; then
+        func_1_1_log "   Creating venv in '$LV1_VENV_DIR'..."
+        pyenv local ${PYTHON_Target_VERSION}
+        python -m venv "$LV1_VENV_DIR"
+        pyenv local --unset
+    fi
+
+    # Ensure pip is up to date
+    "${PIP_BIN}" install --upgrade pip
+
+    # Handle Requirements (Load from file only)
+    if [ -f "$DEV_REQUIREMENTS_FILE" ]; then
+        func_1_1_log "   Installing Python packages from $DEV_REQUIREMENTS_FILE..."
+        # "${PIP_BIN}" install --no-cache-dir -r "$DEV_REQUIREMENTS_FILE" -i https://pypi.tuna.tsinghua.edu.cn/simple
+        "${PIP_BIN}" install -r "$DEV_REQUIREMENTS_FILE" -i https://pypi.tuna.tsinghua.edu.cn/simple
+    else
+        func_1_1_log "❌ Requirements file not found at: $DEV_REQUIREMENTS_FILE" "red"
+        func_1_1_log "   Please create the file manually before running prepare." "yellow"
+        exit 1
+    fi
+
+    # Auto-fix OpenCV if needed (From B)
+    # This remains critical: even if requirements.txt installed opencv-python,
+    # this function will swap it for headless if the GUI version fails to load.
+    func_3_1_check_opencv_compatibility
+
+    func_1_1_log "   ✅ Python environment ready." "green"
+
+    func_1_8_activate_py_venv
+
+    # ********************************************
+    # --- Step 4: Conan (From A) ---
+    func_1_1_log "   [4/7] Setting up Conan..." "yellow"
+
+    # Processing -- 4.1 install conan in venv
+    if ! command -v conan &> /dev/null; then
+        "${PIP_BIN}" install conan
+    fi
+    # Check if profile exists to avoid error
+    if command -v conan &> /dev/null; then
+         conan profile detect --force 2>/dev/null || true
+         func_1_1_log "   ✅ Conan ready." "green"
+    fi
+
+    # Preparation -- 4.2 extract the ort version from current venv
+    func_3_4_detect_onnxruntime_version
+
+    # Processing -- 4.3 Manually install ort into conan
+    func_3_5_build_onnxruntime_conan_package
+
+    # ********************************************
+    # --- Step 5: build dir is temporary for restoring temp files and folders
+    if [ ! -d "${LV1_BUILD_DIR}" ];then
+        mkdir -p "${LV1_BUILD_DIR}"
+        func_1_1_log "   [5/7] Setting up build dir successfully..." "yellow"
+    fi
+
+    # ********************************************
+    # --- Step 6: Sync MODNet sdk as needed
+
+    func_1_1_log "   [6/7] Target Submodule: ${LV4_MODNET_SDK_DIR}" "yellow"
+    func_3_3_rebuild_sdk modnet
+
+
+
+
+
+
+
+
+
+    # if [ ! -d "${LV4_MODNET_SDK_DIR}" ]; then
+    #     cd "${REPO_TOP_DIR}"
+    #     git submodule update
+    #     func_1_1_log "   [6/7] Synchronized MODNet SDK Complete." "yellow"
+    # else
+    #     func_1_1_log "   [6/7] MODNet SDK Exist, Skip Downloading." "yellow"
+    # fi
+
+    # ********************************************
+    # --- Step 7: MODNet Links for furthur executing
+    func_1_1_log "   [7/7] Setting up Softlinks for MODNet SDK..." "yellow"
+    func_3_0_setup_modnet_softlinks
+
+    # ********************************************
+    # --- Finilization
+    func_1_1_log "🎉 Preparation complete!" "green"
+}
+
+func_3_3_rebuild_sdk(){
+    if [ x"$1" == x"modnet" ]; then
+        # ********************************************
+        # --- Step 6: Force Re-install MODNet sdk
+        cd "${REPO_TOP_DIR}"
+
+        # 定义变量 (确保完全匹配)
+        REL_PATH="third-party/sdk/MODNet.git"
+        REMOTE_URL="https://github.com/ZHKKKe/MODNet.git"
+
+        # ==========================================
+        # Phase 1: 彻底清理所有残留 (Nuclear Clean)
+        # ==========================================
+
+        # 1. 尝试从 git 注册表中反初始化
+        git submodule deinit -f -- "${REL_PATH}" 2>/dev/null || true
+
+        # 2. 从 Git 索引(Index)中强制移除 (这一步解决 pathspec error)
+        # 即使它不在索引里，加了 || true 也不会报错
+        git rm --cached -f "${REL_PATH}" 2>/dev/null || true
+
+        # 3. 物理删除工作目录
+        rm -rf "${REL_PATH}"
+
+        # 4. 【关键】清理 .git/modules 缓存
+        # 根据你提供的 tree 信息，这里可能有残留，我们把相关的全删了
+        rm -rf ".git/modules/third-party/sdk/MODNet.git"
+        # 你截图里多出来的那个奇怪目录也删掉，防止干扰
+        rm -rf ".git/modules/MODNet.git"
+
+        func_1_1_log "   Cleanup complete. Re-adding from scratch..." "yellow"
+
+        # ==========================================
+        # Phase 2: 全新添加 (Re-Add)
+        # ==========================================
+
+        # 使用 'git submodule add' 而不是 'update'
+        # 'add' 命令会自动做三件事：
+        # 1. 下载代码
+        # 2. 写入 .gitmodules
+        # 3. 将 submodule 信息写入 Git 索引 (修复你的核心问题)
+        # --force 允许我们在该目录被 git 认为是 ignored 或有残留时强制执行
+
+        if git submodule add --force "${REMOTE_URL}" "${REL_PATH}"; then
+            func_1_1_log "   Submodule added successfully." "green"
+        else
+            func_1_1_log "   'git submodule add' failed. Checking if it's already there..." "red"
+            # 如果 add 失败，可能是因为清理不彻底，或者网络问题，这里做一个兜底尝试
+            git submodule update --init --recursive --force -- "${REL_PATH}"
+        fi
+
+        # 最后的确认
+        if [ -f "${REL_PATH}/.git" ]; then
+            func_1_1_log " [6/7] MODNet SDK force synced OK." "yellow"
+        else
+            func_1_1_log " [6/7] Force sync failed!" "red"
+            exit 1
+        fi
+    fi
+}
+
+func_3_4_detect_onnxruntime_version() {
+    func_1_1_log "🔍 Detecting ONNX Runtime version from Python venv..." "blue"
+
+    # Sanity check: pip/python must exist
+    if [ -z "${PYTHON_BIN}" ] || [ ! -x "${PYTHON_BIN}" ]; then
+        func_1_2_err "$PYTHON_BIN is not set or not executable. Cannot detect onnxruntime version."
+    fi
+
+    # Use the python behind pip to query onnxruntime version
+    local ort_version
+    ort_version=$("${PYTHON_BIN}" -c "import onnxruntime as ort; print(ort.__version__)" 2>/dev/null)
+
+    if [ -z "${ort_version}" ]; then
+        func_1_2_err "Failed to detect onnxruntime version from venv. Is onnxruntime installed?"
+    fi
+
+    # global env (caller decides where/how it's consumed)
+    ONNXRUNTIME_VERSION="${ort_version}"
+    export ONNXRUNTIME_VERSION
+
+    func_1_1_log "   ✔ ONNX Runtime version detected: ${ONNXRUNTIME_VERSION}" "green"
+}
+
+func_3_5_build_onnxruntime_conan_package() {
+    func_1_1_log "📦 Building ONNX Runtime Conan package..." "blue"
+
+    # Sanity check: version must exist
+    if [ -z "${ONNXRUNTIME_VERSION}" ]; then
+        func_1_2_err "ONNXRUNTIME_VERSION is not set. Cannot build ONNX Runtime Conan package."
+    fi
+
+    local recipe_dir="${REPO_TOP_DIR}/runtime/cpp/third_party/conan_recipes/onnxruntime"
+
+    if [ ! -f "${recipe_dir}/conanfile.py" ]; then
+        func_1_2_err "conanfile.py not found in ${recipe_dir}"
+    fi
+
+    func_1_1_log "   Recipe: ${recipe_dir}" "yellow"
+    func_1_1_log "   Version: ${ONNXRUNTIME_VERSION}" "yellow"
+
+    pushd "${recipe_dir}" >/dev/null || func_1_2_err "Failed to enter recipe directory."
+
+    # Ensure Conan profile exists (idempotent)
+    conan profile detect --force 2>/dev/null || true
+
+    # Build & register package into local Conan cache
+    conan create . \
+        --name=onnxruntime \
+        --version="${ONNXRUNTIME_VERSION}" \
+        --build=missing
+
+    if [ $? -ne 0 ]; then
+        popd >/dev/null
+        func_1_2_err "Failed to create ONNX Runtime Conan package."
+    fi
+
+    popd >/dev/null
+
+    func_1_1_log "   ✔ ONNX Runtime ${ONNXRUNTIME_VERSION} successfully installed into Conan cache." "green"
+}
+
+func_3_6_echo_ort_root_for_cmake(){
+    # ONNXRUNTIME_ROOT="$(conan cache path onnxruntime/${ONNXRUNTIME_VERSION})"
+    ONNXRUNTIME_ROOT=$(conan cache path onnxruntime/${ONNXRUNTIME_VERSION} | sed 's#/e$#/s#')
+    # func_1_1_log "   ✔ ONNX Runtime root detected: ${ONNXRUNTIME_ROOT}" "green"
+    echo "-DONNXRUNTIME_ROOT=$ONNXRUNTIME_ROOT"
+}
+
+# ==============================================================================
+# Level 4: Core Workflows (MODNet & C++)
+# ==============================================================================
+
+func_4_1_ckpt_2_onnx(){
+    # (From A)
+    func_1_4_start_time_count __TASK_START_TIME
+
+    func_1_1_log "🔎 Checking for pre-trained models (.ckpt)..." "blue"
+    mapfile -t ckpt_files < <(find "$LV5_PRETRAINED_DIR" -maxdepth 1 -type l -name "*.ckpt" -o -name "*.ckpt")
+
+    if [ ${#ckpt_files[@]} -eq 0 ]; then
+        # Try finding regular files if symlinks fail
+        mapfile -t ckpt_files < <(find "$LV5_PRETRAINED_DIR" -maxdepth 1 -type f -name "*.ckpt")
+    fi
+
+    if [ ${#ckpt_files[@]} -eq 0 ]; then
+        func_1_1_log "❌ No .ckpt models found in '$LV5_PRETRAINED_DIR'." "red"
+        return 1
+    fi
+
+    func_1_1_log "   Please choose a .ckpt model to convert to ONNX:" "green"
+    select ckpt_path in "${ckpt_files[@]}"; do
+        if [[ -n "$ckpt_path" ]]; then break; else func_1_1_log "Invalid selection." "red"; fi
+    done
+
+    local ckpt_filename=$(basename "$ckpt_path")
+    local onnx_filename="${ckpt_filename%.ckpt}.onnx"
+    local onnx_path="${LV5_PRETRAINED_DIR}/${onnx_filename}"
+
+    func_1_1_log "   Selected CKPT: $ckpt_filename" "yellow"
+    func_1_1_log "   Output ONNX:   $onnx_path" "yellow"
+
+    if [ -f "$onnx_path" ]; then
+        read -p "   File exists. Overwrite? (y/N) " -n 1 -r; echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then return 0; fi
+    fi
+
+    func_1_1_log "🚀 Starting conversion..." "blue"
+    cd "$LV4_MODNET_SDK_DIR"
+    # Use the venv python explicitly
+    "$PYTHON_BIN" -m onnx.export_onnx --ckpt-path="$ckpt_path" --output-path="$onnx_path"
+
+    if [ $? -eq 0 ]; then func_1_1_log "✅ Conversion successful!" "green"; else func_1_2_err "Conversion failed."; fi
+}
+
+func_4_2_inference_with_onnx(){
+    # (From A)
+    func_1_4_start_time_count __TASK_START_TIME
+
+    func_1_1_log "🔎 Checking for ONNX models..." "blue"
+    mapfile -t onnx_files < <(find "$LV5_PRETRAINED_DIR" -maxdepth 1 -type f -name "*.onnx")
+    if [ ${#onnx_files[@]} -eq 0 ]; then
+        func_1_1_log "❌ No .onnx models found. Run 'convert' first." "red"
+        return 1
+    fi
+
+    func_1_1_log "   Choose ONNX model:" "green"
+    select model_path in "${onnx_files[@]}"; do
+        if [[ -n "$model_path" ]]; then break; else func_1_1_log "Invalid selection." "red"; fi
+    done
+
+    func_1_1_log "🔎 Scanning for images..." "blue"
+    mapfile -t images_list < <(find "${LV1_MEDIA_DIR}" -type f \( -name "*.jpg" -o -name "*.bmp" -o -name "*.png" \))
+
+    if [ ${#images_list[@]} -eq 0 ]; then
+         func_1_1_log "❌ No images found in ${LV1_MEDIA_DIR}" "red"; return 1;
+    fi
+
+    func_1_1_log "   Choose input image:" "green"
+    select image_path in "${images_list[@]}"; do
+        if [[ -n "$image_path" ]]; then break; else func_1_1_log "Invalid selection." "red"; fi
+    done
+
+    local input_filename=$(basename "$image_path")
+    local output_filename="${input_filename%.*}_matte.png"
+    local output_path="$(dirname "$image_path")/${output_filename}"
+
+    func_1_1_log "🚀 Starting inference..." "blue"
+    cd "$LV4_MODNET_SDK_DIR"
+    "$PYTHON_BIN" -m onnx.inference_onnx --model-path="$model_path" --image-path="$image_path" --output-path="$output_path"
+
+    if [ $? -eq 0 ]; then func_1_1_log "✅ Inference successful! Saved to: $output_path" "green"; else func_1_2_err "Inference failed."; fi
+}
+
+func_4_5_generate_golden_interactive() {
+    func_1_4_start_time_count __TASK_START_TIME
+
+    mkdir -p "${LV2_GOLDEN_DIR}" "${LV2_GOLDEN_DEBUG_DIR}"
+
+    # --------------------------------------------------
+    # 1. Scan media directory
+    # --------------------------------------------------
+    mapfile -t images < <(find "${LV1_MEDIA_DIR}" -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.bmp" \))
+
+    if [ ${#images[@]} -eq 0 ]; then
+        func_1_2_err "No images found under ${LV1_MEDIA_DIR}"
+    fi
+
+    func_1_1_log "📷 Select input image (from media/):" "green"
+    select image_path in "${images[@]}"; do
+        [[ -n "$image_path" ]] && break
+        func_1_1_log "Invalid selection." "red"
+    done
+
+    # --------------------------------------------------
+    # 2. Select ONNX model
+    # --------------------------------------------------
+    mapfile -t onnx_models < <(find "${LV1_MODELS_DOWNLOAD_DIR}" -type f -name "*.onnx")
+
+    if [ ${#onnx_models[@]} -eq 0 ]; then
+        func_1_2_err "No ONNX model found. Please convert first."
+    fi
+
+    func_1_1_log "🧠 Select ONNX model:" "green"
+    select model_path in "${onnx_models[@]}"; do
+        [[ -n "$model_path" ]] && break
+        func_1_1_log "Invalid selection." "red"
+    done
+
+    # --------------------------------------------------
+    # 3. Auto-generate output paths
+    # --------------------------------------------------
+    local image_name=$(basename "$image_path")
+    local stem="${image_name%.*}"
+
+    local output_path="${LV2_GOLDEN_DIR}/${stem}_matte.png"
+    # local debug_path="${LV2_GOLDEN_DEBUG_DIR}/${stem}_debug.npy"
+    local debug_path="${LV2_GOLDEN_DEBUG_DIR}"
+
+    func_1_1_log "🚀 Generating golden files..." "blue"
+    func_1_1_log "   Input : ${image_path}" "yellow"
+    func_1_1_log "   Output: ${output_path}" "yellow"
+
+    # --------------------------------------------------
+    # 4. Run MODNet golden generator
+    # --------------------------------------------------
+    cd "${LV4_MODNET_SDK_DIR}"
+
+    "${PYTHON_BIN}" onnx/generate_golden_files.py \
+        --image-path "${image_path}" \
+        --model-path "${model_path}" \
+        --output-path "${output_path}" \
+        --debug-file-path "${debug_path}"
+
+    func_1_1_log "✅ Golden files generated successfully." "green"
+}
+
+
+
+# ==============================================================================
+# Level 5: Cleanup & Finalization
+# ==============================================================================
+
+func_5_1_clean_project(){
+    # # (Merged A & B)
+    # func_1_1_log "🧹 Cleanup Options:" "blue"
+    # echo "   1. Generated models (.onnx)"
+    # echo "   2. Virtual Environment (.venv)"
+    # echo "   3. Full Clean (All of above)"
+    # echo "   4. Cancel"
+    # read -p "   Choice [1-4]: " clean_choice
+    _clean_build(){
+        func_7_1_cpp_core_clean_target
+
+        if [ -d "${LV1_BUILD_DIR}" ]; then
+            rm -rf "${LV1_BUILD_DIR}"
+            func_1_1_log "✅ build dir Has been deleted." "green"
+        # else
+        #     func_1_1_log "✅ build dir not exist. Remove Skipped." "green"
+        fi
+
+        func_1_1_log "✅ 1st Lv Clean has done." "green"
+    }
+
+    _clean_all(){
+        _clean_build
+
+        if [ -d "${LV1_MODELS_DOWNLOAD_DIR}" ]; then
+            rm -rf "${LV1_MODELS_DOWNLOAD_DIR}"
+            func_1_1_log "✅ MODNet Pretrained Models Has been deleted." "green"
+        # else
+        #     func_1_1_log "✅ MODNet Pretrained Models not exist. Remove Skipped." "green"
+        fi
+
+        if [ -d "${LV1_VENV_DIR}" ]; then
+            rm -rf "${LV1_VENV_DIR}"
+            func_1_1_log "✅ Python Virtual Environment Has been deleted." "green"
+        # else
+        #     func_1_1_log "✅ Python Virtual Environment not exist. Remove Skipped." "green"
+        fi
+
+        if [ -d "${LV4_MODNET_SDK_DIR}" ]; then
+            rm -rf "${LV4_MODNET_SDK_DIR}"
+            func_1_1_log "✅ MODNet SDK Has been deleted." "green"
+        # else
+        #     func_1_1_log "✅ MODNet SDK not exist. Remove Skipped." "green"
+        fi
+
+        func_1_1_log "✅ 2nd Lv Clean has done." "green"
+    }
+
+    local clean_choice="$1"
+    # func_1_1_log "clean_choice=${clean_choice}"
+    case $clean_choice in
+        2)
+            _clean_all
+            ;;
+        *)
+            _clean_build
+            ;;
+    esac
+}
+
+func_5_4_finalize() {
+    # (From B) - The "magic" reporting at the end
+    local exit_code=$?
+    local final_time=$(func_1_3_get_current_milliseconds)
+
+    echo "" # New line for visual separation
+    if [[ -n "${__START_TIME:-}" ]]; then
+        # Total script execution time
+        local whole_duration_human
+        func_1_6_elapsed_time_calculation "${__START_TIME}" "${final_time}" whole_duration_human
+        func_1_1_log "Total Session Time: ${whole_duration_human}." "blue"
+    fi
+    # Exit with the code of the last executed command
+    exit "$exit_code"
+}
+
+
+# ==============================================================================
+# CPP Build Module (Fully Inlined)
+# ==============================================================================
+
+# ==============================================================================
+# Level 6: Cpp last(3rd) layer execution unit
+# ==============================================================================
+func_6_2_cpp_setup_env(){
+
+    # Paths
+    CPP_TOP_DIR="${REPO_TOP_DIR}/runtime/cpp"
+    # ------------------
+    # CPP_BUILD_DIR only used in cleaning execution
+    CPP_BUILD_DIR="${CPP_TOP_DIR}/build"
+    # ------------------
+    # CPP_BUILD_WITH_PLATFORM_DIR will be assigned after params parsing
+    # and all build progress occurs in this place
+    # it will be assigned like: runtime/cpp/build/native-release
+    # ------------------
+    CPP_BUILD_WITH_PLATFORM_DIR=""
+    # ------------------
+    CPP_INSTALL_DIR="${CPP_TOP_DIR}/install"
+    CPP_INSTALL_INC_DIR="${CPP_INSTALL_DIR}/include"
+    CPP_INSTALL_BIN_DIR="${CPP_INSTALL_DIR}/bin"
+    CPP_INSTALL_LIB_DIR="${CPP_INSTALL_DIR}/lib"
+    CPP_SRC_DIR="${CPP_TOP_DIR}/src"
+    CPP_TOOLCHAINS_DIR="${CPP_TOP_DIR}/cmake/toolchains"
+    CPP_DOT_ENV_PATH="${CPP_TOP_DIR}/.env"
+
+    # Commands
+    CPP_CMD_CLEAN="clean"
+    CPP_CMD_BUILD="build"
+    CPP_CMD_CB="cb"
+    CPP_CMD_INSTALL="install"
+    CPP_CMD_TEST="test"
+
+    # ORT Version Define - Conan will use it
+    ONNXRUNTIME_VERSION=""
+    ONNXRUNTIME_ROOT=""
+
+    # --- [NEW] Load .env file if it exists ---
+    # This exports all variables defined in .env to the current shell
+    if [ -f "${CPP_DOT_ENV_PATH}" ]; then
+        set -a  # Automatically export all variables
+        source "${CPP_DOT_ENV_PATH}"
+        set +a
+    else
+        echo ">> [Fatal] .env file not found in $(basename ${CPP_DOT_ENV_PATH})."
+        echo -e "\tPlease create one based on .env.example. You can refer to the README for guidance."
+        exit
+    fi
+
+    # --------------------------------------------------------------------------
+    # [Shell 语法详解] : "${VAR:=VALUE}"
+    # --------------------------------------------------------------------------
+    # 这行代码的作用是：如果变量 ARC_INSTALL_SHERPA_TOOLS 未定义或为空，
+    # 则将其赋值为默认值 "OFF"。
+    #
+    # 语法拆解：
+    # 1. ${VAR:=VALUE} (参数扩展):
+    #    这是 Bash 的赋值扩展语法。
+    #    - 如果 VAR 有值，表达式返回 VAR 的值。
+    #    - 如果 VAR 为空或未定义，Bash 会将 VALUE (此处为 "OFF") **赋值** 给 VAR，
+    #      并返回这个新值。
+    #    注意与 ${VAR:-VALUE} 的区别：":-" 只返回默认值但不赋值，":=" 会修改变量本身。
+    #
+    # 2. "" (双引号):
+    #    防止展开后的值包含空格导致语法错误。虽然 "OFF" 没空格，但这是一种防御性编程习惯。
+    #
+    # 3. : (空命令/冒号):
+    #    这是一个内建命令，相当于 "不做任何事，只返回 true"。
+    #    - 为什么要加它？
+    #      如果不加冒号，Shell 会完成变量赋值后，尝试把结果 ("OFF") 当作一个命令去执行。
+    #      这会导致报错：'bash: OFF: command not found'。
+    #    - 加上冒号后，Shell 完成变量赋值扩展，然后把结果传给空命令，完美结束。
+    # --------------------------------------------------------------------------
+    : "${ARC_INSTALL_SHERPA_TOOLS:="OFF"}"
+
+    # CPP related options
+
+
+    # Defaults
+    CPP_ACTION=""
+    CPP_PLATFORM="native"
+    CPP_BUILD_TYPE="release"
+    CPP_LIB_TYPE="shared"
+    CPP_PRESET_NAME=""
+
+}
+
+func_6_1_cpp_check_preset_existence() {
+    if ! cmake --list-presets | grep -q "${CPP_PRESET_NAME}"; then
+        func_1_2_err "Error: Preset '${CPP_PRESET_NAME}' is not defined in CMakePresets.json."
+        exit 1
+    fi
+}
+
+func_6_3_cpp_helper_print() {
+    echo -e "\n\033[1;33mUsage: $0 build cpp <command> [options...]\033[0m"
+    echo ""
+    echo -e "\033[1mCommands:\033[0m"
+    echo "  build                - Configure and Compile (Incremental build)"
+    echo "  cb                   - Clean, Build AND Install (Fresh build)"
+    echo "  clean                - Remove build directory for current preset"
+    # echo "  cleanall             - Remove ALL build and install directories"
+    echo "  install              - Install the built targets"
+    echo "  test                 - Run tests"
+    echo "  list                 - List all available CMake Presets"
+    echo ""
+    echo -e "\033[1mOptions (Order does not matter):\033[0m"
+    echo "  <platform>           - native | rv1126bp  (Default: native)"
+    echo "  debug / release      - Build Type         (Default: release)"
+    echo "  static / shared      - Library Type       (Default: shared)"
+    echo ""
+    echo -e "\033[1mExamples:\033[0m"
+    echo "  # 1. Default Build (Host PC, Release, Shared Libs)"
+    echo "     $0 build cpp build"
+    echo ""
+    echo "  # 2. Cross-compile for RV1126 (Release, Shared)"
+    echo "     $0 build cpp build rv1126bp"
+    echo ""
+    echo "  # 3. Build Debug version for Host PC"
+    echo "     $0 build cpp build debug"
+    echo ""
+    echo "  # 4. Build Static Libraries (Host PC)"
+    echo "     $0 build cpp build static"
+    echo ""
+    echo "  # 5. Full Rebuild & Install for RV1126 (Debug mode, Static Libs)"
+    echo "     $0 build cpp cb rv1126bp debug static"
+    echo ""
+    echo "  # 6. Just Clean the RV1126 build files"
+    echo "     $0 build cpp clean rv1126bp"
+    echo ""
+}
+
+func_6_4_cpp_print_every_param(){
+    local index
+    for (( index = 0; index <= $#; index++ )); do
+        func_1_1_log "param[${index}]=\"${!index}\""
+    done
+}
+
+# ==============================================================================
+# Level 7: Cpp sencond layer execution unit
+# ==============================================================================
+func_7_1_cpp_core_clean_target() {
+    if [ -d "${CPP_BUILD_DIR}" ]; then
+        echo ">> [Clean] Removing ${CPP_BUILD_DIR}..."
+        rm -rf "${CPP_BUILD_DIR}"
+    else
+        echo "[Clean] Directory ${CPP_BUILD_DIR} does not exist."
+    fi
+
+    if [ -d "${CPP_INSTALL_DIR}" ]; then
+        echo ">> [Clean] Removing ${CPP_INSTALL_DIR}..."
+        rm -rf "${CPP_INSTALL_DIR}"
+    else
+        echo "[Clean] Directory ${CPP_INSTALL_DIR} does not exist."
+    fi
+}
+
+func_7_2_cpp_core_configure() {
+    # Accepts optional arguments (e.g., -DBUILD_TEST=ON)
+    local extra_args="$@"
+
+    func_6_1_cpp_check_preset_existence
+
+    echo ">> [Configure] Preset: ${CPP_PRESET_NAME}"
+    echo ">> [Configure] Options: ARC_INSTALL_SHERPA_TOOLS=${ARC_INSTALL_SHERPA_TOOLS} ${extra_args}"
+
+    cmake --preset "${CPP_PRESET_NAME}" \
+          -DARC_INSTALL_SHERPA_TOOLS="${ARC_INSTALL_SHERPA_TOOLS}" \
+          ${extra_args}
+}
+
+func_7_3_cpp_core_build() {
+    echo ">> [Build] Directory: ${CPP_BUILD_WITH_PLATFORM_DIR}"
+    cmake \
+        --build "${CPP_BUILD_WITH_PLATFORM_DIR}" \
+        -j$(nproc)
+}
+
+func_7_4_cpp_core_install() {
+    echo ">> [Install] Installing to prefix..."
+    cmake --install "${CPP_BUILD_WITH_PLATFORM_DIR}"
+}
+
+func_7_5_cpp_core_test() {
+    echo ">> [Test] Running CTest..."
+    ctest --test-dir "${CPP_BUILD_WITH_PLATFORM_DIR}" --output-on-failure --verbose
+}
+
+
+# ==============================================================================
+# Level 8: Cpp action execution (Top layer)
+# ==============================================================================
+# ==============================================================================
+# [NEW] Helper: Conan configuration workflow for Native platform
+# ==============================================================================
+func_8_5_cpp_run_native_conan_configure() {
+    local extra_args="$@"
+    echo "[1]extra_args=\"${extra_args}\""
+
+    # 1. Check Conan existence
+    if ! command -v conan &> /dev/null; then
+        func_1_2_err "Conan is not installed. Please run './helmsman prepare' or install it manually."
+    fi
+
+    # 2. Check for conanfile
+    if [ ! -f "${CPP_TOP_DIR}/conanfile.py" ] && [ ! -f "${CPP_TOP_DIR}/conanfile.txt" ]; then
+        func_1_2_err "No 'conanfile.py' or 'conanfile.txt' found in ${CPP_TOP_DIR}. Cannot run Conan build."
+    fi
+
+    func_1_1_log ">> [Conan] Detecting profile (idempotent)..." "blue"
+    conan profile detect --force 2>/dev/null || true
+
+    func_1_1_log ">> [Conan] Installing dependencies..." "blue"
+    func_1_1_log "   Output Dir: ${CPP_BUILD_WITH_PLATFORM_DIR}"
+    func_1_1_log "   Build Type: ${CPP_BUILD_TYPE}"
+
+    # Conan Install
+    # Note: We use --output-folder to direct generated files (toolchains) to the build dir.
+    # We map 'debug/release' to Conan's settings.
+    local conan_build_type="Release"
+    if [[ "${CPP_BUILD_TYPE}" == "debug" ]]; then
+        conan_build_type="Debug"
+    fi
+
+    conan install "${CPP_TOP_DIR}" \
+        --output-folder="${CPP_BUILD_WITH_PLATFORM_DIR}" \
+        --build=missing \
+        -s build_type="${conan_build_type}" \
+        -s compiler.cppstd=17
+
+    if [ $? -ne 0 ]; then
+        func_1_2_err "Conan install failed."
+    fi
+
+    func_1_1_log ">> [CMake] Configuring with Conan Toolchain..." "blue"
+
+    # 3. CMake Configure using the Conan Toolchain
+    # Instead of --preset, we manually specify the toolchain generated by Conan.
+    # Conan 2.x usually generates 'conan_toolchain.cmake' in the output folder (or build/ generators).
+
+    local toolchain_file="${CPP_BUILD_WITH_PLATFORM_DIR}/conan_toolchain.cmake"
+
+    # Fallback check for generators folder (common in some Conan configs)
+    if [ ! -f "$toolchain_file" ]; then
+        toolchain_file="${CPP_BUILD_WITH_PLATFORM_DIR}/build/Release/generators/conan_toolchain.cmake"
+    fi
+
+    # If still not found, try a generic search inside build dir (robustness)
+    if [ ! -f "$toolchain_file" ]; then
+        toolchain_file=$(find "${CPP_BUILD_WITH_PLATFORM_DIR}" -name "conan_toolchain.cmake" | head -n 1)
+    fi
+
+    if [ -z "$toolchain_file" ] || [ ! -f "$toolchain_file" ]; then
+         func_1_1_log "⚠️  Could not locate conan_toolchain.cmake. Attempting standard configure..." "yellow"
+         cmake -S "${CPP_TOP_DIR}" -B "${CPP_BUILD_WITH_PLATFORM_DIR}" \
+            -DCMAKE_BUILD_TYPE="${conan_build_type}" \
+            -DARC_INSTALL_SHERPA_TOOLS="${ARC_INSTALL_SHERPA_TOOLS}" \
+            ${extra_args}
+    else
+         func_1_1_log "   Toolchain: $toolchain_file" "green"
+         echo -e "\n\n"
+         echo "[2]extra_args=\"${extra_args}\""
+         cmake -S "${CPP_TOP_DIR}" -B "${CPP_BUILD_WITH_PLATFORM_DIR}" \
+            -DCMAKE_TOOLCHAIN_FILE="${toolchain_file}" \
+            -DCMAKE_BUILD_TYPE="${conan_build_type}" \
+            -DARC_INSTALL_SHERPA_TOOLS="${ARC_INSTALL_SHERPA_TOOLS}" \
+            ${extra_args}
+    fi
+}
+
+func_8_4_cpp_dispatch() {
+
+    # 1. Pre-execution Validation (Common)
+    if [ "$CPP_ACTION" != "clean" ] && [ "$CPP_ACTION" != "cleanall" ] && [ "$CPP_ACTION" != "list" ]; then
+        func_8_3_cpp_validate_platform_env
+    fi
+
+    # 2. Branch Logic: Native (Conan) vs Others (Presets)
+    if [ "$CPP_PLATFORM" == "native" ] && [ "$CPP_ACTION" != "list" ] && [ "$CPP_ACTION" != "clean" ]; then
+
+        # --- NATIVE / CONAN PATH ---
+        func_1_1_log "🚀 Dispatching Native Build (Conan Powered)..." "green"
+        func_3_4_detect_onnxruntime_version
+
+        case "$CPP_ACTION" in
+            "build")
+                # Flow: Conan Install + CMake Configure -> Build
+                func_8_5_cpp_run_native_conan_configure "$(func_3_6_echo_ort_root_for_cmake)"
+                func_7_3_cpp_core_build
+                ;;
+
+            "cb")
+                # Flow: Clean -> Conan Install + CMake Configure -> Build -> Install
+                func_7_1_cpp_core_clean_target
+                func_8_5_cpp_run_native_conan_configure "$(func_3_6_echo_ort_root_for_cmake)"
+                func_7_3_cpp_core_build
+                func_7_4_cpp_core_install
+                ;;
+
+            "install")
+                if [ ! -d "${CPP_BUILD_WITH_PLATFORM_DIR}" ]; then
+                    func_1_2_err "Build directory not found. Please build first."
+                fi
+                func_7_4_cpp_core_install
+                ;;
+
+            "test")
+                # Flow: Re-configure (Test=ON) -> Build -> Test
+                func_1_1_log ">> [Test] Re-configuring with tests enabled..." "green"
+                func_8_5_cpp_run_native_conan_configure "-DBUILD_TEST=TRUE" "$(func_3_6_echo_ort_root_for_cmake)"
+
+                func_1_1_log ">> [Test] Building..." "green"
+                func_7_3_cpp_core_build
+
+                func_1_1_log ">> [Test] Executing..." "green"
+                func_7_5_cpp_core_test
+                ;;
+
+            *)
+                 func_1_2_err "Unknown or unsupported command for native mode: '$CPP_ACTION'"
+                 ;;
+        esac
+
+    else
+        # --- CROSS-COMPILE / PRESET PATH (Original Logic) ---
+        if [ "$CPP_PLATFORM" != "native" ]; then
+            func_1_1_log "⚙️  Dispatching Cross-Compile Build (Preset: ${CPP_PRESET_NAME})..." "blue"
+        fi
+
+        case "$CPP_ACTION" in
+            "list")
+                cmake --list-presets
+                ;;
+
+            "clean")
+                func_7_1_cpp_core_clean_target
+                ;;
+
+            "build")
+                func_7_2_cpp_core_configure
+                func_7_3_cpp_core_build
+                ;;
+
+            "cb")
+                func_7_1_cpp_core_clean_target
+                func_7_2_cpp_core_configure
+                func_7_3_cpp_core_build
+                func_7_4_cpp_core_install
+                ;;
+
+            "install")
+                func_6_1_cpp_check_preset_existence
+                if [ ! -d "${CPP_BUILD_WITH_PLATFORM_DIR}" ]; then
+                    func_1_2_err "Build directory not found. Please build first."
+                    exit 1
+                fi
+                func_7_4_cpp_core_install
+                ;;
+
+            "test")
+                func_1_1_log ">> [Test] Re-configuring with tests enabled..." "green"
+                func_7_2_cpp_core_configure "-DBUILD_TEST=TRUE"
+                func_1_1_log ">> [Test] Building..." "green"
+                func_7_3_cpp_core_build
+                func_1_1_log ">> [Test] Executing..." "green"
+                func_7_5_cpp_core_test
+                ;;
+
+            *)
+                func_1_2_err "Unknown CPP command '$CPP_ACTION'"
+                func_6_3_cpp_helper_print
+                exit 1
+                ;;
+        esac
+    fi
+}
+
+func_8_3_cpp_validate_platform_env() {
+    # If platform is native, we rely on host compiler, no SDK root needed usually.
+    if [ "$CPP_PLATFORM" == "native" ]; then
+        return 0
+    fi
+
+    # 1. Construct the variable name dynamically based on CPP_PLATFORM
+    #    Example: rv1126bp -> ARC_RV1126BP_SDK_ROOT
+    #    We convert platform to uppercase.
+    local platform_upper=$(echo "$CPP_PLATFORM" | tr '[:lower:]' '[:upper:]')
+    local var_name="ARC_${platform_upper}_SDK_ROOT"
+
+    # 2. Get the value of this variable (Indirect reference)
+    local sdk_path="${!var_name}"
+
+    # 3. Validation Logic
+    if [ -z "$sdk_path" ]; then
+        echo -e "\033[1;31mError: Environment variable '${var_name}' is not set!\033[0m"
+        echo "Please define it in your '.env' file."
+        echo "Example: ${var_name}=\"/development/toolchain/host\""
+        exit 1
+    fi
+
+    if [ ! -d "$sdk_path" ]; then
+        echo -e "\033[1;31mError: SDK path '${sdk_path}' does not exist!\033[0m"
+        echo "Variable: ${var_name}"
+        echo "Please check your '.env' configuration."
+        exit 1
+    fi
+
+    echo ">> [Env Check] Platform SDK: ${var_name}=${sdk_path}"
+}
+
+func_8_2_cpp_arguments_parsing() {
+    func_6_4_cpp_print_every_param "$@"
+
+    CPP_ACTION=$1
+    shift
+
+    # --- Existing Logic: Loop through arguments ---
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            "debug"|"Debug"|"DEBUG")
+                CPP_BUILD_TYPE="debug"
+                ;;
+            "release"|"Release"|"RELEASE")
+                CPP_BUILD_TYPE="release"
+                ;;
+            "static"|"Static"|"STATIC")
+                CPP_LIB_TYPE="static"
+                ;;
+            "shared"|"Shared"|"SHARED")
+                CPP_LIB_TYPE="shared"
+                ;;
+            *)
+                CPP_PLATFORM=$1
+                ;;
+        esac
+        shift
+    done
+
+
+    # Construct Preset Name
+    CPP_PRESET_NAME="${CPP_PLATFORM}-${CPP_BUILD_TYPE}"
+    if [ "$CPP_LIB_TYPE" == "static" ]; then
+        CPP_PRESET_NAME="${CPP_PRESET_NAME}-static"
+    fi
+
+    # Derive Build Directory (Matches CMakePresets.json logic)
+    CPP_BUILD_WITH_PLATFORM_DIR="${CPP_TOP_DIR}/build/${CPP_PRESET_NAME}"
+
+    echo "--------------------------------------------"
+    echo "Action:      $CPP_ACTION"
+    echo "Target:      [${CPP_PLATFORM}]"
+    echo "Build Dir:   ${CPP_BUILD_WITH_PLATFORM_DIR}"
+    echo "--------------------------------------------"
+}
+
+func_8_1_cpp_build_dispatch() {
+    # ------------------------------
+    # This is CPP Functionalities Entry
+    # ------------------------------
+
+    if [ x"${DEBUG_MODE}" == x"1" ];then
+        func_6_4_cpp_print_every_param "$@"
+    fi
+
+    local target="$1"
+    # shift || true   # shed the bin name $0
+    shift || true   # shed the "cpp" indicator
+
+    # func_6_4_cpp_print_every_param "$@"
+    func_8_2_cpp_arguments_parsing "$@"
+
+    if [ -d "${CPP_TOP_DIR}" ];then
+        cd "${CPP_TOP_DIR}"
+    else
+        func_1_2_err "${CPP_TOP_DIR} is not exist! Check and Re-run again."
+        exit 1
+    fi
+
+    case "$target" in
+        cpp)
+            if [ -z "$CPP_ACTION" ]; then
+                func_1_2_err \
+                    "Usage: ./helmsman build cpp <clean|build|cb|install|test|list> [platform]"
+            fi
+
+            func_1_1_log \
+                "🛠️  CPP Build: cmd=${CPP_ACTION}, platform=${CPP_PLATFORM}" \
+                "blue"
+
+            # func_8_4_cpp_dispatch "$CPP_ACTION" "$CPP_PLATFORM"
+            func_8_4_cpp_dispatch
+            ;;
+        *)
+            func_1_2_err "Unknown build target '$target'"
+            ;;
+    esac
+}
+
+# ==============================================================================
+# Level 9: Cpp menu interactive
+# ==============================================================================
+
+func_9_4_cpp_list_platforms() {
+    echo "native"
+    # func_1_1_log "CPP_TOOLCHAINS_DIR=${CPP_TOOLCHAINS_DIR}"
+    if [ -d "${CPP_TOOLCHAINS_DIR}" ]; then
+        for f in "${CPP_TOOLCHAINS_DIR}"/*.cmake; do
+            [ -f "$f" ] || continue
+            basename "$f" .cmake
+        done
+    fi
+}
+
+func_9_3_cpp_menu_select_platform() {
+    local platforms=()
+    mapfile -t platforms < <(func_9_4_cpp_list_platforms)
+
+    echo ""
+    func_1_1_log "--- Select C++ Build Platform ---" "blue"
+
+    local i=1
+    for p in "${platforms[@]}"; do
+        echo "${i}. ${p}"
+        ((i++))
+    done
+    echo "${i}. Back"
+
+    read -p "   Select [1-${i}]: " choice
+
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#platforms[@]} )); then
+        CPP_PLATFORM="${platforms[choice-1]}"
+        # echo "${platforms[choice-1]}"
+        echo "${CPP_PLATFORM}"
+        return 0
+    fi
+
+    return 1
+}
+
+func_9_2_cpp_menu_select_action() {
+    local timeout=10
+
+    echo
+    echo ">> [Interactive Mode] Wizard initiated."
+    echo ">> Defaults will be auto-selected in ${timeout} seconds (or press Enter)..."
+    echo
+
+    # ---------------------------------------
+    # Step 0: Command Selection
+    # Only ask if COMMAND is not already provided via CLI
+    # ---------------------------------------
+    if [ -z "$CPP_ACTION" ]; then
+        echo "---------------------------------------"
+        echo "Select Action:"
+        echo "  1) cb       (Clean, Build & Install) [Default]"
+        echo "  2) build    (Incremental Build)"
+        echo "  3) install  (Install only)"
+        echo "  4) clean    (Clean current preset)"
+        echo "  5) test     (Run tests)"
+        echo "  6) list     (List presets)"
+        echo "  7) back"
+        echo "---------------------------------------"
+        read -t ${timeout} -p "Enter choice [1-7]: " CMD_INPUT || true
+        echo
+
+        case "$CMD_INPUT" in
+            "2") CPP_ACTION="build" && return;;
+            "3") CPP_ACTION="install" && return;;
+            "4") CPP_ACTION="clean" && return;;
+            "5") CPP_ACTION="test" ;;
+            "6") CPP_ACTION="list" && return;;
+            "7") CPP_ACTION="back" && return;;
+            *)   CPP_ACTION="cb" ;; # Default
+        esac
+        echo ">> Selected Action:   ${CPP_ACTION}"
+    else
+        echo ">> Action provided:   ${CPP_ACTION}"
+    fi
+
+
+    # ---------------------------------------
+    # Step 1: Platform Selection
+    # ---------------------------------------
+    func_9_3_cpp_menu_select_platform
+    # echo "---------------------------------------"
+    # echo "Select Platform:"
+    # echo "  1) native   (Default)"
+    # echo "  2) rv1126bp"
+    # echo "  3) aarch64"
+    # echo "---------------------------------------"
+    # read -t ${timeout} -p "Enter choice [1-3]: " PLAT_INPUT || true
+    # echo
+
+    # case "$PLAT_INPUT" in
+    #     "2") PLATFORM="rv1126bp" ;;
+    #     "3") PLATFORM="aarch64" ;;
+    #     *)   ;; # Keep default (native)
+    # esac
+    echo ">> Selected Platform: ${CPP_PLATFORM}"
+
+
+    # ---------------------------------------
+    # Step 2: Build Type Selection
+    # ---------------------------------------
+    echo "---------------------------------------"
+    echo "Select Build Type:"
+    echo "  1) Release  (Default)"
+    echo "  2) Debug"
+    echo "---------------------------------------"
+    read -t ${timeout} -p "Enter choice [1-2]: " TYPE_INPUT || true
+    echo
+
+    case "$TYPE_INPUT" in
+        "2") CPP_BUILD_TYPE="debug" ;;
+        *)   ;; # Keep default (release)
+    esac
+    echo ">> Selected Build Type: ${CPP_BUILD_TYPE}"
+
+
+    # ---------------------------------------
+    # Step 3: Library Type Selection
+    # ---------------------------------------
+    echo "---------------------------------------"
+    echo "Select Library Type:"
+    echo "  1) Shared   (Default)"
+    echo "  2) Static"
+    echo "---------------------------------------"
+    read -t ${timeout} -p "Enter choice [1-2]: " LIB_INPUT || true
+    echo
+
+    case "$LIB_INPUT" in
+        "2") CPP_LIB_TYPE="static" ;;
+        *)   ;; # Keep default (shared)
+    esac
+    echo ">> Selected Lib Type:   ${CPP_LIB_TYPE}"
+    echo
+
+    # ---------------------------------------------------
+    # echo ""
+    # func_1_1_log "--- Select C++ Build Action ---" "blue"
+    # echo "1. build"
+    # echo "2. clean + build + install (cb)"
+    # echo "3. clean"
+    # echo "4. install"
+    # echo "5. back"
+
+    # read -p "   Select [1-5]: " choice
+
+    # case "$choice" in
+    #     1) CPP_ACTION="build" ;;
+    #     2) CPP_ACTION="cb" ;;
+    #     3) CPP_ACTION="clean" ;;
+    #     4) CPP_ACTION="install" ;;
+    #     5) CPP_ACTION="back" ;;
+    #     *) func_1_1_log "Invalid choice." "red"; return 1 ;;
+    # esac
+}
+
+func_9_1_cpp_menu_entry() {
+    echo ""
+    # while true; do
+        func_9_2_cpp_menu_select_action
+
+        if [[ "$CPP_ACTION" == "back" ]]; then
+            return
+        fi
+
+        func_8_1_cpp_build_dispatch cpp "$CPP_ACTION" "$CPP_PLATFORM" || return
+    # done
+}
+
+# ==============================================================================
+# Main Entry Point
+# ==============================================================================
+
+main(){
+    # Preparation -- 1. ENV setup
+    func_2_0_setup_env
+
+    # Preparation -- 2. Argument Parsing
+    local COMMAND=""
+    local cmd_lower_case=""
+    local ARGS=()
+
+    for arg in "$@"; do
+        case $arg in
+        -h | --help)
+            func_1_7_usage; exit 0 ;;
+        -v)
+            export V=1; func_2_0_setup_env ;; # Reload env to apply verbose
+        *)
+            if [ -z "$COMMAND" ]; then COMMAND="$arg"; else ARGS+=("$arg"); fi ;;
+        esac
+    done
+
+    COMMAND=${COMMAND:-"menu"}
+    local cmd_lower_case=$(echo "$COMMAND" | tr '[:upper:]' '[:lower:]')
+
+    # Processing -- 1. Main Loop
+    case $cmd_lower_case in
+        "pre" | "prepare")
+            func_3_2_setup_dep_before_build ;;
+        "conv" | "cvt" | "convert")
+            func_2_1_check_env_ready && func_4_1_ckpt_2_onnx ;;
+        "inf" | "inference")
+            func_2_1_check_env_ready && func_4_2_inference_with_onnx ;;
+        "b" | "build")
+            func_2_1_check_env_ready
+            func_8_1_cpp_build_dispatch "${ARGS[@]}"
+            ;;
+        "g" | "golden")
+            func_2_1_check_env_ready && func_4_5_generate_golden_interactive ;;
+        "c" | "clean")
+            func_5_1_clean_project ;;
+        "ca" | "cleanall")
+            func_5_1_clean_project 2;;
+        "menu")
+            # while true; do
+                echo ""
+                func_1_1_log "--- Helmsman Project Main Menu ---" "blue"
+                echo "1. Prepare Environment"
+                echo "2. Convert .ckpt model to .onnx"
+                echo "3. Run Python inference"
+                echo "4. Generate Golden Files (Interactive)"
+                echo "5. Build C++ Helmsman Engine"
+                echo "6. Clean build"
+                echo "7. Clean all(build/venv/models/MODNet SDK etc)"
+                echo "8. Exit"
+                read -p "   Select [1-6]: " choice
+                case $choice in
+                    1) func_3_2_setup_dep_before_build ;;
+                    2) func_2_1_check_env_ready && func_4_1_ckpt_2_onnx ;;
+                    3) func_2_1_check_env_ready && func_4_2_inference_with_onnx ;;
+                    4) func_2_1_check_env_ready && func_4_5_generate_golden_interactive ;;
+                    5) func_2_1_check_env_ready && func_9_1_cpp_menu_entry ;;
+                    6) func_5_1_clean_project ;;
+                    7) func_5_1_clean_project 2;;
+                    8) func_1_1_log "👋 Exiting." "green"; exit 0 ;;
+                    *) func_1_1_log "Invalid choice." "red" ;;
+                esac
+            # done
+            ;;
+        *)
+            func_1_2_err "Unknown command '$COMMAND'. Use -h for help." ;;
+    esac
+}
+
+main "$@"
