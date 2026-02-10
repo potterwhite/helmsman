@@ -61,6 +61,15 @@
       }
     },
     {
+      "name": "mixin-deps-onnxruntime-1.6.0-linux-x86_64",
+      "hidden": true,
+      "description": "External dependencies URLs and Hashes for ONNX Runtime 1.6.0 x86_64 From Official Github",
+      "cacheVariables": {
+        "ORT_URL": "https://github.com/microsoft/onnxruntime/releases/download/v1.6.0/onnxruntime-linux-x64-1.6.0.tgz",
+        "ORT_HASH": "SHA256=4d0caa4cde6c98adc88e8c7789ee438ca8cffab21f31428c917aa54a36cf9df0"
+      }
+    },
+    {
       "name": "base",
       "hidden": true,
       "generator": "Unix Makefiles",
@@ -129,7 +138,13 @@
     },
     {
       "name": "native-release",
-      "inherits": ["base", "plat-native", "cfg-release", "cfg-shared"],
+      "inherits": [
+        "base",
+        "plat-native",
+        "cfg-release",
+        "cfg-shared",
+        "mixin-deps-onnxruntime-1.6.0-linux-x86_64"
+      ],
       "installDir": "${sourceDir}/install/native/release",
       "cacheVariables": {
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/native/release"
@@ -137,7 +152,13 @@
     },
     {
       "name": "native-debug",
-      "inherits": ["base", "plat-native", "cfg-debug", "cfg-shared"],
+      "inherits": [
+        "base",
+        "plat-native",
+        "cfg-debug",
+        "cfg-shared",
+        "mixin-deps-onnxruntime-1.6.0-linux-x86_64"
+      ],
       "installDir": "${sourceDir}/install/native/debug",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/native/debug"
@@ -145,7 +166,13 @@
     },
     {
       "name": "native-release-static",
-      "inherits": ["base", "plat-native", "cfg-release", "cfg-static"],
+      "inherits": [
+        "base",
+        "plat-native",
+        "cfg-release",
+        "cfg-static",
+        "mixin-deps-onnxruntime-1.6.0-linux-x86_64"
+      ],
       "installDir": "${sourceDir}/install/native/release-static",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/native/release-static"
@@ -153,7 +180,13 @@
     },
     {
       "name": "native-debug-static",
-      "inherits": ["base", "plat-native", "cfg-debug", "cfg-static"],
+      "inherits": [
+        "base",
+        "plat-native",
+        "cfg-debug",
+        "cfg-static",
+        "mixin-deps-onnxruntime-1.6.0-linux-x86_64"
+      ],
       "installDir": "${sourceDir}/install/native/debug-static",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/native/debug-static"
@@ -161,7 +194,14 @@
     },
     {
       "name": "rv1126bp-release",
-      "inherits": ["base", "plat-rv1126bp", "cfg-release", "cfg-shared", "mixin-deps-sherpa-linux-aarch64-gcc13_3_0", "mixin-deps-librknnrt-2.3.2-linux-aarch64"],
+      "inherits": [
+        "base",
+        "plat-rv1126bp",
+        "cfg-release",
+        "cfg-shared",
+        "mixin-deps-sherpa-linux-aarch64-gcc13_3_0",
+        "mixin-deps-librknnrt-2.3.2-linux-aarch64"
+      ],
       "installDir": "${sourceDir}/install/rv1126bp/release",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/rv1126bp/release"
@@ -169,7 +209,14 @@
     },
     {
       "name": "rv1126bp-debug",
-      "inherits": ["base", "plat-rv1126bp", "cfg-debug", "cfg-shared", "mixin-deps-sherpa-linux-aarch64-gcc13_3_0", "mixin-deps-librknnrt-2.3.2-linux-aarch64"],
+      "inherits": [
+        "base",
+        "plat-rv1126bp",
+        "cfg-debug",
+        "cfg-shared",
+        "mixin-deps-sherpa-linux-aarch64-gcc13_3_0",
+        "mixin-deps-librknnrt-2.3.2-linux-aarch64"
+      ],
       "installDir": "${sourceDir}/install/rv1126bp/debug",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/rv1126bp/debug"
@@ -177,7 +224,14 @@
     },
     {
       "name": "rv1126bp-release-static",
-      "inherits": ["base", "plat-rv1126bp", "cfg-release", "cfg-static", "mixin-deps-sherpa-linux-aarch64-gcc13_3_0", "mixin-deps-librknnrt-2.3.2-linux-aarch64"],
+      "inherits": [
+        "base",
+        "plat-rv1126bp",
+        "cfg-release",
+        "cfg-static",
+        "mixin-deps-sherpa-linux-aarch64-gcc13_3_0",
+        "mixin-deps-librknnrt-2.3.2-linux-aarch64"
+      ],
       "installDir": "${sourceDir}/install/rv1126bp/release-static",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/rv1126bp/release-static"
@@ -185,7 +239,14 @@
     },
     {
       "name": "rv1126bp-debug-static",
-      "inherits": ["base", "plat-rv1126bp", "cfg-debug", "cfg-static", "mixin-deps-sherpa-linux-aarch64-gcc13_3_0", "mixin-deps-librknnrt-2.3.2-linux-aarch64"],
+      "inherits": [
+        "base",
+        "plat-rv1126bp",
+        "cfg-debug",
+        "cfg-static",
+        "mixin-deps-sherpa-linux-aarch64-gcc13_3_0",
+        "mixin-deps-librknnrt-2.3.2-linux-aarch64"
+      ],
       "installDir": "${sourceDir}/install/rv1126bp/debug-static",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/rv1126bp/debug-static"
@@ -193,8 +254,13 @@
     },
     {
       "name": "rk3588s-release",
-      "inherits": ["base", "plat-rk3588s", "cfg-release", "cfg-shared",
-                    "mixin-deps-librknnrt-2.3.2-linux-aarch64"],
+      "inherits": [
+        "base",
+        "plat-rk3588s",
+        "cfg-release",
+        "cfg-shared",
+        "mixin-deps-librknnrt-2.3.2-linux-aarch64"
+      ],
       "installDir": "${sourceDir}/install/rk3588s/release",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/rk3588s/release"
@@ -202,8 +268,13 @@
     },
     {
       "name": "rk3588s-debug",
-      "inherits": ["base", "plat-rk3588s", "cfg-debug", "cfg-shared",
-                  "mixin-deps-librknnrt-2.3.2-linux-aarch64"],
+      "inherits": [
+        "base",
+        "plat-rk3588s",
+        "cfg-debug",
+        "cfg-shared",
+        "mixin-deps-librknnrt-2.3.2-linux-aarch64"
+      ],
       "installDir": "${sourceDir}/install/rk3588s/debug",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/rk3588s/debug"
@@ -211,8 +282,13 @@
     },
     {
       "name": "rk3588s-release-static",
-      "inherits": ["base", "plat-rk3588s", "cfg-release", "cfg-static",
-                    "mixin-deps-librknnrt-2.3.2-linux-aarch64"],
+      "inherits": [
+        "base",
+        "plat-rk3588s",
+        "cfg-release",
+        "cfg-static",
+        "mixin-deps-librknnrt-2.3.2-linux-aarch64"
+      ],
       "installDir": "${sourceDir}/install/rk3588s/release-static",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/rk3588s/release-static"
@@ -220,8 +296,13 @@
     },
     {
       "name": "rk3588s-debug-static",
-      "inherits": ["base", "plat-rk3588s", "cfg-debug", "cfg-static",
-                  "mixin-deps-librknnrt-2.3.2-linux-aarch64"],
+      "inherits": [
+        "base",
+        "plat-rk3588s",
+        "cfg-debug",
+        "cfg-static",
+        "mixin-deps-librknnrt-2.3.2-linux-aarch64"
+      ],
       "installDir": "${sourceDir}/install/rk3588s/debug-static",
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "${sourceDir}/install/rk3588s/debug-static"

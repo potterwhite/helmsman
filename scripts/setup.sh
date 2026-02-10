@@ -256,11 +256,11 @@ func_3_2_setup_dep_before_build() {
          func_1_1_log "   ✅ Conan ready." "green"
     fi
 
-    # Preparation -- 4.2 extract the ort version from current venv
-    func_3_4_detect_onnxruntime_version
+    # # Preparation -- 4.2 extract the ort version from current venv
+    # func_3_4_detect_onnxruntime_version
 
-    # Processing -- 4.3 Manually install ort into conan
-    func_3_5_build_onnxruntime_conan_package
+    # # Processing -- 4.3 Manually install ort into conan
+    # func_3_5_build_onnxruntime_conan_package
 
     # ********************************************
     # --- Step 5: build dir is temporary for restoring temp files and folders
@@ -362,73 +362,73 @@ func_3_3_rebuild_sdk(){
     fi
 }
 
-func_3_4_detect_onnxruntime_version() {
-    func_1_1_log "🔍 Detecting ONNX Runtime version from Python venv..." "blue"
+# func_3_4_detect_onnxruntime_version() {
+#     func_1_1_log "🔍 Detecting ONNX Runtime version from Python venv..." "blue"
 
-    # Sanity check: pip/python must exist
-    if [ -z "${PYTHON_BIN}" ] || [ ! -x "${PYTHON_BIN}" ]; then
-        func_1_2_err "$PYTHON_BIN is not set or not executable. Cannot detect onnxruntime version."
-    fi
+#     # Sanity check: pip/python must exist
+#     if [ -z "${PYTHON_BIN}" ] || [ ! -x "${PYTHON_BIN}" ]; then
+#         func_1_2_err "$PYTHON_BIN is not set or not executable. Cannot detect onnxruntime version."
+#     fi
 
-    # Use the python behind pip to query onnxruntime version
-    local ort_version
-    ort_version=$("${PYTHON_BIN}" -c "import onnxruntime as ort; print(ort.__version__)" 2>/dev/null)
+#     # Use the python behind pip to query onnxruntime version
+#     local ort_version
+#     ort_version=$("${PYTHON_BIN}" -c "import onnxruntime as ort; print(ort.__version__)" 2>/dev/null)
 
-    if [ -z "${ort_version}" ]; then
-        func_1_2_err "Failed to detect onnxruntime version from venv. Is onnxruntime installed?"
-    fi
+#     if [ -z "${ort_version}" ]; then
+#         func_1_2_err "Failed to detect onnxruntime version from venv. Is onnxruntime installed?"
+#     fi
 
-    # global env (caller decides where/how it's consumed)
-    ONNXRUNTIME_VERSION="${ort_version}"
-    export ONNXRUNTIME_VERSION
+#     # global env (caller decides where/how it's consumed)
+#     ONNXRUNTIME_VERSION="${ort_version}"
+#     export ONNXRUNTIME_VERSION
 
-    func_1_1_log "   ✔ ONNX Runtime version detected: ${ONNXRUNTIME_VERSION}" "green"
-}
+#     func_1_1_log "   ✔ ONNX Runtime version detected: ${ONNXRUNTIME_VERSION}" "green"
+# }
 
-func_3_5_build_onnxruntime_conan_package() {
-    func_1_1_log "📦 Building ONNX Runtime Conan package..." "blue"
+# func_3_5_build_onnxruntime_conan_package() {
+#     func_1_1_log "📦 Building ONNX Runtime Conan package..." "blue"
 
-    # Sanity check: version must exist
-    if [ -z "${ONNXRUNTIME_VERSION}" ]; then
-        func_1_2_err "ONNXRUNTIME_VERSION is not set. Cannot build ONNX Runtime Conan package."
-    fi
+#     # Sanity check: version must exist
+#     if [ -z "${ONNXRUNTIME_VERSION}" ]; then
+#         func_1_2_err "ONNXRUNTIME_VERSION is not set. Cannot build ONNX Runtime Conan package."
+#     fi
 
-    local recipe_dir="${REPO_TOP_DIR}/runtime/cpp/third_party/conan_recipes/onnxruntime"
+#     local recipe_dir="${REPO_TOP_DIR}/runtime/cpp/third_party/conan_recipes/onnxruntime"
 
-    if [ ! -f "${recipe_dir}/conanfile.py" ]; then
-        func_1_2_err "conanfile.py not found in ${recipe_dir}"
-    fi
+#     if [ ! -f "${recipe_dir}/conanfile.py" ]; then
+#         func_1_2_err "conanfile.py not found in ${recipe_dir}"
+#     fi
 
-    func_1_1_log "   Recipe: ${recipe_dir}" "yellow"
-    func_1_1_log "   Version: ${ONNXRUNTIME_VERSION}" "yellow"
+#     func_1_1_log "   Recipe: ${recipe_dir}" "yellow"
+#     func_1_1_log "   Version: ${ONNXRUNTIME_VERSION}" "yellow"
 
-    pushd "${recipe_dir}" >/dev/null || func_1_2_err "Failed to enter recipe directory."
+#     pushd "${recipe_dir}" >/dev/null || func_1_2_err "Failed to enter recipe directory."
 
-    # Ensure Conan profile exists (idempotent)
-    conan profile detect --force 2>/dev/null || true
+#     # Ensure Conan profile exists (idempotent)
+#     conan profile detect --force 2>/dev/null || true
 
-    # Build & register package into local Conan cache
-    conan create . \
-        --name=onnxruntime \
-        --version="${ONNXRUNTIME_VERSION}" \
-        --build=missing
+#     # Build & register package into local Conan cache
+#     conan create . \
+#         --name=onnxruntime \
+#         --version="${ONNXRUNTIME_VERSION}" \
+#         --build=missing
 
-    if [ $? -ne 0 ]; then
-        popd >/dev/null
-        func_1_2_err "Failed to create ONNX Runtime Conan package."
-    fi
+#     if [ $? -ne 0 ]; then
+#         popd >/dev/null
+#         func_1_2_err "Failed to create ONNX Runtime Conan package."
+#     fi
 
-    popd >/dev/null
+#     popd >/dev/null
 
-    func_1_1_log "   ✔ ONNX Runtime ${ONNXRUNTIME_VERSION} successfully installed into Conan cache." "green"
-}
+#     func_1_1_log "   ✔ ONNX Runtime ${ONNXRUNTIME_VERSION} successfully installed into Conan cache." "green"
+# }
 
-func_3_6_echo_ort_root_for_cmake(){
-    # ONNXRUNTIME_ROOT="$(conan cache path onnxruntime/${ONNXRUNTIME_VERSION})"
-    ONNXRUNTIME_ROOT=$(conan cache path onnxruntime/${ONNXRUNTIME_VERSION} | sed 's#/e$#/s#')
-    # func_1_1_log "   ✔ ONNX Runtime root detected: ${ONNXRUNTIME_ROOT}" "green"
-    echo "-DONNXRUNTIME_ROOT=$ONNXRUNTIME_ROOT"
-}
+# func_3_6_echo_ort_root_for_cmake(){
+#     # ONNXRUNTIME_ROOT="$(conan cache path onnxruntime/${ONNXRUNTIME_VERSION})"
+#     ONNXRUNTIME_ROOT=$(conan cache path onnxruntime/${ONNXRUNTIME_VERSION} | sed 's#/e$#/s#')
+#     # func_1_1_log "   ✔ ONNX Runtime root detected: ${ONNXRUNTIME_ROOT}" "green"
+#     echo "-DONNXRUNTIME_ROOT=$ONNXRUNTIME_ROOT"
+# }
 
 
 # ==============================================================================

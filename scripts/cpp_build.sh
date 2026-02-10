@@ -242,6 +242,8 @@ func_8_5_cpp_run_native_conan_install() {
     # 2. Check for conanfile
     if [ ! -f "${CPP_TOP_DIR}/conanfile.py" ] && [ ! -f "${CPP_TOP_DIR}/conanfile.txt" ]; then
         func_1_2_err "No 'conanfile.py' or 'conanfile.txt' found in ${CPP_TOP_DIR}. Cannot run Conan."
+        # if [ ! -f "${CPP_TOP_DIR}/conanfile.txt" ]; then
+        #     func_1_2_err "No 'conanfile.txt' found in ${CPP_TOP_DIR}. Cannot run Conan."
     fi
 
     func_1_1_log ">> [Conan] Detecting profile..." "blue"
@@ -307,7 +309,7 @@ func_8_4_cpp_dispatch() {
     if [ "$CPP_PLATFORM" == "native" ] && [ "$CPP_ACTION" != "list" ]; then
 
         func_1_1_log "🚀 Preparing Native Environment (Conan)..." "green"
-        func_3_4_detect_onnxruntime_version
+        # func_3_4_detect_onnxruntime_version
 
         # A. Run Conan Install
         func_8_5_cpp_run_native_conan_install

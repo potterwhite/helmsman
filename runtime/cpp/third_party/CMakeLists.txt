@@ -30,6 +30,7 @@ if(CMAKE_PLATFORM IN_LIST "rockchip")
 endif()
 
 #add_subdirectory(sherpa-onnx)
+add_subdirectory(onnxruntime)
 
 # ---------------------------------
 #               End
