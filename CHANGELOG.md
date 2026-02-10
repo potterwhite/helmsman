@@ -8,10 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0](https://github.com/potterwhite/helmsman/compare/v0.3.0...v0.4.0) (2026-02-10)
 
+* **release:** bump version to reflect C++ runtime and script modularization ([#6](https://github.com/potterwhite/helmsman/issues/6)) ([41c5bc4](https://github.com/potterwhite/helmsman/commit/41c5bc4fd928b836a568a1561ae08010ff3286e3))
 
 ### ✨ Added
+- **Scripts:** created `scripts/` directory containing modularized logic: `common.sh`, `setup.sh`, `python_ops.sh`, `cpp_build.sh`, and `menus.sh`.
+- **Build System:** `runtime/cpp/.env.example` for environment variable configuration.
+- **Build System:** `runtime/cpp/CMakePresets.json` defining build presets (native, rv1126bp, rk3588s).
+- **Build System:** `runtime/cpp/cmake/ArcFunctions.cmake` providing macros for library installation, versioning, and testing.
+- **Build System:** Toolchain files in `runtime/cpp/cmake/toolchains/` for cross-compilation.
+- **C++ Libs:** `libs/cvkit` for OpenCV image processing wrappers (normalization, resizing).
+- **C++ Libs:** `libs/network` containing socket base, client, and server implementations.
+- **C++ Libs:** `libs/asr_engine` wrapping Sherpa-Onnx recognizer, VAD, and WAV reading logic.
+- **C++ Libs:** `libs/runtime` wrapping ONNX Runtime session management.
+- **C++ Apps:** `apps/asr/client`, `apps/asr/server`, and `apps/matting/client` implementations.
+- **Testing:** `cmake/FetchGTest.cmake` and `test/` directory structure for unit testing.
+- **Docs:** `BUILD_SYSTEM.md` and `ADD_NEW_SOC.md` (English and Chinese) explaining the new architecture.
+- **Tools:** `third-party/scripts/modnet/generate_golden_files-v3-instrumentation.py` for generating intermediate debug binaries.
 
-* **release:** bump version to reflect C++ runtime and script modularization ([#6](https://github.com/potterwhite/helmsman/issues/6)) ([41c5bc4](https://github.com/potterwhite/helmsman/commit/41c5bc4fd928b836a568a1561ae08010ff3286e3))
+### Changed
+- **Shell:** Refactored the root `helmsman` script to act as a wrapper that sources functions from the `scripts/` directory.
+- **C++:** Moved C++ source code from a flat `src/` directory to a hierarchical `libs/` and `apps/` structure.
+- **Dependencies:** Integrated `librknnrt` and `sherpa-onnx` downloading logic into `runtime/cpp/third_party/` via CMake `FetchContent`.
+
+### Removed
+- **Legacy:** Deleted the original monolithic `runtime/cpp/src/main.cpp` and the previous root `CMakeLists.txt`.
+- **Legacy:** Removed `archived/helmsman` file.
+
+
+---
 
 ## [0.3.0](https://github.com/potterwhite/helmsman/compare/v0.2.0...v0.3.0) (2026-02-03)
 
