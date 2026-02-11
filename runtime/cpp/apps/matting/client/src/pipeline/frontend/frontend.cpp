@@ -18,7 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-
 #include "pipeline/frontend/frontend.h"
 
 // ImageFrontend& ImageFrontend::GetInstance() {
@@ -73,14 +72,14 @@ TensorData ImageFrontend::preprocess(const std::string& image_path) {
 	// 1. resize to fit model input size
 	constexpr int ref_size = 512;
 	auto scale_factor = math_utils_.getScaleFactor(img.rows, img.cols, ref_size);
-	std::cout << std::setprecision(17) << "x_scale_factor=" << scale_factor.first
-	          << ", y_scale_factor=" << scale_factor.second << std::endl;
-	cv::resize(img,                  // src
-	           img,                  // dst（可以原地）
-	           cv::Size(),           // dsize 为空
-	           scale_factor.first,   // fx
-	           scale_factor.second,  // fy
-	           cv::INTER_AREA        // interpolation
+	std::cout << std::setprecision(17) << "x_scale_factor=" << scale_factor.x
+	          << ", y_scale_factor=" << scale_factor.y << std::endl;
+	cv::resize(img,             // src
+	           img,             // dst（可以原地）
+	           cv::Size(),      // dsize 为空
+	           scale_factor.x,  // fx
+	           scale_factor.y,  // fy
+	           cv::INTER_AREA   // interpolation
 	);
 	logger_.Info("Resized Width=" + std::to_string(img.cols) +
 	             ", Resized Height=" + std::to_string(img.rows));

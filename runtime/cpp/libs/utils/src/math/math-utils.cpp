@@ -34,7 +34,7 @@ MathUtils::~MathUtils() {}
 
 MathUtils::MathUtils() {}
 
-std::pair<double, double> MathUtils::getScaleFactor(int im_h, int im_w, int ref_size) {
+ScaleFactor MathUtils::getScaleFactor(int im_h, int im_w, int ref_size) {
 	int im_rh;
 	int im_rw;
 
