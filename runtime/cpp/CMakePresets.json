@@ -61,12 +61,12 @@
       }
     },
     {
-      "name": "mixin-deps-onnxruntime-1.6.0-linux-x86_64",
+      "name": "mixin-deps-onnxruntime-1.16.3-linux-x86_64",
       "hidden": true,
-      "description": "External dependencies URLs and Hashes for ONNX Runtime 1.6.0 x86_64 From Official Github",
+      "description": "External dependencies URLs and Hashes for ONNX Runtime 1.16.3 x86_64 From Official Github",
       "cacheVariables": {
-        "ORT_URL": "https://github.com/microsoft/onnxruntime/releases/download/v1.6.0/onnxruntime-linux-x64-1.6.0.tgz",
-        "ORT_HASH": "SHA256=4d0caa4cde6c98adc88e8c7789ee438ca8cffab21f31428c917aa54a36cf9df0"
+        "ORT_URL": "https://github.com/microsoft/onnxruntime/releases/download/v1.16.3/onnxruntime-linux-x64-1.16.3.tgz",
+        "ORT_HASH": "SHA256=b072f989d6315ac0e22dcb4771b083c5156d974a3496ac3504c77f4062eb248e"
       }
     },
     {
@@ -152,7 +152,7 @@
         "plat-native",
         "cfg-release",
         "cfg-shared",
-        "mixin-deps-onnxruntime-1.6.0-linux-x86_64"
+        "mixin-deps-onnxruntime-1.16.3-linux-x86_64"
       ],
       "installDir": "${sourceDir}/install/native/release",
       "cacheVariables": {
@@ -166,7 +166,7 @@
         "plat-native",
         "cfg-debug",
         "cfg-shared",
-        "mixin-deps-onnxruntime-1.6.0-linux-x86_64"
+        "mixin-deps-onnxruntime-1.16.3-linux-x86_64"
       ],
       "installDir": "${sourceDir}/install/native/debug",
       "cacheVariables": {
@@ -180,7 +180,7 @@
         "plat-native",
         "cfg-release",
         "cfg-static",
-        "mixin-deps-onnxruntime-1.6.0-linux-x86_64"
+        "mixin-deps-onnxruntime-1.16.3-linux-x86_64"
       ],
       "installDir": "${sourceDir}/install/native/release-static",
       "cacheVariables": {
@@ -194,7 +194,7 @@
         "plat-native",
         "cfg-debug",
         "cfg-static",
-        "mixin-deps-onnxruntime-1.6.0-linux-x86_64"
+        "mixin-deps-onnxruntime-1.16.3-linux-x86_64"
       ],
       "installDir": "${sourceDir}/install/native/debug-static",
       "cacheVariables": {
@@ -283,7 +283,8 @@
         "plat-rk3588s",
         "cfg-debug",
         "cfg-shared",
-        "mixin-deps-librknnrt-2.3.2-linux-aarch64"
+        "mixin-deps-librknnrt-2.3.2-linux-aarch64",
+        "mixin-deps-onnxruntime-1.16.3-linux-aarch64"
       ],
       "installDir": "${sourceDir}/install/rk3588s/debug",
       "cacheVariables": {
@@ -297,7 +298,8 @@
         "plat-rk3588s",
         "cfg-release",
         "cfg-static",
-        "mixin-deps-librknnrt-2.3.2-linux-aarch64"
+        "mixin-deps-librknnrt-2.3.2-linux-aarch64",
+        "mixin-deps-onnxruntime-1.16.3-linux-aarch64"
       ],
       "installDir": "${sourceDir}/install/rk3588s/release-static",
       "cacheVariables": {
@@ -311,7 +313,8 @@
         "plat-rk3588s",
         "cfg-debug",
         "cfg-static",
-        "mixin-deps-librknnrt-2.3.2-linux-aarch64"
+        "mixin-deps-librknnrt-2.3.2-linux-aarch64",
+        "mixin-deps-onnxruntime-1.16.3-linux-aarch64"
       ],
       "installDir": "${sourceDir}/install/rk3588s/debug-static",
       "cacheVariables": {
