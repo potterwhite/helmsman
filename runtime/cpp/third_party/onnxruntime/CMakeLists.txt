@@ -26,8 +26,7 @@ project(onnxruntime-download NONE)          # NONE means current project does no
 # ---------------------------------
 include(FetchContent)
 
-message(STATUS "[Configuration][ThirdParty] Preparing ONNXRuntime...")
-
+message(STATUS "[Configuration][ThirdParty] Preparing ONNXRuntime (Prebuit-Binaries)...")
 # ---------------------------------
 # II. Declare Download Detail
 # ---------------------------------
@@ -77,14 +76,15 @@ message(STATUS "[Configuration][ThirdParty] ONNXRuntime mounted at: ${ORT_ROOT}"
 # ---------------------------------
 # IV. Define "IMPORTED Targets" (Point to the Dir After Decompressing)
 # ---------------------------------
+set(ORT_TARGET prebuit_onnxruntime_lib)
 
 # --- d. Core Lib: C++ API ---
-add_library(prebuit_onnxruntime_lib
+add_library(${ORT_TARGET}
     SHARED
     IMPORTED
     GLOBAL
 )
-set_target_properties(prebuit_onnxruntime_lib
+set_target_properties(${ORT_TARGET}
     PROPERTIES
         IMPORTED_LOCATION
             "${ORT_ROOT}/lib/libonnxruntime.so"
@@ -92,10 +92,12 @@ set_target_properties(prebuit_onnxruntime_lib
             "${ORT_ROOT}/include"
 )
 
+
+
 # --- e. Create Alias (External Interface) ---
 add_library(${PROJECT_NAMESPACE}::ThirdParty::ONNXRuntime
     ALIAS
-        prebuit_onnxruntime_lib
+        ${ORT_TARGET}
 )
 
 # ---------------------------------

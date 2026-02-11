@@ -70,6 +70,15 @@
       }
     },
     {
+      "name": "mixin-deps-onnxruntime-1.16.3-linux-aarch64",
+      "hidden": true,
+      "description": "External dependencies URLs and Hashes for ONNX Runtime 1.16.3 aarch64 From Official Github",
+      "cacheVariables": {
+        "ORT_URL": "https://github.com/microsoft/onnxruntime/releases/download/v1.16.3/onnxruntime-linux-aarch64-1.16.3.tgz",
+        "ORT_HASH": "SHA256=784dbef93b40196aa668d29d78294a81c0d21361d36530b817bb24d87e8730e8"
+      }
+    },
+    {
       "name": "base",
       "hidden": true,
       "generator": "Unix Makefiles",
@@ -259,7 +268,8 @@
         "plat-rk3588s",
         "cfg-release",
         "cfg-shared",
-        "mixin-deps-librknnrt-2.3.2-linux-aarch64"
+        "mixin-deps-librknnrt-2.3.2-linux-aarch64",
+        "mixin-deps-onnxruntime-1.16.3-linux-aarch64"
       ],
       "installDir": "${sourceDir}/install/rk3588s/release",
       "cacheVariables": {
