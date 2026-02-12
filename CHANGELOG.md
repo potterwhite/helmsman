@@ -8,14 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.0](https://github.com/potterwhite/helmsman/compare/v0.4.0...v0.5.0) (2026-02-12)
 
+* replace Conan-based ONNX Runtime integration with CMake preset-driven FetchContent mechanism ([#8](https://github.com/potterwhite/helmsman/issues/8)) ([9810179](https://github.com/potterwhite/helmsman/commit/9810179785ef58dc8a3ce9a84f2335a0c2c34ed8))
 
 ### ⚠ BREAKING CHANGES
 
-* 
+- Removed Conan-based ONNX Runtime packaging mechanism
+- Removed ONNXRUNTIME_ROOT CMake variable usage
+- `MathUtils::getScaleFactor()` now returns `ScaleFactor` struct instead of `std::pair<double,double>`
+- Native build no longer depends on Conan for ONNX Runtime integration
 
 ### ✨ Added
 
-* replace Conan-based ONNX Runtime integration with CMake preset-driven FetchContent mechanism ([#8](https://github.com/potterwhite/helmsman/issues/8)) ([9810179](https://github.com/potterwhite/helmsman/commit/9810179785ef58dc8a3ce9a84f2335a0c2c34ed8))
+- CMake preset mixins for ONNX Runtime 1.16.3 (linux-x86_64 / linux-aarch64)
+- FetchContent-based ONNX Runtime download and extraction
+- Imported CMake target `${PROJECT_NAMESPACE}::ThirdParty::ONNXRuntime`
+- Automatic dependency cache support via `ARC_DEP_CACHE_DIR`
+
+### 🛠 Fixed
+
+- Replaced deprecated `GetInputName()` and `GetOutputName()` APIs with `GetInputNameAllocated()`
+- Removed manual allocator memory free
+- Cleaned preset inheritance structure
+
+---
 
 ## [0.4.0](https://github.com/potterwhite/helmsman/compare/v0.3.0...v0.4.0) (2026-02-10)
 
