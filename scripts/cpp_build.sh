@@ -242,6 +242,8 @@ func_8_5_cpp_run_native_conan_install() {
     # 2. Check for conanfile
     if [ ! -f "${CPP_TOP_DIR}/conanfile.py" ] && [ ! -f "${CPP_TOP_DIR}/conanfile.txt" ]; then
         func_1_2_err "No 'conanfile.py' or 'conanfile.txt' found in ${CPP_TOP_DIR}. Cannot run Conan."
+        # if [ ! -f "${CPP_TOP_DIR}/conanfile.txt" ]; then
+        #     func_1_2_err "No 'conanfile.txt' found in ${CPP_TOP_DIR}. Cannot run Conan."
     fi
 
     func_1_1_log ">> [Conan] Detecting profile..." "blue"
@@ -307,7 +309,7 @@ func_8_4_cpp_dispatch() {
     if [ "$CPP_PLATFORM" == "native" ] && [ "$CPP_ACTION" != "list" ]; then
 
         func_1_1_log "🚀 Preparing Native Environment (Conan)..." "green"
-        func_3_4_detect_onnxruntime_version
+        # func_3_4_detect_onnxruntime_version
 
         # A. Run Conan Install
         func_8_5_cpp_run_native_conan_install
@@ -331,9 +333,16 @@ func_8_4_cpp_dispatch() {
             func_1_1_log "⚠️  Conan toolchain not found. Proceeding with standard Preset configuration." "yellow"
         fi
 
-        # Add ORT Root if detected
-        local ort_root_arg=$(func_3_6_echo_ort_root_for_cmake)
-        extra_cmake_args="${extra_cmake_args} ${ort_root_arg}"
+        # # Add ORT Root if detected
+        # local ort_root_arg=$(func_3_6_echo_ort_root_for_cmake)
+        # extra_cmake_args="${extra_cmake_args} ${ort_root_arg}"
+    else
+        func_1_1_log ">> [Dependency] Skipping Conan for non-native platform or list action." "blue"
+        if [ x"${DEBUG_MODE}" == x"1" ];then
+            extra_cmake_args="${extra_cmake_args} -DCMAKE_VERBOSE_MAKEFILE=ON"
+            extra_cmake_args="${extra_cmake_args} -DCMAKE_RULE_MESSAGES=ON"
+            extra_cmake_args="${extra_cmake_args} -DCMAKE_MESSAGE_LOG_LEVEL=STATUS"
+        fi
     fi
 
     # ==========================================================================

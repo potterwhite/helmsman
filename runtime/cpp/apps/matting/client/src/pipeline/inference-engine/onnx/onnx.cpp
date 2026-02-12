@@ -18,7 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-
 #include "pipeline/inference-engine/onnx/onnx.h"
 
 // InferenceEngineONNX& InferenceEngineONNX::GetInstance() {
@@ -55,11 +54,13 @@ void InferenceEngineONNX::load(const std::string& model_path) {
 	Ort::AllocatorWithDefaultOptions allocator;
 
 	// these two API maybe deprecated, need to check later
-	char* input_name = session_->GetInputName(0, allocator);
-	char* output_name = session_->GetOutputName(0, allocator);
+	// char* input_name = (session_->GetInputNameAllocated(0, allocator)).get();
+	// char* output_name = (session_->GetOutputNameAllocated(0, allocator)).get();
+	input_name_ = (session_->GetInputNameAllocated(0, allocator)).get();
+	output_name_ = (session_->GetOutputNameAllocated(0, allocator)).get();
 
-	input_name_ = std::string(input_name);
-	output_name_ = std::string(output_name);
+	// input_name_ = std::string(input_name);
+	// output_name_ = std::string(output_name);
 
 	std::vector<int64_t> input_shape =
 	    session_->GetInputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
@@ -72,9 +73,6 @@ void InferenceEngineONNX::load(const std::string& model_path) {
 		logger.Info(std::to_string(s) + " ");
 	}
 	logger.Info("\n");
-
-	allocator.Free(input_name);
-	allocator.Free(output_name);
 }
 
 TensorData InferenceEngineONNX::infer(const TensorData& input) {

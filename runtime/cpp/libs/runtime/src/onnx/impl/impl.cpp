@@ -49,19 +49,23 @@ void Impl::show_input(const Ort::Session& session) {
 	logger.Info("Number of inputs: " + std::to_string(num_inputs));
 
 	for (size_t i = 0; i < num_inputs; i++) {
-		char* input_name = session.GetInputName(i, allocator);
+		/* ********************
+		 * deprecated
+		 * ONLY valid in v1.6.0
+		 *
+		 * char* input_name = session.GetInputName(i, allocator);
+		 **********************/
+		Ort::AllocatedStringPtr input_name = session.GetInputNameAllocated(i, allocator);
 		auto input_type_info = session.GetInputTypeInfo(i);
 		auto tensor_info = input_type_info.GetTensorTypeAndShapeInfo();
 		auto input_shape = tensor_info.GetShape();
 
-		std::cout << "Input " << i << " name: " << input_name << "\n";
+		std::cout << "Input " << i << " name: " << input_name.get() << "\n";
 		std::cout << "Input shape: [ ";
 		for (auto dim : input_shape) {
 			std::cout << dim << " ";
 		}
 		std::cout << "]\n";
-
-		allocator.Free(input_name);
 	}
 }
 
@@ -73,19 +77,26 @@ void Impl::show_output(const Ort::Session& session) {
 	std::cout << "Number of outputs: " << num_outputs << std::endl;
 
 	for (size_t i = 0; i < num_outputs; i++) {
-		char* output_name = session.GetOutputName(i, allocator);
+		/* ********************
+		 * deprecated
+		 * ONLY valid in v1.6.0
+		 *
+		 * char* output_name = session.GetOutputName(i, allocator);
+		 **********************/
+		Ort::AllocatedStringPtr output_name = session.GetOutputNameAllocated(i, allocator);
+
 		auto output_type_info = session.GetOutputTypeInfo(i);
 		auto tensor_info = output_type_info.GetTensorTypeAndShapeInfo();
 		auto output_shape = tensor_info.GetShape();
 
-		std::cout << "Output " << i << " name: " << output_name << "\n";
+		std::cout << "Output " << i << " name: " << output_name.get() << "\n";
 		std::cout << "Output shape: [ ";
 		for (auto dim : output_shape) {
 			std::cout << dim << " ";
 		}
 		std::cout << "]\n";
 
-		allocator.Free(output_name);
+		// allocator.Free(output_name);
 	}
 }
 

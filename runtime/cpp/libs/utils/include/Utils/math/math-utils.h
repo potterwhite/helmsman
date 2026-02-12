@@ -27,6 +27,11 @@
 namespace arcforge {
 namespace utils {
 
+struct ScaleFactor {
+	double x;
+	double y;
+};
+
 class MathUtils {
    public:
 	static MathUtils& GetInstance();
@@ -39,7 +44,7 @@ class MathUtils {
 	MathUtils(MathUtils&&) = delete;
 	MathUtils& operator=(MathUtils&&) = delete;
 
-	std::pair<double, double> getScaleFactor(int im_h, int im_w, int ref_size);
+	ScaleFactor getScaleFactor(int im_h, int im_w, int ref_size);
 
    private:
 	// private member functions

@@ -81,21 +81,25 @@ if(NOT TARGET ${PROJECT_NAMESPACE}::Utils)
     find_package(${PROJECT_NAMESPACE}_Utils REQUIRED)
 endif()
 
-target_link_libraries(${PROJECT_NAME} PUBLIC ${PROJECT_NAMESPACE}::Utils)
-
-
-set(ONNXRUNTIME_ROOT "" CACHE PATH "ONNX Runtime root")
-
-message("Lib${PROJECT_NAME}: ONNXRUNTIME_ROOT=${ONNXRUNTIME_ROOT}")
-target_include_directories(${PROJECT_NAME}
-    PUBLIC
-        ${ONNXRUNTIME_ROOT}/include
-)
-
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
-        ${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so
+        ${PROJECT_NAMESPACE}::Utils
+        ${PROJECT_NAMESPACE}::ThirdParty::ONNXRuntime
 )
+
+
+#set(ONNXRUNTIME_ROOT "" CACHE PATH "ONNX Runtime root")
+
+#message("Lib${PROJECT_NAME}: ONNXRUNTIME_ROOT=${ONNXRUNTIME_ROOT}")
+#target_include_directories(${PROJECT_NAME}
+#    PUBLIC
+#        ${ONNXRUNTIME_ROOT}/include
+#)
+
+#target_link_libraries(${PROJECT_NAME}
+#    PUBLIC
+#        ${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so
+#)
 
 # ---------------------------------
 # VIII. installation rules

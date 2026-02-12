@@ -96,19 +96,20 @@ target_link_libraries(${PROJECT_NAME}
         opencv_imgproc
         opencv_imgcodecs
         opencv_video
+        ${PROJECT_NAMESPACE}::ThirdParty::ONNXRuntime
 )
 
-set(ONNXRUNTIME_ROOT "" CACHE PATH "ONNX Runtime root")
+#set(ONNXRUNTIME_ROOT "" CACHE PATH "ONNX Runtime root")
 
-target_include_directories(${PROJECT_NAME}
-    PUBLIC
-        ${ONNXRUNTIME_ROOT}/include
-)
+#target_include_directories(${PROJECT_NAME}
+#    PUBLIC
+#        ${ONNXRUNTIME_ROOT}/include
+#)
 
-target_link_libraries(${PROJECT_NAME}
-    PUBLIC
-        ${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so
-)
+#target_link_libraries(${PROJECT_NAME}
+#    PUBLIC
+#        ${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so
+#)
 
 
 # ---------------------------------
