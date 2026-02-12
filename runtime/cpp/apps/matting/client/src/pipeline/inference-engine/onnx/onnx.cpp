@@ -36,10 +36,6 @@ InferenceEngineONNX::~InferenceEngineONNX() {
 	arcforge::embedded::utils::Logger::GetInstance().Info("InferenceEngineONNX cleaned up.");
 }
 
-void InferenceEngineONNX::setOutputBinPath(const std::string& path) {
-	output_bin_path_ = path;
-}
-
 void InferenceEngineONNX::load(const std::string& model_path) {
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 	auto& runtime = arcforge::runtime::RuntimeONNX::GetInstance();
