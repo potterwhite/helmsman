@@ -1,9 +1,6 @@
 #pragma once
 
-#ifdef ENABLE_RKNN_BACKEND
 #include <rknn_api.h>
-#endif
-
 #include <string>
 #include <vector>
 

@@ -19,10 +19,15 @@
 // SOFTWARE.
 
 #include "pipeline/pipeline.h"
+#include "common-define.h"
 #include "pipeline/backend/backend.h"
 #include "pipeline/frontend/frontend.h"
-#include "pipeline/inference-engine/onnx/onnx.h"
+
+#ifdef ENABLE_RKNN_BACKEND
 #include "pipeline/inference-engine/rknn/rknn.h"
+#else
+#include "pipeline/inference-engine/onnx/onnx.h"
+#endif
 
 Pipeline& Pipeline::GetInstance() {
 	static Pipeline instance;
@@ -31,11 +36,13 @@ Pipeline& Pipeline::GetInstance() {
 }
 
 Pipeline::Pipeline() {
-	arcforge::embedded::utils::Logger::GetInstance().Info("Pipeline object constructed.");
+	arcforge::embedded::utils::Logger::GetInstance().Info("Pipeline object constructed.",
+	                                                      kcurrent_module_name);
 }
 
 Pipeline::~Pipeline() {
-	arcforge::embedded::utils::Logger::GetInstance().Info("Pipeline cleaned up.");
+	arcforge::embedded::utils::Logger::GetInstance().Info("Pipeline cleaned up.",
+	                                                      kcurrent_module_name);
 }
 
 void Pipeline::init(const std::string& image_path, const std::string& onnx_path,
@@ -61,8 +68,11 @@ int Pipeline::run() {
 	verify_parameters_necessary();
 
 	ImageFrontend frontend;
-	// InferenceEngineONNX engine;
+#ifdef ENABLE_RKNN_BACKEND
 	InferenceEngineRKNN engine;
+#else
+	InferenceEngineONNX engine;
+#endif
 	MattingBackend backend;
 
 	// --------

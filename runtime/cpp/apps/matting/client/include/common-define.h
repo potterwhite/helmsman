@@ -22,9 +22,12 @@
 
 #pragma once
 
+#include <string_view>
+
+constexpr std::string_view kcurrent_module_name = "main-client";
+
 // namespace arcforge {
 // namespace runtime {
-
 
 // }  // namespace runtime
 // }  // namespace arcforge

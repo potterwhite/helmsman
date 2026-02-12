@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "pipeline/inference-engine/onnx/onnx.h"
+#include "common-define.h"
 
 // InferenceEngineONNX& InferenceEngineONNX::GetInstance() {
 // 	static InferenceEngineONNX instance;
@@ -29,7 +30,7 @@
 InferenceEngineONNX::InferenceEngineONNX()
     : env_(ORT_LOGGING_LEVEL_WARNING, "onnx-inference-engine") {
 	arcforge::embedded::utils::Logger::GetInstance().Info(
-	    "InferenceEngineONNX object constructed.");
+	    "InferenceEngineONNX object constructed.", kcurrent_module_name);
 }
 
 InferenceEngineONNX::~InferenceEngineONNX() {
@@ -61,12 +62,12 @@ void InferenceEngineONNX::load(const std::string& model_path) {
 	std::vector<int64_t> input_shape =
 	    session_->GetInputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
 
-	logger.Info("Input Name: " + input_name_);
-	logger.Info("Output Name: " + output_name_);
+	logger.Info("Input Name: " + input_name_, kcurrent_module_name);
+	logger.Info("Output Name: " + output_name_, kcurrent_module_name);
 
 	logger.Info("Input Shape: ");
 	for (auto s : input_shape) {
-		logger.Info(std::to_string(s) + " ");
+		logger.Info(std::to_string(s) + " ", kcurrent_module_name);
 	}
 	logger.Info("\n");
 }
@@ -90,11 +91,11 @@ TensorData InferenceEngineONNX::infer(const TensorData& input) {
 	for (auto s : real_input_shape)
 		input_tensor_size *= static_cast<size_t>(s);
 
-	logger.Info("Input tensor size: " + std::to_string(input_tensor_size));
-	logger.Info("Input tensor actual size: " + std::to_string(input.data.size()));
+	logger.Info("Input tensor size: " + std::to_string(input_tensor_size), kcurrent_module_name);
+	logger.Info("Input tensor actual size: " + std::to_string(input.data.size()), kcurrent_module_name);
 	if (input_tensor_size != input.data.size()) {
 		logger.Error("❌ Size mismatch! expected " + std::to_string(input_tensor_size) + " got " +
-		             std::to_string(input.data.size()));
+		             std::to_string(input.data.size()), kcurrent_module_name);
 
 		throw std::runtime_error("Input size mismatch");
 	}
@@ -122,7 +123,7 @@ TensorData InferenceEngineONNX::infer(const TensorData& input) {
 
 	logger.Info("Output Shape: ");
 	for (auto s : output_shape) {
-		logger.Info(std::to_string(s) + " ");
+		logger.Info(std::to_string(s) + " ", kcurrent_module_name);
 	}
 	logger.Info("\n");
 

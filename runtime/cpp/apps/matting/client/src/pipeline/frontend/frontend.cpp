@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "pipeline/frontend/frontend.h"
+#include "common-define.h"
 
 // ImageFrontend& ImageFrontend::GetInstance() {
 // 	static ImageFrontend instance;
@@ -27,11 +28,13 @@
 // }
 
 ImageFrontend::ImageFrontend() {
-	arcforge::embedded::utils::Logger::GetInstance().Info("ImageFrontend object constructed.");
+	arcforge::embedded::utils::Logger::GetInstance().Info("ImageFrontend object constructed.",
+	                                                      kcurrent_module_name);
 }
 
 ImageFrontend::~ImageFrontend() {
-	arcforge::embedded::utils::Logger::GetInstance().Info("ImageFrontend cleaned up.");
+	arcforge::embedded::utils::Logger::GetInstance().Info("ImageFrontend cleaned up.",
+	                                                      kcurrent_module_name);
 }
 
 void ImageFrontend::setOutputBinPath(const std::string& path) {
@@ -72,8 +75,11 @@ TensorData ImageFrontend::preprocess(const std::string& image_path) {
 	// 1. resize to fit model input size
 	constexpr int ref_size = 512;
 	auto scale_factor = math_utils_.getScaleFactor(img.rows, img.cols, ref_size);
-	std::cout << std::setprecision(17) << "x_scale_factor=" << scale_factor.x
-	          << ", y_scale_factor=" << scale_factor.y << std::endl;
+	// std::cout << std::setprecision(17) << "x_scale_factor=" << scale_factor.x
+	//   << ", y_scale_factor=" << scale_factor.y << std::endl;
+	logger_.Info("Scale factor: x=" + std::to_string(scale_factor.x) +
+	                 ", y=" + std::to_string(scale_factor.y),
+	             kcurrent_module_name);
 	cv::resize(img,             // src
 	           img,             // dst（可以原地）
 	           cv::Size(),      // dsize 为空
@@ -82,7 +88,8 @@ TensorData ImageFrontend::preprocess(const std::string& image_path) {
 	           cv::INTER_AREA   // interpolation
 	);
 	logger_.Info("Resized Width=" + std::to_string(img.cols) +
-	             ", Resized Height=" + std::to_string(img.rows));
+	                 ", Resized Height=" + std::to_string(img.rows),
+	             kcurrent_module_name);
 	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");
 
 	// 2. convert to NCHW

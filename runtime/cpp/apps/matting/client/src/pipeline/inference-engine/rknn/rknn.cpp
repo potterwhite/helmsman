@@ -1,9 +1,10 @@
 #include "pipeline/inference-engine/rknn/rknn.h"
 #include <cstring>
 #include <fstream>
+#include "common-define.h"
 
 InferenceEngineRKNN::InferenceEngineRKNN() {
-	arcforge::embedded::utils::Logger::GetInstance().Info("InferenceEngineRKNN constructed.");
+	arcforge::embedded::utils::Logger::GetInstance().Info("InferenceEngineRKNN constructed.", kcurrent_module_name);
 }
 
 InferenceEngineRKNN::~InferenceEngineRKNN() {
@@ -18,15 +19,16 @@ void InferenceEngineRKNN::load(const std::string& model_path) {
 
 	// 1️⃣ 读取 rknn 文件
 	std::ifstream file(model_path, std::ios::binary | std::ios::ate);
-	size_t model_size = file.tellg();
+	// std::streamsize model_size = file.tellg();
+	size_t model_size = static_cast<size_t>(file.tellg());
 	file.seekg(0);
 
 	std::vector<uint8_t> model_data(model_size);
-	file.read(reinterpret_cast<char*>(model_data.data()), model_size);
+	file.read(reinterpret_cast<char*>(model_data.data()), static_cast<std::streamsize>(model_size));
 	file.close();
 
 	// 2️⃣ 初始化 rknn context
-	int ret = rknn_init(&ctx_, model_data.data(), model_size, 0, nullptr);
+	int ret = rknn_init(&ctx_, model_data.data(), static_cast<uint32_t>(model_size), 0, nullptr);
 	if (ret < 0) {
 		throw std::runtime_error("rknn_init failed!");
 	}
@@ -34,8 +36,8 @@ void InferenceEngineRKNN::load(const std::string& model_path) {
 	// 3️⃣ 查询 IO 数量
 	rknn_query(ctx_, RKNN_QUERY_IN_OUT_NUM, &io_num_, sizeof(io_num_));
 
-	logger.Info("Input num: " + std::to_string(io_num_.n_input));
-	logger.Info("Output num: " + std::to_string(io_num_.n_output));
+	logger.Info("Input num: " + std::to_string(io_num_.n_input), kcurrent_module_name);
+	logger.Info("Output num: " + std::to_string(io_num_.n_output), kcurrent_module_name);
 
 	// 4️⃣ 查询 input attr
 	memset(&input_attr_, 0, sizeof(input_attr_));
@@ -50,15 +52,15 @@ void InferenceEngineRKNN::load(const std::string& model_path) {
 	input_size_ = input_attr_.size;
 	output_size_ = output_attr_.size;
 
-	logger.Info("Input size bytes: " + std::to_string(input_size_));
-	logger.Info("Output size bytes: " + std::to_string(output_size_));
+	logger.Info("Input size bytes: " + std::to_string(input_size_), kcurrent_module_name);
+	logger.Info("Output size bytes: " + std::to_string(output_size_), kcurrent_module_name);
 
 	// ================================
 	// 🔥🔥🔥 ZERO-COPY BUFFER 创建
 	// ================================
 
-	input_mem_ = rknn_create_mem(ctx_, input_size_);
-	output_mem_ = rknn_create_mem(ctx_, output_size_);
+	input_mem_ = rknn_create_mem(ctx_, static_cast<uint32_t>(input_size_));
+	output_mem_ = rknn_create_mem(ctx_, static_cast<uint32_t>(output_size_));
 
 	if (!input_mem_ || !output_mem_) {
 		throw std::runtime_error("rknn_create_mem failed!");
@@ -68,12 +70,12 @@ void InferenceEngineRKNN::load(const std::string& model_path) {
 	rknn_set_io_mem(ctx_, input_mem_, &input_attr_);
 	rknn_set_io_mem(ctx_, output_mem_, &output_attr_);
 
-	logger.Info("Zero-copy buffers allocated and bound.");
+	logger.Info("Zero-copy buffers allocated and bound.", kcurrent_module_name);
 }
 
 TensorData InferenceEngineRKNN::infer(const TensorData& input) {
 
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+	// auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 	auto& file_utils_ = arcforge::utils::FileUtils::GetInstance();
 
 	// 1️⃣ 检查 size
@@ -112,13 +114,13 @@ TensorData InferenceEngineRKNN::infer(const TensorData& input) {
 }
 
 void InferenceEngineRKNN::releaseBuffers() {
-    if (input_mem_) {
-        rknn_destroy_mem(ctx_, input_mem_);
-        input_mem_ = nullptr;
-    }
+	if (input_mem_) {
+		rknn_destroy_mem(ctx_, input_mem_);
+		input_mem_ = nullptr;
+	}
 
-    if (output_mem_) {
-        rknn_destroy_mem(ctx_, output_mem_);
-        output_mem_ = nullptr;
-    }
+	if (output_mem_) {
+		rknn_destroy_mem(ctx_, output_mem_);
+		output_mem_ = nullptr;
+	}
 }
