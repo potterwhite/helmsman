@@ -27,6 +27,7 @@ set(PIPELINE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/backend/backend.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/frontend/frontend.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/onnx/onnx.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/rknn/rknn.cpp"
 )
 
 set(CLIENT_SOURCES

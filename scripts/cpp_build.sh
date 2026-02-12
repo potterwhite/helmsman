@@ -95,7 +95,7 @@ func_6_2_cpp_setup_env(){
     #      这会导致报错：'bash: OFF: command not found'。
     #    - 加上冒号后，Shell 完成变量赋值扩展，然后把结果传给空命令，完美结束。
     # --------------------------------------------------------------------------
-    : "${ARC_INSTALL_SHERPA_TOOLS:="OFF"}"
+    # : "${ARC_INSTALL_SHERPA_TOOLS:="OFF"}"
 
     # CPP related options
 
@@ -203,7 +203,7 @@ func_7_2_cpp_core_configure() {
     # The Toolchain, CMAKE_BUILD_TYPE, and BUILD_SHARED_LIBS are all in the JSON.
 
     cmake --preset "${CPP_PRESET_NAME}" \
-          -DARC_INSTALL_SHERPA_TOOLS="${ARC_INSTALL_SHERPA_TOOLS}" \
+        #   -DARC_INSTALL_SHERPA_TOOLS="${ARC_INSTALL_SHERPA_TOOLS}" \
           ${extra_args}
 }
 
@@ -328,7 +328,8 @@ func_8_4_cpp_dispatch() {
         # C. Inject Toolchain into CMake args
         if [ -f "$toolchain_file" ]; then
             func_1_1_log "   Injecting Toolchain: ${toolchain_file}" "green"
-            extra_cmake_args="-DCMAKE_TOOLCHAIN_FILE=${toolchain_file} -DARC_INSTALL_SHERPA_TOOLS=${ARC_INSTALL_SHERPA_TOOLS}"
+            # extra_cmake_args="-DCMAKE_TOOLCHAIN_FILE=${toolchain_file} -DARC_INSTALL_SHERPA_TOOLS=${ARC_INSTALL_SHERPA_TOOLS}"
+            extra_cmake_args="-DCMAKE_TOOLCHAIN_FILE=${toolchain_file}"
         else
             func_1_1_log "⚠️  Conan toolchain not found. Proceeding with standard Preset configuration." "yellow"
         fi
