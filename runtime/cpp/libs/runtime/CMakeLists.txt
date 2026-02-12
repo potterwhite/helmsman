@@ -87,19 +87,18 @@ target_link_libraries(${PROJECT_NAME}
         ${PROJECT_NAMESPACE}::ThirdParty::ONNXRuntime
 )
 
+# Only link if RKNNRT enabled
+if(TARGET ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
+    target_link_libraries(${PROJECT_NAME}
+        PUBLIC
+            ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT
+    )
 
-#set(ONNXRUNTIME_ROOT "" CACHE PATH "ONNX Runtime root")
-
-#message("Lib${PROJECT_NAME}: ONNXRUNTIME_ROOT=${ONNXRUNTIME_ROOT}")
-#target_include_directories(${PROJECT_NAME}
-#    PUBLIC
-#        ${ONNXRUNTIME_ROOT}/include
-#)
-
-#target_link_libraries(${PROJECT_NAME}
-#    PUBLIC
-#        ${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so
-#)
+    target_compile_definitions(${PROJECT_NAME}
+        PUBLIC
+            ENABLE_RKNN_BACKEND
+    )
+endif()
 
 # ---------------------------------
 # VIII. installation rules

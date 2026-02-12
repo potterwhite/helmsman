@@ -21,7 +21,7 @@
       "description": "External dependencies URLs and Hashes for librknnrt 2.3.2 aarch64 From Rockchip's Github",
       "cacheVariables": {
         "LIBRKNNRT_URL": "https://github.com/potterwhite/Artifacts_Public/releases/download/librknnrt-official/librknnrt-v2.3.2-linux-aarch64-shared-official.tar.xz",
-        "LIBRKNNRT_HASH": "SHA256=a8830915b8bdeeaacdb6d2cc3a3a9e698b9c749acb3fe95d96b7bb208decb2b2"
+        "LIBRKNNRT_HASH": "SHA256=babe94c29119af232d989831181f3e556409c58a61cf5e5ebce1d4af118ed7e8"
       }
     },
     {

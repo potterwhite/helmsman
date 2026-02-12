@@ -22,6 +22,7 @@
 #include "pipeline/backend/backend.h"
 #include "pipeline/frontend/frontend.h"
 #include "pipeline/inference-engine/onnx/onnx.h"
+#include "pipeline/inference-engine/rknn/rknn.h"
 
 Pipeline& Pipeline::GetInstance() {
 	static Pipeline instance;
@@ -60,7 +61,8 @@ int Pipeline::run() {
 	verify_parameters_necessary();
 
 	ImageFrontend frontend;
-	InferenceEngineONNX engine;
+	// InferenceEngineONNX engine;
+	InferenceEngineRKNN engine;
 	MattingBackend backend;
 
 	// --------
