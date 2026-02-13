@@ -19,11 +19,19 @@
 # SOFTWARE.
 
 #
-# runtime/src/CMakeLists.txt
+# rknn subdirectory CMakeLists.txt
 #
 
-add_subdirectory(common)
-add_subdirectory(onnx)
-add_subdirectory(rknn)
+set(COMMON_SOURCES
+	#"${CMAKE_CURRENT_SOURCE_DIR}/utils.cpp"
+)
 
+#set(RKNN_PUBLIC_HEADERS
+#	"${INCLUDE_DIR}/Runtime/rknn/rknn.h"
+#	"${INCLUDE_DIR}/Runtime/rknn/utils.h"
+#)
 
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        ${COMMON_SOURCES}
+)

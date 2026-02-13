@@ -1,10 +1,12 @@
 #include "pipeline/inference-engine/rknn/rknn.h"
 #include <cstring>
 #include <fstream>
+#include "Runtime/rknn.h/rknn.h"
 #include "common-define.h"
 
 InferenceEngineRKNN::InferenceEngineRKNN() {
-	arcforge::embedded::utils::Logger::GetInstance().Info("InferenceEngineRKNN constructed.", kcurrent_module_name);
+	arcforge::embedded::utils::Logger::GetInstance().Info("InferenceEngineRKNN constructed.",
+	                                                      kcurrent_module_name);
 }
 
 InferenceEngineRKNN::~InferenceEngineRKNN() {
@@ -54,6 +56,9 @@ void InferenceEngineRKNN::load(const std::string& model_path) {
 
 	logger.Info("Input size bytes: " + std::to_string(input_size_), kcurrent_module_name);
 	logger.Info("Output size bytes: " + std::to_string(output_size_), kcurrent_module_name);
+
+	logger.Info(arcforge::runtime::to_string(input_attr_));
+	logger.Info(arcforge::runtime::to_string(output_attr_));
 
 	// ================================
 	// 🔥🔥🔥 ZERO-COPY BUFFER 创建
