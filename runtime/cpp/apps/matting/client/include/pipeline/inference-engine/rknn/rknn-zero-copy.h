@@ -8,10 +8,10 @@
 #include "Utils/logger/logger.h"
 #include "pipeline/inference-engine/base/inference-engine.h"
 
-class InferenceEngineRKNN : public InferenceEngine {
+class InferenceEngineRKNNZeroCP : public InferenceEngine {
    public:
-	InferenceEngineRKNN();
-	~InferenceEngineRKNN();
+	InferenceEngineRKNNZeroCP();
+	~InferenceEngineRKNNZeroCP();
 
 	void load(const std::string& model_path) override;
 	TensorData infer(const TensorData& input) override;

@@ -25,6 +25,7 @@
 
 #ifdef ENABLE_RKNN_BACKEND
 #include "pipeline/inference-engine/rknn/rknn-non-zero-copy.h"
+#include "pipeline/inference-engine/rknn/rknn-zero-copy.h"
 #else
 #include "pipeline/inference-engine/onnx/onnx.h"
 #endif
@@ -69,7 +70,8 @@ int Pipeline::run() {
 
 	ImageFrontend frontend;
 #ifdef ENABLE_RKNN_BACKEND
-	InferenceEngineRKNN engine;
+	// InferenceEngineRKNN engine;
+	InferenceEngineRKNNZeroCP engine;
 #else
 	InferenceEngineONNX engine;
 #endif

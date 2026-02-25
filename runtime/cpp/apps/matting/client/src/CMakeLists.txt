@@ -30,7 +30,7 @@ set(PIPELINE_SOURCES
 
 set(INFER_ENGINE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/onnx/onnx.cpp"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/rknn/rknn-zero-copy.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/rknn/rknn-zero-copy.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/rknn/rknn-non-zero-copy.cpp"
 )
 
