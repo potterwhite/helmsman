@@ -32,5 +32,5 @@ private:
     std::vector<rknn_tensor_attr> input_attrs_;
     std::vector<rknn_tensor_attr> output_attrs_;
 
-    const std::string kcurrent_module_name = "RKNN-Engine";
+    // const std::string kcurrent_module_name = "RKNN-Engine";
 };

@@ -3,6 +3,8 @@
 #include <cstring>
 #include <fstream>
 #include <stdexcept>
+#include "Runtime/rknn.h/rknn.h"
+#include "common-define.h"
 
 InferenceEngineRKNN::InferenceEngineRKNN() {
 	arcforge::embedded::utils::Logger::GetInstance().Info(
@@ -74,8 +76,7 @@ void InferenceEngineRKNN::load(const std::string& model_path) {
 		rknn_query(ctx_, RKNN_QUERY_INPUT_ATTR, &attr, sizeof(attr));
 		input_attrs_.push_back(attr);
 
-		logger.Info("Input " + std::to_string(i) + " name: " + std::string(attr.name),
-		            kcurrent_module_name);
+		logger.Info("Input attr: " + arcforge::runtime::to_string(attr));
 	}
 
 	// 获取输出属性
@@ -87,8 +88,9 @@ void InferenceEngineRKNN::load(const std::string& model_path) {
 		rknn_query(ctx_, RKNN_QUERY_OUTPUT_ATTR, &attr, sizeof(attr));
 		output_attrs_.push_back(attr);
 
-		logger.Info("Output " + std::to_string(i) + " name: " + std::string(attr.name),
-		            kcurrent_module_name);
+		// logger.Info("Output " + std::to_string(i) + " name: " + std::string(attr.name),
+		//             kcurrent_module_name);
+		logger.Info("Output attr: " + arcforge::runtime::to_string(attr));
 	}
 }
 

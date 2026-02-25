@@ -24,7 +24,7 @@
 #include "pipeline/frontend/frontend.h"
 
 #ifdef ENABLE_RKNN_BACKEND
-#include "pipeline/inference-engine/rknn/rknn.h"
+#include "pipeline/inference-engine/rknn/rknn-non-zero-copy.h"
 #else
 #include "pipeline/inference-engine/onnx/onnx.h"
 #endif

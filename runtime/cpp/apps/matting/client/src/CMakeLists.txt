@@ -42,4 +42,5 @@ target_sources(${PROJECT_NAME}
     PRIVATE
         ${CLIENT_SOURCES}
         ${PIPELINE_SOURCES}
+        ${INFER_ENGINE_SOURCES}
 )

@@ -59,18 +59,23 @@ TensorData ImageFrontend::preprocess(const std::string& image_path) {
 
 	img = cvkit_obj->ensure3Channel(img);
 	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_03_ensure3Channel.bin");
-	/*
-	     * NOTE:
-	     * DO NOT use cv::normalize / convertTo here.
-	     * This must be bitwise identical to NumPy preprocessing.
-	     *
-	     * Date: Feb03.2026
-	     * Author: PotterWhite
-	     *
-	     * img = cvkit_obj->normalizeToMinusOneToOne(img);
-	     */
-	img = cvkit_obj->normalize_exact_numpy(img);
-	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_04_normalized.bin");
+	// /*
+	//      * NOTE:
+	//      * DO NOT use cv::normalize / convertTo here.
+	//      * This must be bitwise identical to NumPy preprocessing.
+	//      *
+	//      * Date: Feb03.2026
+	//      * Author: PotterWhite
+	//      *
+	//      * img = cvkit_obj->normalizeToMinusOneToOne(img);
+	//      */
+	// img = cvkit_obj->normalize_exact_numpy(img);
+	// cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_04_normalized.bin");
+
+	// 改为：仅仅把类型从 uint8 转成 float32，保留 0.0 ~ 255.0 的数值范围，喂给 RKNN 驱动
+	img.convertTo(img, CV_32FC3);
+	// 依然可以 dump 出来确认，里面的值应该是 0~255 的浮点数
+	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_04_converted_float.bin");
 
 	// 1. resize to fit model input size
 	constexpr int ref_size = 512;
@@ -92,15 +97,35 @@ TensorData ImageFrontend::preprocess(const std::string& image_path) {
 	             kcurrent_module_name);
 	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");
 
+	// ---------------------------------
 	// 2. convert to NCHW
-	// std::vector<float> result = hwcToNchw(img);
-	tensor_data.data = cvkit_obj->hwcToNchw(img, 3);
-	//the number of 06 & 07 is according to python debug file naming
-	file_utils_.dumpBinary(tensor_data.data, outputBinPath_ + "/cpp_06-07_hwcToNchw.bin");
-	// NCHW
-	tensor_data.shape = {1, 3, static_cast<int64_t>(img.rows), static_cast<int64_t>(img.cols)};
-	// tensor_data.height = static_cast<int64_t>(img.rows);
-	// tensor_data.width = static_cast<int64_t>(img.cols);
+	// // std::vector<float> result = hwcToNchw(img);
+	// tensor_data.data = cvkit_obj->hwcToNchw(img, 3);
+	// //the number of 06 & 07 is according to python debug file naming
+	// file_utils_.dumpBinary(tensor_data.data, outputBinPath_ + "/cpp_06-07_hwcToNchw.bin");
+
+	// 改为：直接拷贝 HWC 格式的连续内存给 inference 引擎
+
+	cv::Mat continuous_img;
+	if (img.isContinuous()) {
+		continuous_img = img;
+	} else {
+		continuous_img = img.clone();
+	}
+
+	CV_Assert(continuous_img.isContinuous());
+
+	size_t total = continuous_img.total() * static_cast<size_t>(continuous_img.channels());
+	float* ptr = continuous_img.ptr<float>(0);
+
+	tensor_data.data.assign(ptr, ptr + total);
+
+	file_utils_.dumpBinary(tensor_data.data, outputBinPath_ + "/cpp_06-07_hwc_direct.bin");
+
+	// ---------------------------------
+	// 3. NWHC
+	// tensor_data.shape = {1, 3, static_cast<int64_t>(img.rows), static_cast<int64_t>(img.cols)};
+	tensor_data.shape = {1, static_cast<int64_t>(img.rows), static_cast<int64_t>(img.cols), 3};
 
 	return tensor_data;
 }
