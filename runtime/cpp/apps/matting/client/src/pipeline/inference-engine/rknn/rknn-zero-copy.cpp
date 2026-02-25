@@ -1,7 +1,7 @@
 #include "pipeline/inference-engine/rknn/rknn.h"
 #include <cstring>
 #include <fstream>
-#include "Runtime/rknn.h/rknn.h"
+#include "Runtime/rknn.h/rknn-zero-copy.h"
 #include "common-define.h"
 
 InferenceEngineRKNN::InferenceEngineRKNN() {
