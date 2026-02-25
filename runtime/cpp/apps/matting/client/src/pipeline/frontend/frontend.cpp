@@ -1,46 +1,89 @@
+// ============================================================================
+// License Section
+// ============================================================================
 // Copyright (c) 2026 PotterWhite
 //
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
+// This file is released under the MIT License.
+// You are free to use, modify, distribute, and sublicense this software,
+// provided that the copyright notice and permission notice are included.
 //
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+// The author is not responsible for any damage or liability.
 //
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
+// ============================================================================
 
 #include "pipeline/frontend/frontend.h"
 #include "common-define.h"
 
+// ============================================================================
+// ImageFrontend Class
+// Responsibility:
+//   This class performs image preprocessing before inference.
+//
+// High-Level Pipeline:
+//
+//   Step 1  - Load image from disk
+//   Step 2  - Convert color space (BGR → RGB)
+//   Step 3  - Ensure 3-channel format
+//   Step 4  - Convert data type to float32 (no normalization)
+//   Step 5  - Resize image to model reference size
+//   Step 6  - Convert image memory layout for inference engine
+//   Step 7  - Fill TensorData structure (data + shape)
+//
+// This preprocessing must match Python/NumPy logic exactly
+// to guarantee inference consistency.
+// ============================================================================
+
 // ImageFrontend& ImageFrontend::GetInstance() {
 // 	static ImageFrontend instance;
-
 // 	return instance;
 // }
 
+// ============================================================================
+// Constructor
+// Purpose:
+//   Construct frontend processing object
+// ============================================================================
 ImageFrontend::ImageFrontend() {
 	arcforge::embedded::utils::Logger::GetInstance().Info("ImageFrontend object constructed.",
 	                                                      kcurrent_module_name);
 }
 
+// ============================================================================
+// Destructor
+// Purpose:
+//   Cleanup logging only (no dynamic resources owned here)
+// ============================================================================
 ImageFrontend::~ImageFrontend() {
 	arcforge::embedded::utils::Logger::GetInstance().Info("ImageFrontend cleaned up.",
 	                                                      kcurrent_module_name);
 }
 
+// ============================================================================
+// Configure output binary dump directory
+// ============================================================================
 void ImageFrontend::setOutputBinPath(const std::string& path) {
 	outputBinPath_ = path;
 }
 
+// ============================================================================
+// Preprocess Function
+//
+// Complete Image → Tensor Pipeline
+//
+// Major Phases:
+//
+//   Phase 1 - Image Loading & Basic Format Conversion
+//   Phase 2 - Data Type Conversion
+//   Phase 3 - Resize to Model Reference Size
+//   Phase 4 - Memory Layout Preparation
+//   Phase 5 - Construct TensorData (data + shape)
+//
+// This function guarantees:
+//   • Bit-level debug capability via dumpBinary()
+//   • Controlled numeric range (0~255 float32)
+//   • Layout compatibility with RKNN inference
+// ============================================================================
 TensorData ImageFrontend::preprocess(const std::string& image_path) {
 
 	auto& logger_ = arcforge::embedded::utils::Logger::GetInstance();
@@ -51,14 +94,26 @@ TensorData ImageFrontend::preprocess(const std::string& image_path) {
 
 	TensorData tensor_data;
 
+	// =========================================================================
+	// Phase 1 - Image Loading & Color Handling
+	// =========================================================================
+
+	// Step 1.1 - Load image from disk (OpenCV default: BGR format)
 	cv::Mat img = cvkit_obj->loadImage(image_path);
 	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_01_loadimage.bin");
 
+	// Step 1.2 - Convert BGR to RGB
+	// Reason:
+	//   Most deep learning frameworks expect RGB ordering.
 	img = cvkit_obj->bgrToRgb(img);
 	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_02_bgrToRgb.bin");
 
+	// Step 1.3 - Ensure image has exactly 3 channels
+	// Reason:
+	//   Some images may be grayscale or RGBA.
 	img = cvkit_obj->ensure3Channel(img);
 	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_03_ensure3Channel.bin");
+
 	// /*
 	//      * NOTE:
 	//      * DO NOT use cv::normalize / convertTo here.
@@ -72,36 +127,66 @@ TensorData ImageFrontend::preprocess(const std::string& image_path) {
 	// img = cvkit_obj->normalize_exact_numpy(img);
 	// cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_04_normalized.bin");
 
+	// =========================================================================
+	// Phase 2 - Convert Data Type (uint8 → float32)
+	// =========================================================================
+	// Important Design Decision:
+	//   We DO NOT normalize to [-1, 1] or [0, 1].
+	//   We ONLY convert type:
+	//
+	//   uint8  (0~255)  →  float32 (0.0~255.0)
+	//
+	// Reason:
+	//   RKNN driver will internally handle quantization or FP conversion.
+	//
 	// 改为：仅仅把类型从 uint8 转成 float32，保留 0.0 ~ 255.0 的数值范围，喂给 RKNN 驱动
 	img.convertTo(img, CV_32FC3);
+
 	// 依然可以 dump 出来确认，里面的值应该是 0~255 的浮点数
 	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_04_converted_float.bin");
 
+	// =========================================================================
+	// Phase 3 - Resize to Model Reference Size
+	// =========================================================================
+	// Step 3.1 - Compute scale factor to fit reference size (512)
+	// Step 3.2 - Resize image using INTER_AREA (good for downscale)
+	//
 	// 1. resize to fit model input size
 	constexpr int ref_size = 512;
 	auto scale_factor = math_utils_.getScaleFactor(img.rows, img.cols, ref_size);
-	// std::cout << std::setprecision(17) << "x_scale_factor=" << scale_factor.x
-	//   << ", y_scale_factor=" << scale_factor.y << std::endl;
+
 	logger_.Info("Scale factor: x=" + std::to_string(scale_factor.x) +
 	                 ", y=" + std::to_string(scale_factor.y),
 	             kcurrent_module_name);
-	cv::resize(img,             // src
-	           img,             // dst（可以原地）
-	           cv::Size(),      // dsize 为空
-	           scale_factor.x,  // fx
-	           scale_factor.y,  // fy
-	           cv::INTER_AREA   // interpolation
-	);
+
+	cv::resize(img,
+	           img,
+	           cv::Size(),
+	           scale_factor.x,
+	           scale_factor.y,
+	           cv::INTER_AREA);
+
 	logger_.Info("Resized Width=" + std::to_string(img.cols) +
 	                 ", Resized Height=" + std::to_string(img.rows),
 	             kcurrent_module_name);
+
 	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");
 
+	// =========================================================================
+	// Phase 4 - Prepare Memory Layout for Inference Engine
+	// =========================================================================
+	// Originally:
+	//   Convert HWC → NCHW manually.
+	//
+	// Now:
+	//   Directly copy HWC continuous memory to inference engine.
+	//
+	// Reason:
+	//   Current RKNN model expects NHWC format.
+	//
 	// ---------------------------------
 	// 2. convert to NCHW
-	// // std::vector<float> result = hwcToNchw(img);
 	// tensor_data.data = cvkit_obj->hwcToNchw(img, 3);
-	// //the number of 06 & 07 is according to python debug file naming
 	// file_utils_.dumpBinary(tensor_data.data, outputBinPath_ + "/cpp_06-07_hwcToNchw.bin");
 
 	// 改为：直接拷贝 HWC 格式的连续内存给 inference 引擎
@@ -122,10 +207,19 @@ TensorData ImageFrontend::preprocess(const std::string& image_path) {
 
 	file_utils_.dumpBinary(tensor_data.data, outputBinPath_ + "/cpp_06-07_hwc_direct.bin");
 
-	// ---------------------------------
+	// =========================================================================
+	// Phase 5 - Construct Tensor Shape
+	// =========================================================================
+	// Final Tensor Layout:
+	//
+	//   NHWC  →  {1, Height, Width, Channels}
+	//
 	// 3. NWHC
 	// tensor_data.shape = {1, 3, static_cast<int64_t>(img.rows), static_cast<int64_t>(img.cols)};
-	tensor_data.shape = {1, static_cast<int64_t>(img.rows), static_cast<int64_t>(img.cols), 3};
+	tensor_data.shape = {1,
+	                     static_cast<int64_t>(img.rows),
+	                     static_cast<int64_t>(img.cols),
+	                     3};
 
 	return tensor_data;
 }
