@@ -96,7 +96,7 @@ if(TARGET ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
 
     target_compile_definitions(${PROJECT_NAME}
         PUBLIC
-#            ENABLE_RKNN_BACKEND
+            ENABLE_RKNN_BACKEND
     )
 endif()
 

@@ -29,8 +29,8 @@
 // ============================================================================
 
 InferenceEngineRKNNZeroCP::InferenceEngineRKNNZeroCP() {
-	arcforge::embedded::utils::Logger::GetInstance().Info("InferenceEngineRKNNZeroCP constructed.",
-	                                                      kcurrent_module_name);
+	arcforge::embedded::utils::Logger::GetInstance().Info(
+	    "InferenceEngineRKNNZeroCP constructed. (Zero-Copy Mode)", kcurrent_module_name);
 }
 
 InferenceEngineRKNNZeroCP::~InferenceEngineRKNNZeroCP() {

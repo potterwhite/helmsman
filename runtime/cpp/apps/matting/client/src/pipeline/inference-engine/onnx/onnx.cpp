@@ -29,7 +29,7 @@ InferenceEngineONNX::InferenceEngineONNX()
     : env_(ORT_LOGGING_LEVEL_WARNING, "onnx-inference-engine") {
 
 	arcforge::embedded::utils::Logger::GetInstance()
-	    .Info("InferenceEngineONNX object constructed.",
+	    .Info("InferenceEngineONNX object constructed. (CPU Mode)",
 	          kcurrent_module_name);
 }
 
