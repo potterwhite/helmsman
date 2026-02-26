@@ -71,8 +71,8 @@ int Pipeline::run() {
 
 	ImageFrontend frontend;
 #ifdef ENABLE_RKNN_BACKEND
-	InferenceEngineRKNN engine;
-	// InferenceEngineRKNNZeroCP engine;
+	// InferenceEngineRKNN engine;
+	InferenceEngineRKNNZeroCP engine;
 #else
 	InferenceEngineONNX engine;
 #endif
@@ -88,15 +88,19 @@ int Pipeline::run() {
 	engine.setOutputBinPath(output_bin_path_);
 	engine.load(onnx_path_);
 
-	auto start_time = std::chrono::high_resolution_clock::now();
-	auto output_tensor = engine.infer(input);
-	auto end_time = std::chrono::high_resolution_clock::now();
+	TensorData output_tensor;
+	for (int i = 0; i < 10; ++i) {
+		auto start_time = std::chrono::high_resolution_clock::now();
+		output_tensor = engine.infer(input);
+		auto end_time = std::chrono::high_resolution_clock::now();
 
-	std::chrono::duration<double, std::milli> infer_duration = end_time - start_time;
-	arcforge::embedded::utils::Logger::GetInstance().Info(
-	    "🚀 [Performance Benchmark] Inference Engine [infer()] cost: " +
-	        std::to_string(infer_duration.count()) + " ms.",
-	    kcurrent_module_name);
+		std::chrono::duration<double, std::milli> infer_duration = end_time - start_time;
+		arcforge::embedded::utils::Logger::GetInstance().Info(
+		    "🚀 [Performance Benchmark " + std::to_string(i + 1) +
+		        "] Inference Engine [infer()] cost: " + std::to_string(infer_duration.count()) +
+		        " ms.",
+		    kcurrent_module_name);
+	}
 
 	// --------
 	// 3rd. Backend: postprocess

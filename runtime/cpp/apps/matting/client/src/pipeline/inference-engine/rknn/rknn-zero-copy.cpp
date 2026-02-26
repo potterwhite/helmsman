@@ -222,6 +222,8 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 		throw std::runtime_error("Input size mismatch with RKNN model.");
 	}
 
+	auto t0 = std::chrono::high_resolution_clock::now();
+
 	// ------------------------------------------------------------------------
 	// Step 2 - Write data into zero-copy input buffer (FLOAT32 → FP16)
 	// ------------------------------------------------------------------------
@@ -242,6 +244,8 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 		input_fp16_ptr[i] = static_cast<__fp16>(input.data[i]);
 	}
 
+	auto t1 = std::chrono::high_resolution_clock::now();
+
 	// ------------------------------------------------------------------------
 	// Step 3 - Execute inference on NPU
 	// ------------------------------------------------------------------------
@@ -250,6 +254,7 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 		throw std::runtime_error("rknn_run failed!");
 	}
 
+	auto t2 = std::chrono::high_resolution_clock::now();
 	// ------------------------------------------------------------------------
 	// Step 4 - Read output directly from zero-copy buffer (FP16 → FLOAT32)
 	// ------------------------------------------------------------------------
@@ -274,8 +279,30 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 		output_vector[i] = static_cast<float>(output_fp16_ptr[i]);
 	}
 
+	auto t3 = std::chrono::high_resolution_clock::now();
+
 	// Dump output for binary-level debugging and verification
 	file_utils_.dumpBinary(output_vector, output_bin_path_ + "cpp_08_inference-Output.bin");
+
+	auto t4 = std::chrono::high_resolution_clock::now();
+	// --- 打印内部精细耗时 ---
+	std::chrono::duration<double, std::milli> cast_in_time = t1 - t0;
+	std::chrono::duration<double, std::milli> npu_run_time = t2 - t1;
+	std::chrono::duration<double, std::milli> cast_out_time = t3 - t2;
+	std::chrono::duration<double, std::milli> dump_time = t4 - t3;
+
+	logger.Info(
+	    "   [Profilier] FP32->FP16 Cast cost: " + std::to_string(cast_in_time.count()) + " ms.",
+	    kcurrent_module_name);
+	logger.Info(
+	    "   [Profilier] Pure RKNN Run cost:   " + std::to_string(npu_run_time.count()) + " ms.",
+	    kcurrent_module_name);
+	logger.Info(
+	    "   [Profilier] FP16->FP32 Cast cost: " + std::to_string(cast_out_time.count()) + " ms.",
+	    kcurrent_module_name);
+	logger.Info(
+	    "   [Profilier] Binary Dump cost:     " + std::to_string(dump_time.count()) + " ms.",
+	    kcurrent_module_name);
 
 	// ------------------------------------------------------------------------
 	// Step 5 - Construct TensorData structure
