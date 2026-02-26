@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "pipeline/pipeline.h"
+#include <chrono>
 #include "common-define.h"
 #include "pipeline/backend/backend.h"
 #include "pipeline/frontend/frontend.h"
@@ -86,7 +87,16 @@ int Pipeline::run() {
 	// 2nd. Inference Engine: load model and infer
 	engine.setOutputBinPath(output_bin_path_);
 	engine.load(onnx_path_);
+
+	auto start_time = std::chrono::high_resolution_clock::now();
 	auto output_tensor = engine.infer(input);
+	auto end_time = std::chrono::high_resolution_clock::now();
+
+	std::chrono::duration<double, std::milli> infer_duration = end_time - start_time;
+	arcforge::embedded::utils::Logger::GetInstance().Info(
+	    "🚀 [Performance Benchmark] Inference Engine [infer()] cost: " +
+	        std::to_string(infer_duration.count()) + " ms.",
+	    kcurrent_module_name);
 
 	// --------
 	// 3rd. Backend: postprocess
