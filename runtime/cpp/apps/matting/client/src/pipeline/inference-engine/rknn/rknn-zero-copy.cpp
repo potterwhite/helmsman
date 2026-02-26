@@ -179,24 +179,38 @@ void InferenceEngineRKNNZeroCP::load(const std::string& model_path) {
 }
 
 // ============================================================================
-// Inference (Zero-Copy Mode)
+// Inference (Zero-Copy Mode, FP16 Model)
 //
 // Execution Steps:
 //
-//   Step 1 - Validate input size
-//   Step 2 - Copy CPU tensor into zero-copy input buffer
-//   Step 3 - Run inference
-//   Step 4 - Read output directly from mapped memory
-//   Step 5 - Assemble TensorData
+//   Step 1 - Validate input element count (FP16-based validation)
+//   Step 2 - Convert FLOAT32 → FP16 and write into zero-copy buffer
+//   Step 3 - Run inference on NPU
+//   Step 4 - Convert FP16 → FLOAT32 directly from output buffer
+//   Step 5 - Construct TensorData structure
+//
+// Important:
+//   • Model internal precision: FP16
+//   • Frontend provides: FLOAT32
+//   • Conversion happens explicitly in this function
 // ============================================================================
+
 TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
+
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 	auto& file_utils_ = arcforge::utils::FileUtils::GetInstance();
 
 	// ------------------------------------------------------------------------
 	// Step 1 - Validate input size (FP16 Element Count Validation)
 	// ------------------------------------------------------------------------
-	// input_size_ 是 NPU 期望的总字节数，因为模型是 FP16(2字节)，所以元素个数 = input_size_ / 2
+	// input_size_ represents total byte size expected by the NPU.
+	//
+	// Since the model runs in FP16 precision:
+	//     each element occupies 2 bytes.
+	//
+	// Therefore:
+	//     expected_element_count = total_bytes / sizeof(__fp16)
+	//
 	size_t expected_element_count = input_size_ / sizeof(__fp16);
 
 	if (input.data.size() != expected_element_count) {
@@ -204,16 +218,26 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 		                 " elements, but Frontend provided " + std::to_string(input.data.size()) +
 		                 " elements.",
 		             kcurrent_module_name);
+
 		throw std::runtime_error("Input size mismatch with RKNN model.");
 	}
 
 	// ------------------------------------------------------------------------
-	// Step 2 - Write data into zero-copy input buffer (FLOAT32 -> FP16)
+	// Step 2 - Write data into zero-copy input buffer (FLOAT32 → FP16)
 	// ------------------------------------------------------------------------
-	// 获取 NPU 的内存首地址，并将其强转为 ARM 编译器原生的 __fp16 指针
+	// Obtain the virtual memory address allocated for NPU input.
+	// Cast it to ARM-native __fp16 pointer type.
+	//
+	// Important:
+	//   When assigning:
+	//       input_fp16_ptr[i] = static_cast<__fp16>(float_value);
+	//
+	//   The C++ compiler automatically performs FLOAT32 → FP16 conversion.
+	//
 	__fp16* input_fp16_ptr = reinterpret_cast<__fp16*>(input_mem_->virt_addr);
 
-	// 遍历 Frontend 传过来的 float 数据，在赋值瞬间，C++ 底层会自动执行 FP32 到 FP16 的转换
+	// Iterate over frontend FLOAT32 data.
+	// During assignment, implicit precision reduction occurs.
 	for (size_t i = 0; i < input.data.size(); ++i) {
 		input_fp16_ptr[i] = static_cast<__fp16>(input.data[i]);
 	}
@@ -227,21 +251,30 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 	}
 
 	// ------------------------------------------------------------------------
-	// Step 4 - Read output directly from zero-copy buffer (FP16 -> FLOAT32)
+	// Step 4 - Read output directly from zero-copy buffer (FP16 → FLOAT32)
 	// ------------------------------------------------------------------------
-	// NPU 吐出的总字节数 / 2 (FP16的大小) = 真实的元素个数
+	// The NPU output buffer contains FP16 values.
+	//
+	// Compute real element count:
+	//     output_element_count = total_output_bytes / sizeof(__fp16)
+	//
 	size_t output_element_count = output_size_ / sizeof(__fp16);
 
-	// 将 NPU 结果内存的首地址，强转为 __fp16 指针
+	// Cast output memory to __fp16 pointer
 	__fp16* output_fp16_ptr = reinterpret_cast<__fp16*>(output_mem_->virt_addr);
 
-	// 提前分配好装载 Float32 结果的 vector
+	// Pre-allocate FLOAT32 result vector
 	std::vector<float> output_vector(output_element_count);
 
-	// 遍历 NPU 结果，在赋值的瞬间，C++ 底层会自动将 FP16 还原为 Float32
+	// During assignment:
+	//     static_cast<float>(__fp16_value)
+	//
+	// The compiler automatically performs FP16 → FLOAT32 expansion.
 	for (size_t i = 0; i < output_element_count; ++i) {
 		output_vector[i] = static_cast<float>(output_fp16_ptr[i]);
 	}
+
+	// Dump output for binary-level debugging and verification
 	file_utils_.dumpBinary(output_vector, output_bin_path_ + "cpp_08_inference-Output.bin");
 
 	// ------------------------------------------------------------------------
@@ -250,7 +283,7 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 	TensorData output;
 	output.data = output_vector;
 
-	// Assemble output shape from tensor attribute metadata
+	// Assemble output shape from tensor metadata
 	output.shape.clear();
 	for (uint32_t i = 0; i < output_attr_.n_dims; i++) {
 		output.shape.push_back(output_attr_.dims[i]);
