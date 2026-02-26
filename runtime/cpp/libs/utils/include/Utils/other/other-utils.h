@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 PotterWhite
+ * Copyright (c) 2025 PotterWhite
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,11 +22,33 @@
 
 #pragma once
 
-#include <vector>
+#include "Utils/pch.h"
 
-typedef struct {
-	std::vector<float> data;
-	std::vector<int64_t> shape;
-	// int64_t height;
-	// int64_t width;
-} TensorData;
+namespace arcforge {
+namespace utils {
+
+class OtherUtils {
+   public:
+	static OtherUtils& GetInstance();
+
+	~OtherUtils();
+
+	// delete copy and move semantics
+	OtherUtils(const OtherUtils&) = delete;
+	OtherUtils& operator=(const OtherUtils&) = delete;
+	OtherUtils(OtherUtils&&) = delete;
+	OtherUtils& operator=(OtherUtils&&) = delete;
+
+	std::string format_vector_preview(const std::vector<float>& vec, size_t max_count = 8,
+	                                  int precision = 4);
+
+   private:
+	// private member functions
+	OtherUtils();
+
+   private:
+	// private member variables
+};
+
+}  // namespace utils
+}  // namespace arcforge

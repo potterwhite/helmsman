@@ -1,12 +1,9 @@
 #pragma once
 
-#include <rknn_api.h>
-#include <string>
-#include <vector>
-
-#include "Utils/file/file-utils.h"
-#include "Utils/logger/logger.h"
-#include "pipeline/inference-engine/base/inference-engine.h"
+#include <rknn_api.h>                                         // rknn_xxx APIs
+#include <string>                                             // for std::string
+#include "common-define.h"                                    // TensorData
+#include "pipeline/inference-engine/base/inference-engine.h"  // InferenceEngine
 
 class InferenceEngineRKNNZeroCP : public InferenceEngine {
    public:

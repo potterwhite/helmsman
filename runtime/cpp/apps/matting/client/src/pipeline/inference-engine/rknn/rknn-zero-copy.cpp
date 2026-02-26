@@ -2,7 +2,9 @@
 #include <cstring>
 #include <fstream>
 #include "Runtime/rknn.h/rknn.h"
-#include "common-define.h"
+#include "Utils/file/file-utils.h"
+#include "Utils/logger/logger.h"
+#include "Utils/other/other-utils.h"
 
 // ============================================================================
 // InferenceEngineRKNNZeroCP
@@ -36,6 +38,23 @@ InferenceEngineRKNNZeroCP::~InferenceEngineRKNNZeroCP() {
 	releaseBuffers();
 	if (ctx_) {
 		rknn_destroy(ctx_);
+	}
+}
+
+// ============================================================================
+// Release Zero-Copy Buffers
+//
+// Must be called before destroying context to avoid memory leak.
+// ============================================================================
+void InferenceEngineRKNNZeroCP::releaseBuffers() {
+	if (input_mem_) {
+		rknn_destroy_mem(ctx_, input_mem_);
+		input_mem_ = nullptr;
+	}
+
+	if (output_mem_) {
+		rknn_destroy_mem(ctx_, output_mem_);
+		output_mem_ = nullptr;
 	}
 }
 
@@ -92,11 +111,8 @@ void InferenceEngineRKNNZeroCP::load(const std::string& model_path) {
 
 	// ---------------
 	// Option 2: File path mode (used here)
-	int ret = rknn_init(&ctx_,
-	                    const_cast<void*>(static_cast<const void*>(model_path.c_str())),
-	                    0,
-	                    0,
-	                    nullptr);
+	int ret = rknn_init(&ctx_, const_cast<void*>(static_cast<const void*>(model_path.c_str())), 0,
+	                    0, nullptr);
 
 	if (ret < 0) {
 		throw std::runtime_error("rknn_init failed!");
@@ -109,13 +125,13 @@ void InferenceEngineRKNNZeroCP::load(const std::string& model_path) {
 	// Phase II - Query Model Input/Output Information
 	// ------------------------------------------------------------------------
 
-	// III. Query number of input/output tensors
+	// Step 2.1 Query number of input/output tensors
 	rknn_query(ctx_, RKNN_QUERY_IN_OUT_NUM, &io_num_, sizeof(io_num_));
 
 	logger.Info("Input num: " + std::to_string(io_num_.n_input), kcurrent_module_name);
 	logger.Info("Output num: " + std::to_string(io_num_.n_output), kcurrent_module_name);
 
-	// IV. Query input and output tensor attributes
+	// Step 2.2 Query input and output tensor attributes
 	memset(&input_attr_, 0, sizeof(input_attr_));
 	input_attr_.index = 0;
 	rknn_query(ctx_, RKNN_QUERY_INPUT_ATTR, &input_attr_, sizeof(input_attr_));
@@ -124,6 +140,7 @@ void InferenceEngineRKNNZeroCP::load(const std::string& model_path) {
 	output_attr_.index = 0;
 	rknn_query(ctx_, RKNN_QUERY_OUTPUT_ATTR, &output_attr_, sizeof(output_attr_));
 
+	// Step 2.3 Echo input/output information for debugging
 	input_size_ = input_attr_.size;
 	output_size_ = output_attr_.size;
 
@@ -173,13 +190,23 @@ void InferenceEngineRKNNZeroCP::load(const std::string& model_path) {
 //   Step 5 - Assemble TensorData
 // ============================================================================
 TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
-
+	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 	auto& file_utils_ = arcforge::utils::FileUtils::GetInstance();
 
 	// ------------------------------------------------------------------------
 	// Step 1 - Validate input size
 	// ------------------------------------------------------------------------
 	if (input.data.size() * sizeof(float) != input_size_) {
+		logger.Error("Input size mismatch! Expected(rknn model) " + std::to_string(input_size_) +
+		                 " bytes, received " + std::to_string(input.data.size() * sizeof(float)) +
+		                 " bytes.",
+		             kcurrent_module_name);
+
+		logger.Error(
+		    "Received Data = " +
+		        arcforge::utils::OtherUtils::GetInstance().format_vector_preview(input.data, 128) +
+		        " ...",
+		    kcurrent_module_name);
 		throw std::runtime_error("Input size mismatch with RKNN model.");
 	}
 
@@ -225,21 +252,4 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 	}
 
 	return output;
-}
-
-// ============================================================================
-// Release Zero-Copy Buffers
-//
-// Must be called before destroying context to avoid memory leak.
-// ============================================================================
-void InferenceEngineRKNNZeroCP::releaseBuffers() {
-	if (input_mem_) {
-		rknn_destroy_mem(ctx_, input_mem_);
-		input_mem_ = nullptr;
-	}
-
-	if (output_mem_) {
-		rknn_destroy_mem(ctx_, output_mem_);
-		output_mem_ = nullptr;
-	}
 }
