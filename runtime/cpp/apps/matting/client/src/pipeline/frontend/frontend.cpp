@@ -146,35 +146,57 @@ TensorData ImageFrontend::preprocess(const std::string& image_path) {
 	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_04_converted_float.bin");
 
 	// =========================================================================
-	// Phase 3 - Resize to Model Reference Size
+	// Phase 3 - Resize to Model Reference Size with Letterbox (Padding)
 	// =========================================================================
 	// CRITICAL OPTIMIZATION:
-	//   Use fixed 512x512 size instead of aspect-ratio-preserving resize.
+	//   Use fixed 512x512 size with letterbox padding to avoid aspect ratio distortion.
 	//
 	// Reason:
-	//   Non-standard sizes like 512x896 cause NPU multi-core scheduling failure,
-	//   forcing layers to run on single core instead of 3-core parallel mode.
-	//   This results in 3x+ performance degradation (760ms -> ~200ms expected).
+	//   Non-standard sizes like 512x896 cause NPU multi-core scheduling failure.
+	//   Fixed 512x512 enables 3-core parallel mode (3x performance gain).
 	//
-	// Trade-off:
-	//   Slight aspect ratio distortion vs. massive performance gain.
+	// Strategy:
+	//   1. Calculate scale to fit image inside 512x512 while preserving aspect ratio
+	//   2. Resize image to scaled size
+	//   3. Add black padding (letterbox) to reach exactly 512x512
 	//
-	constexpr int target_width = 512;
-	constexpr int target_height = 512;
+	constexpr int target_size = 512;
 
 	logger_.Info("Original size: Width=" + std::to_string(img.cols) +
 	                 ", Height=" + std::to_string(img.rows),
 	             kcurrent_module_name);
 
-	cv::resize(img,
-	           img,
-	           cv::Size(target_width, target_height),
-	           0,
-	           0,
-	           cv::INTER_AREA);
+	// Step 3.1: Calculate scale factor to fit inside 512x512
+	double scale = std::min(static_cast<double>(target_size) / img.cols,
+	                        static_cast<double>(target_size) / img.rows);
 
-	logger_.Info("Resized to fixed size: Width=" + std::to_string(img.cols) +
-	                 ", Height=" + std::to_string(img.rows),
+	int new_width = static_cast<int>(img.cols * scale);
+	int new_height = static_cast<int>(img.rows * scale);
+
+	logger_.Info("Scale factor: " + std::to_string(scale) +
+	                 ", New size before padding: " + std::to_string(new_width) + "x" +
+	                 std::to_string(new_height),
+	             kcurrent_module_name);
+
+	// Step 3.2: Resize image while preserving aspect ratio
+	cv::resize(img, img, cv::Size(new_width, new_height), 0, 0, cv::INTER_AREA);
+
+	// Step 3.3: Create 512x512 canvas with black background (0.0 for float32)
+	cv::Mat canvas = cv::Mat::zeros(target_size, target_size, img.type());
+
+	// Step 3.4: Calculate padding to center the image
+	int pad_top = (target_size - new_height) / 2;
+	int pad_left = (target_size - new_width) / 2;
+
+	// Step 3.5: Copy resized image to center of canvas
+	cv::Rect roi(pad_left, pad_top, new_width, new_height);
+	img.copyTo(canvas(roi));
+
+	img = canvas;
+
+	logger_.Info("Final size with letterbox: Width=" + std::to_string(img.cols) +
+	                 ", Height=" + std::to_string(img.rows) + ", Padding: top=" +
+	                 std::to_string(pad_top) + ", left=" + std::to_string(pad_left),
 	             kcurrent_module_name);
 
 	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");

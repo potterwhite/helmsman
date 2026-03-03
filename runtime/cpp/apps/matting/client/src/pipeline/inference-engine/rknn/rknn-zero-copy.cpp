@@ -1,4 +1,5 @@
 #include "pipeline/inference-engine/rknn/rknn-zero-copy.h"
+#include <cmath>
 #include <cstring>
 #include <fstream>
 #include "Runtime/rknn.h/rknn.h"
@@ -201,47 +202,61 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 	auto& file_utils_ = arcforge::utils::FileUtils::GetInstance();
 
 	// ------------------------------------------------------------------------
-	// Step 1 - Validate input size (FP16 Element Count Validation)
+	// Step 1 - Validate input size and detect model precision
 	// ------------------------------------------------------------------------
-	// input_size_ represents total byte size expected by the NPU.
-	//
-	// Since the model runs in FP16 precision:
-	//     each element occupies 2 bytes.
-	//
-	// Therefore:
-	//     expected_element_count = total_bytes / sizeof(__fp16)
-	//
-	size_t expected_element_count = input_size_ / sizeof(__fp16);
+	// Determine model precision based on input tensor type
+	bool is_int8_model = (input_attr_.type == RKNN_TENSOR_INT8 ||
+	                      input_attr_.type == RKNN_TENSOR_UINT8);
+	bool is_fp16_model = (input_attr_.type == RKNN_TENSOR_FLOAT16);
+
+	size_t expected_element_count;
+	if (is_int8_model) {
+		// INT8 model: 1 byte per element
+		expected_element_count = input_size_ / sizeof(int8_t);
+	} else if (is_fp16_model) {
+		// FP16 model: 2 bytes per element
+		expected_element_count = input_size_ / sizeof(__fp16);
+	} else {
+		// FP32 model: 4 bytes per element
+		expected_element_count = input_size_ / sizeof(float);
+	}
 
 	if (input.data.size() != expected_element_count) {
 		logger.Error("Input size mismatch! Expected " + std::to_string(expected_element_count) +
 		                 " elements, but Frontend provided " + std::to_string(input.data.size()) +
 		                 " elements.",
 		             kcurrent_module_name);
-
 		throw std::runtime_error("Input size mismatch with RKNN model.");
 	}
 
 	auto t0 = std::chrono::high_resolution_clock::now();
 
 	// ------------------------------------------------------------------------
-	// Step 2 - Write data into zero-copy input buffer (FLOAT32 → FP16)
+	// Step 2 - Write data into zero-copy input buffer (adaptive precision)
 	// ------------------------------------------------------------------------
-	// Obtain the virtual memory address allocated for NPU input.
-	// Cast it to ARM-native __fp16 pointer type.
-	//
-	// Important:
-	//   When assigning:
-	//       input_fp16_ptr[i] = static_cast<__fp16>(float_value);
-	//
-	//   The C++ compiler automatically performs FLOAT32 → FP16 conversion.
-	//
-	__fp16* input_fp16_ptr = reinterpret_cast<__fp16*>(input_mem_->virt_addr);
+	if (is_int8_model) {
+		// INT8 quantized model: FLOAT32 → INT8
+		// Apply quantization: value_int8 = (value_float32 / scale) + zero_point
+		int8_t* input_int8_ptr = reinterpret_cast<int8_t*>(input_mem_->virt_addr);
+		float scale = input_attr_.scale;
+		float zp = static_cast<float>(input_attr_.zp);
 
-	// Iterate over frontend FLOAT32 data.
-	// During assignment, implicit precision reduction occurs.
-	for (size_t i = 0; i < input.data.size(); ++i) {
-		input_fp16_ptr[i] = static_cast<__fp16>(input.data[i]);
+		for (size_t i = 0; i < input.data.size(); ++i) {
+			float quantized = (input.data[i] / scale) + zp;
+			// Clamp to INT8 range [-128, 127]
+			quantized = std::max(-128.0f, std::min(127.0f, quantized));
+			input_int8_ptr[i] = static_cast<int8_t>(std::round(quantized));
+		}
+	} else if (is_fp16_model) {
+		// FP16 model: FLOAT32 → FP16
+		__fp16* input_fp16_ptr = reinterpret_cast<__fp16*>(input_mem_->virt_addr);
+		for (size_t i = 0; i < input.data.size(); ++i) {
+			input_fp16_ptr[i] = static_cast<__fp16>(input.data[i]);
+		}
+	} else {
+		// FP32 model: FLOAT32 → FLOAT32 (direct copy)
+		float* input_fp32_ptr = reinterpret_cast<float*>(input_mem_->virt_addr);
+		std::memcpy(input_fp32_ptr, input.data.data(), input.data.size() * sizeof(float));
 	}
 
 	auto t1 = std::chrono::high_resolution_clock::now();
@@ -256,27 +271,43 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 
 	auto t2 = std::chrono::high_resolution_clock::now();
 	// ------------------------------------------------------------------------
-	// Step 4 - Read output directly from zero-copy buffer (FP16 → FLOAT32)
+	// Step 4 - Read output directly from zero-copy buffer (adaptive precision)
 	// ------------------------------------------------------------------------
-	// The NPU output buffer contains FP16 values.
-	//
-	// Compute real element count:
-	//     output_element_count = total_output_bytes / sizeof(__fp16)
-	//
-	size_t output_element_count = output_size_ / sizeof(__fp16);
+	bool is_int8_output = (output_attr_.type == RKNN_TENSOR_INT8 ||
+	                       output_attr_.type == RKNN_TENSOR_UINT8);
+	bool is_fp16_output = (output_attr_.type == RKNN_TENSOR_FLOAT16);
 
-	// Cast output memory to __fp16 pointer
-	__fp16* output_fp16_ptr = reinterpret_cast<__fp16*>(output_mem_->virt_addr);
+	size_t output_element_count;
+	if (is_int8_output) {
+		output_element_count = output_size_ / sizeof(int8_t);
+	} else if (is_fp16_output) {
+		output_element_count = output_size_ / sizeof(__fp16);
+	} else {
+		output_element_count = output_size_ / sizeof(float);
+	}
 
-	// Pre-allocate FLOAT32 result vector
 	std::vector<float> output_vector(output_element_count);
 
-	// During assignment:
-	//     static_cast<float>(__fp16_value)
-	//
-	// The compiler automatically performs FP16 → FLOAT32 expansion.
-	for (size_t i = 0; i < output_element_count; ++i) {
-		output_vector[i] = static_cast<float>(output_fp16_ptr[i]);
+	if (is_int8_output) {
+		// INT8 output: dequantize INT8 → FLOAT32
+		// value_float32 = (value_int8 - zero_point) * scale
+		int8_t* output_int8_ptr = reinterpret_cast<int8_t*>(output_mem_->virt_addr);
+		float scale = output_attr_.scale;
+		float zp = static_cast<float>(output_attr_.zp);
+
+		for (size_t i = 0; i < output_element_count; ++i) {
+			output_vector[i] = (static_cast<float>(output_int8_ptr[i]) - zp) * scale;
+		}
+	} else if (is_fp16_output) {
+		// FP16 output: FP16 → FLOAT32
+		__fp16* output_fp16_ptr = reinterpret_cast<__fp16*>(output_mem_->virt_addr);
+		for (size_t i = 0; i < output_element_count; ++i) {
+			output_vector[i] = static_cast<float>(output_fp16_ptr[i]);
+		}
+	} else {
+		// FP32 output: direct copy
+		float* output_fp32_ptr = reinterpret_cast<float*>(output_mem_->virt_addr);
+		std::memcpy(output_vector.data(), output_fp32_ptr, output_element_count * sizeof(float));
 	}
 
 	auto t3 = std::chrono::high_resolution_clock::now();
@@ -291,17 +322,19 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 	std::chrono::duration<double, std::milli> cast_out_time = t3 - t2;
 	std::chrono::duration<double, std::milli> dump_time = t4 - t3;
 
+	std::string precision_str = is_int8_model ? "INT8" : (is_fp16_model ? "FP16" : "FP32");
 	logger.Info(
-	    "   [Profilier] FP32->FP16 Cast cost: " + std::to_string(cast_in_time.count()) + " ms.",
+	    "   [Profiler] Input conversion (" + precision_str + ") cost: " +
+	    std::to_string(cast_in_time.count()) + " ms.",
 	    kcurrent_module_name);
 	logger.Info(
-	    "   [Profilier] Pure RKNN Run cost:   " + std::to_string(npu_run_time.count()) + " ms.",
+	    "   [Profiler] Pure RKNN Run cost:   " + std::to_string(npu_run_time.count()) + " ms.",
 	    kcurrent_module_name);
 	logger.Info(
-	    "   [Profilier] FP16->FP32 Cast cost: " + std::to_string(cast_out_time.count()) + " ms.",
+	    "   [Profiler] Output conversion cost: " + std::to_string(cast_out_time.count()) + " ms.",
 	    kcurrent_module_name);
 	logger.Info(
-	    "   [Profilier] Binary Dump cost:     " + std::to_string(dump_time.count()) + " ms.",
+	    "   [Profiler] Binary Dump cost:     " + std::to_string(dump_time.count()) + " ms.",
 	    kcurrent_module_name);
 
 	// ------------------------------------------------------------------------
