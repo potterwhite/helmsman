@@ -88,7 +88,7 @@ TensorData ImageFrontend::preprocess(const std::string& image_path) {
 
 	auto& logger_ = arcforge::embedded::utils::Logger::GetInstance();
 	auto& file_utils_ = arcforge::utils::FileUtils::GetInstance();
-	auto& math_utils_ = arcforge::utils::MathUtils::GetInstance();
+	// auto& math_utils_ = arcforge::utils::MathUtils::GetInstance();
 	// auto& runtime_ = arcforge::runtime::RuntimeONNX::GetInstance();
 	auto cvkit_obj = std::make_unique<arcforge::cvkit::Base>();
 
@@ -148,26 +148,33 @@ TensorData ImageFrontend::preprocess(const std::string& image_path) {
 	// =========================================================================
 	// Phase 3 - Resize to Model Reference Size
 	// =========================================================================
-	// Step 3.1 - Compute scale factor to fit reference size (512)
-	// Step 3.2 - Resize image using INTER_AREA (good for downscale)
+	// CRITICAL OPTIMIZATION:
+	//   Use fixed 512x512 size instead of aspect-ratio-preserving resize.
 	//
-	// 1. resize to fit model input size
-	constexpr int ref_size = 512;
-	auto scale_factor = math_utils_.getScaleFactor(img.rows, img.cols, ref_size);
+	// Reason:
+	//   Non-standard sizes like 512x896 cause NPU multi-core scheduling failure,
+	//   forcing layers to run on single core instead of 3-core parallel mode.
+	//   This results in 3x+ performance degradation (760ms -> ~200ms expected).
+	//
+	// Trade-off:
+	//   Slight aspect ratio distortion vs. massive performance gain.
+	//
+	constexpr int target_width = 512;
+	constexpr int target_height = 512;
 
-	logger_.Info("Scale factor: x=" + std::to_string(scale_factor.x) +
-	                 ", y=" + std::to_string(scale_factor.y),
+	logger_.Info("Original size: Width=" + std::to_string(img.cols) +
+	                 ", Height=" + std::to_string(img.rows),
 	             kcurrent_module_name);
 
 	cv::resize(img,
 	           img,
-	           cv::Size(),
-	           scale_factor.x,
-	           scale_factor.y,
+	           cv::Size(target_width, target_height),
+	           0,
+	           0,
 	           cv::INTER_AREA);
 
-	logger_.Info("Resized Width=" + std::to_string(img.cols) +
-	                 ", Resized Height=" + std::to_string(img.rows),
+	logger_.Info("Resized to fixed size: Width=" + std::to_string(img.cols) +
+	                 ", Height=" + std::to_string(img.rows),
 	             kcurrent_module_name);
 
 	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");
