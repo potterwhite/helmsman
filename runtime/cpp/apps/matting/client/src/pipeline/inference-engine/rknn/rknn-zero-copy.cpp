@@ -235,15 +235,34 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 	// Step 2 - Write data into zero-copy input buffer (adaptive precision)
 	// ------------------------------------------------------------------------
 	if (is_int8_model) {
-		// INT8 quantized model: FLOAT32 → INT8
-		// Apply quantization: value_int8 = (value_float32 / scale) + zero_point
+		// INT8 quantized model: FLOAT32 → Normalize → INT8
+		//
+		// CRITICAL OPTIMIZATION:
+		// When RKNN config has normalization enabled, the toolkit inserts a normalization
+		// operator at the beginning of the model graph. For INT8 models, this causes:
+		//   INT8 input → dequantize to FP16 → normalize → quantize back to INT8
+		// This adds ~100ms overhead (35% slower than FP16!) due to extra conversions.
+		//
+		// Solution: Normalize BEFORE quantization in C++ code, so the model receives
+		// pre-normalized INT8 data directly, avoiding internal FP16 conversions.
+		//
+		// Normalization formula: normalized = (pixel - 127.5) / 127.5
+		// This converts [0, 255] → [-1, 1]
+		//
+		// Then quantize: value_int8 = (normalized / scale) + zero_point
+		//
 		int8_t* input_int8_ptr = reinterpret_cast<int8_t*>(input_mem_->virt_addr);
 		float scale = input_attr_.scale;
 		float zp = static_cast<float>(input_attr_.zp);
 
 		for (size_t i = 0; i < input.data.size(); ++i) {
-			float quantized = (input.data[i] / scale) + zp;
-			// Clamp to INT8 range [-128, 127]
+			// Step 1: Normalize [0, 255] → [-1, 1]
+			float normalized = (input.data[i] - 127.5f) / 127.5f;
+
+			// Step 2: Quantize to INT8
+			float quantized = (normalized / scale) + zp;
+
+			// Step 3: Clamp to INT8 range [-128, 127]
 			quantized = std::max(-128.0f, std::min(127.0f, quantized));
 			input_int8_ptr[i] = static_cast<int8_t>(std::round(quantized));
 		}
