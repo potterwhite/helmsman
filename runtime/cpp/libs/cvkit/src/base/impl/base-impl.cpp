@@ -76,13 +76,19 @@ void BaseImpl::echoImg(cv::Mat& input) {
 	std::cout << std::fixed << std::setprecision(8);
 	for (int i = 0; i < 10; ++i) {
 		std::cout << "v[" << i << "] = " << p[i] << std::endl;
+		// arcforge::embedded::utils::Logger::GetInstance().Info(
+		//     "v[" + std::to_string(i) + "] = " + std::to_string(p[i]), kcurrent_lib_name);
 	}
 
 	unsigned char* bytes = reinterpret_cast<unsigned char*>(p);
 	for (int i = 0; i < 10 * 4; ++i) {
 		printf("%02x ", bytes[i]);
+		// arcforge::embedded::utils::Logger::GetInstance().Info(
+		//     std::string("byte[") + std::to_string(i) + "] = " + std::to_string(bytes[i]),
+		//     kcurrent_lib_name);
 	}
-	printf("\n");
+	// printf("\n");
+	std::cout << std::endl;
 }
 
 /**

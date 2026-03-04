@@ -19,15 +19,19 @@
 # SOFTWARE.
 
 #
-# libs/utils/src/CMakeLists.txt
+# rknn subdirectory CMakeLists.txt
 #
 
-# ------------------------
-# The order of subdir adding could not be reversed
-# because they MAY have DEPENDENCIES with each other
-# ------------------------
-add_subdirectory(common)
-add_subdirectory(logger)
-add_subdirectory(file)
-add_subdirectory(math)
-add_subdirectory(others)
+set(COMMON_SOURCES
+	#"${CMAKE_CURRENT_SOURCE_DIR}/utils.cpp"
+)
+
+#set(RKNN_PUBLIC_HEADERS
+#	"${INCLUDE_DIR}/Runtime/rknn/rknn.h"
+#	"${INCLUDE_DIR}/Runtime/rknn/utils.h"
+#)
+
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        ${COMMON_SOURCES}
+)

@@ -22,11 +22,12 @@
 
 #pragma once
 
-#include <vector>
+#include <string_view>
 
-typedef struct {
-	std::vector<float> data;
-	std::vector<int64_t> shape;
-	// int64_t height;
-	// int64_t width;
-} TensorData;
+constexpr std::string_view kcurrent_module_name = "main-client";
+
+// namespace arcforge {
+// namespace runtime {
+
+// }  // namespace runtime
+// }  // namespace arcforge

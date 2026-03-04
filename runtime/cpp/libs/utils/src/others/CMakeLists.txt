@@ -19,15 +19,13 @@
 # SOFTWARE.
 
 #
-# libs/utils/src/CMakeLists.txt
+# utils/src/others/CMakeLists.txt
 #
 
-# ------------------------
-# The order of subdir adding could not be reversed
-# because they MAY have DEPENDENCIES with each other
-# ------------------------
-add_subdirectory(common)
-add_subdirectory(logger)
-add_subdirectory(file)
-add_subdirectory(math)
-add_subdirectory(others)
+set(SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/other-utils.cpp")
+
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        ${SOURCES}
+)
+

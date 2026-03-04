@@ -19,9 +19,17 @@
 // SOFTWARE.
 
 #include "pipeline/pipeline.h"
+#include <chrono>
+#include "common-define.h"
 #include "pipeline/backend/backend.h"
 #include "pipeline/frontend/frontend.h"
+
+#ifdef ENABLE_RKNN_BACKEND
+#include "pipeline/inference-engine/rknn/rknn-non-zero-copy.h"
+#include "pipeline/inference-engine/rknn/rknn-zero-copy.h"
+#else
 #include "pipeline/inference-engine/onnx/onnx.h"
+#endif
 
 Pipeline& Pipeline::GetInstance() {
 	static Pipeline instance;
@@ -30,11 +38,13 @@ Pipeline& Pipeline::GetInstance() {
 }
 
 Pipeline::Pipeline() {
-	arcforge::embedded::utils::Logger::GetInstance().Info("Pipeline object constructed.");
+	arcforge::embedded::utils::Logger::GetInstance().Info("Pipeline object constructed.",
+	                                                      kcurrent_module_name);
 }
 
 Pipeline::~Pipeline() {
-	arcforge::embedded::utils::Logger::GetInstance().Info("Pipeline cleaned up.");
+	arcforge::embedded::utils::Logger::GetInstance().Info("Pipeline cleaned up.",
+	                                                      kcurrent_module_name);
 }
 
 void Pipeline::init(const std::string& image_path, const std::string& onnx_path,
@@ -60,7 +70,12 @@ int Pipeline::run() {
 	verify_parameters_necessary();
 
 	ImageFrontend frontend;
+#ifdef ENABLE_RKNN_BACKEND
+	// InferenceEngineRKNN engine;
+	InferenceEngineRKNNZeroCP engine;
+#else
 	InferenceEngineONNX engine;
+#endif
 	MattingBackend backend;
 
 	// --------
@@ -72,7 +87,20 @@ int Pipeline::run() {
 	// 2nd. Inference Engine: load model and infer
 	engine.setOutputBinPath(output_bin_path_);
 	engine.load(onnx_path_);
-	auto output_tensor = engine.infer(input);
+
+	TensorData output_tensor;
+	for (int i = 0; i < 10; ++i) {
+		auto start_time = std::chrono::high_resolution_clock::now();
+		output_tensor = engine.infer(input);
+		auto end_time = std::chrono::high_resolution_clock::now();
+
+		std::chrono::duration<double, std::milli> infer_duration = end_time - start_time;
+		arcforge::embedded::utils::Logger::GetInstance().Info(
+		    "🚀 [Performance Benchmark " + std::to_string(i + 1) +
+		        "] Inference Engine [infer()] cost: " + std::to_string(infer_duration.count()) +
+		        " ms.",
+		    kcurrent_module_name);
+	}
 
 	// --------
 	// 3rd. Backend: postprocess

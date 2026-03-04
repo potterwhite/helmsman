@@ -37,12 +37,12 @@
 #include <thread>
 #include <utility>
 #include <vector>
-#include "main-client.h"
+#include "common-define.h"
 #include "pipeline/pipeline.h"
 
 using namespace arcforge::embedded;
 
-const std::string_view kcurrent_app_name = "matting-client";
+// const std::string_view kcurrent_module_name = "matting-client";
 
 const std::string ksocket_path = "/tmp/soCket.paTh";
 
@@ -60,7 +60,7 @@ void SignalHandler(int signal_num) {
 	g_stop_signal_received = true;
 	std::ostringstream oss;
 	oss << "\nInterrupt signal (" << signal_num << ") received. Shutting down...";
-	arcforge::embedded::utils::Logger::GetInstance().Warning(oss.str(), kcurrent_app_name);
+	arcforge::embedded::utils::Logger::GetInstance().Warning(oss.str(), kcurrent_module_name);
 }
 
 bool isDebug() {
@@ -117,7 +117,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
 #endif
 
-	std::cout << "hello " << kcurrent_app_name << std::endl;
+	std::cout << "hello " << kcurrent_module_name << std::endl;
 
 	return 0;
 }

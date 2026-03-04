@@ -25,11 +25,13 @@
 
 # librknnrt should be verified(downloaded) first due to the latter module (sherpa) depend on it
 
-if(CMAKE_PLATFORM IN_LIST "rockchip")
+if("rockchip" IN_LIST CMAKE_PLATFORM)
     add_subdirectory(librknnrt)
 endif()
 
+# disabled asr 
 #add_subdirectory(sherpa-onnx)
+
 add_subdirectory(onnxruntime)
 
 # ---------------------------------

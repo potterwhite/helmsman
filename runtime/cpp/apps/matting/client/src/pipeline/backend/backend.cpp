@@ -19,16 +19,19 @@
 // SOFTWARE.
 
 #include "pipeline/backend/backend.h"
+#include "common-define.h"
 
 // #include <algorithm>
 // #include <cmath>
 
 MattingBackend::MattingBackend() {
-	arcforge::embedded::utils::Logger::GetInstance().Info("MattingBackend object constructed.");
+	arcforge::embedded::utils::Logger::GetInstance().Info("MattingBackend object constructed.",
+	                                                      kcurrent_module_name);
 }
 
 MattingBackend::~MattingBackend() {
-	arcforge::embedded::utils::Logger::GetInstance().Info("MattingBackend cleaned up.");
+	arcforge::embedded::utils::Logger::GetInstance().Info("MattingBackend cleaned up.",
+	                                                      kcurrent_module_name);
 }
 
 void MattingBackend::setOutputPath(const std::string& path) {
@@ -54,7 +57,8 @@ cv::Mat MattingBackend::postprocess(const TensorData& output) {
 	}
 
 	logger.Info("Backend processing: N=" + std::to_string(N) + " C=" + std::to_string(C) +
-	            " H=" + std::to_string(H) + " W=" + std::to_string(W));
+	                " H=" + std::to_string(H) + " W=" + std::to_string(W),
+	            kcurrent_module_name);
 
 	// -------------------------
 	// dump raw output for debug
@@ -118,7 +122,7 @@ cv::Mat MattingBackend::postprocess(const TensorData& output) {
 
 	cv::imwrite(output_path_ + "/cpp_11_result.png", output_8u);
 
-	logger.Info("Backend postprocess finished.");
+	logger.Info("Backend postprocess finished.", kcurrent_module_name);
 
 	return output_8u;
 }

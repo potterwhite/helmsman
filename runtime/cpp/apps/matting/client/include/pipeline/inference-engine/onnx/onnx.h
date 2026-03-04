@@ -38,9 +38,6 @@ class InferenceEngineONNX : public InferenceEngine {
 	~InferenceEngineONNX();
 	// static InferenceEngineONNX& GetInstance();
 
-	// getter and setter
-	void setOutputBinPath(const std::string& path);
-
 	void load(const std::string& model_path) override;
 	TensorData infer(const TensorData& input) override;
 
@@ -55,5 +52,5 @@ class InferenceEngineONNX : public InferenceEngine {
 	std::string input_name_;
 	std::string output_name_;
 
-	std::string output_bin_path_;
+
 };
