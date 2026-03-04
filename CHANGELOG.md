@@ -17,6 +17,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **rknn:** implement zero-copy inference and manual INT8 quantization pipeline ([#10](https://github.com/potterwhite/helmsman/issues/10)) ([6566ccc](https://github.com/potterwhite/helmsman/commit/6566cccf42c33daee8adef70a648c3a0e7b9a7c7))
 
+* add deploy_and_test.sh for automated execution and remote testing
+
+* support dual mode: InferenceEngineRKNN (non-zero-copy) and ZeroCP
+
+* inference: reduced latency to 287.66ms through 512x512 optimization
+
+* quantization: bypassed NPU internal normalization overhead by pre-processing in C++
+
+* rename main-client.h to common-define.h for general platform usage
+
+* integrate OtherUtils and improve logging with module-name suffixes
+
+* Refactored InferenceEngine base class and renamed core project headers.
+
+---
+
 ## [0.5.0](https://github.com/potterwhite/helmsman/compare/v0.4.0...v0.5.0) (2026-02-12)
 
 * replace Conan-based ONNX Runtime integration with CMake preset-driven FetchContent mechanism ([#8](https://github.com/potterwhite/helmsman/issues/8)) ([9810179](https://github.com/potterwhite/helmsman/commit/9810179785ef58dc8a3ce9a84f2335a0c2c34ed8))
