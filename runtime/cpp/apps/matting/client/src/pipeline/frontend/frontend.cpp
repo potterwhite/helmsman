@@ -83,8 +83,12 @@ void ImageFrontend::setOutputBinPath(const std::string& path) {
 //   • Bit-level debug capability via dumpBinary()
 //   • Controlled numeric range (0~255 float32)
 //   • Layout compatibility with RKNN inference
+//
+// Parameters:
+//   image_path: Path to input image
+//   target_size: Target size for model input (default 512, dynamically set from model)
 // ============================================================================
-TensorData ImageFrontend::preprocess(const std::string& image_path) {
+TensorData ImageFrontend::preprocess(const std::string& image_path, int target_size) {
 
 	auto& logger_ = arcforge::embedded::utils::Logger::GetInstance();
 	auto& file_utils_ = arcforge::utils::FileUtils::GetInstance();
@@ -149,18 +153,18 @@ TensorData ImageFrontend::preprocess(const std::string& image_path) {
 	// Phase 3 - Resize to Model Reference Size with Letterbox (Padding)
 	// =========================================================================
 	// CRITICAL OPTIMIZATION:
-	//   Use fixed 512x512 size with letterbox padding to avoid aspect ratio distortion.
+	//   Use model's input size with letterbox padding to avoid aspect ratio distortion.
 	//
 	// Reason:
 	//   Non-standard sizes like 512x896 cause NPU multi-core scheduling failure.
-	//   Fixed 512x512 enables 3-core parallel mode (3x performance gain).
+	//   Square sizes (512x512, 384x384) enable optimal NPU performance.
 	//
 	// Strategy:
-	//   1. Calculate scale to fit image inside 512x512 while preserving aspect ratio
+	//   1. Calculate scale to fit image inside target_size while preserving aspect ratio
 	//   2. Resize image to scaled size
-	//   3. Add black padding (letterbox) to reach exactly 512x512
+	//   3. Add black padding (letterbox) to reach exactly target_size x target_size
 	//
-	constexpr int target_size = 512;
+	// Note: target_size is now dynamically passed from model's input dimensions
 
 	logger_.Info("Original size: Width=" + std::to_string(img.cols) +
 	                 ", Height=" + std::to_string(img.rows),

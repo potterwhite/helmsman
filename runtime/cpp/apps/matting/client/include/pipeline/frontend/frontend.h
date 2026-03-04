@@ -35,7 +35,7 @@ class ImageFrontend {
 	ImageFrontend();
 	~ImageFrontend();
 	// static ImageFrontend& GetInstance();
-	TensorData preprocess(const std::string& image_path);
+	TensorData preprocess(const std::string& image_path, int target_size = 512);
 
 	// getter and setter
 	void setOutputBinPath(const std::string& path);

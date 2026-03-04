@@ -79,15 +79,20 @@ int Pipeline::run() {
 	MattingBackend backend;
 
 	// --------
-	// 1st. Frontend: preprocess
-	frontend.setOutputBinPath(output_bin_path_);
-	auto input = frontend.preprocess(image_path_);
-
-	// --------
-	// 2nd. Inference Engine: load model and infer
+	// 1st. Load model first to get input dimensions
 	engine.setOutputBinPath(output_bin_path_);
 	engine.load(onnx_path_);
 
+	// Get model input size (assumes square input: height == width)
+	int model_input_size = engine.getInputHeight();
+
+	// --------
+	// 2nd. Frontend: preprocess with model's input size
+	frontend.setOutputBinPath(output_bin_path_);
+	auto input = frontend.preprocess(image_path_, model_input_size);
+
+	// --------
+	// 3rd. Inference Engine: run inference multiple times for benchmarking
 	TensorData output_tensor;
 	for (int i = 0; i < 10; ++i) {
 		auto start_time = std::chrono::high_resolution_clock::now();

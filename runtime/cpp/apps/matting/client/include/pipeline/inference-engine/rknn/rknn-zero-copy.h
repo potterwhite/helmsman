@@ -35,6 +35,10 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 	void load(const std::string& model_path) override;
 	TensorData infer(const TensorData& input) override;
 
+	// Get model input dimensions
+	int getInputHeight() const { return input_attr_.dims[2]; }
+	int getInputWidth() const { return input_attr_.dims[3]; }
+
    private:
 	// member functions
 	void releaseBuffers();
