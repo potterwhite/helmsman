@@ -30,4 +30,10 @@ class InferenceEngine {
 
 	virtual void load(const std::string& model_path) = 0;
 	virtual TensorData infer(const TensorData& input) = 0;
+
+	// getter and setter
+	virtual void setOutputBinPath(const std::string& path) { output_bin_path_ = path; };
+
+   protected:
+	std::string output_bin_path_;
 };

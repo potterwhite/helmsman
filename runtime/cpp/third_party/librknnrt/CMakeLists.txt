@@ -91,6 +91,8 @@ set_target_properties(librknnrt_lib
     PROPERTIES
         IMPORTED_LOCATION
             "${LIBRKNNRT_ROOT}/lib/librknnrt.so"
+        INTERFACE_INCLUDE_DIRECTORIES
+            "${LIBRKNNRT_ROOT}/include"
 )
 
 # --- b. Create Alias (External Interface) ---
