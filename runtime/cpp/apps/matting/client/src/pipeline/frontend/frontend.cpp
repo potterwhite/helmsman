@@ -172,37 +172,65 @@ TensorData ImageFrontend::preprocess(const std::string& image_path, size_t model
 	    kcurrent_module_name);
 
 	// Step 3.1: Calculate scale factor to fit inside 512x512
-	double scale = std::min(static_cast<double>(model_width) / img.cols,
-	                        static_cast<double>(model_height) / img.rows);
+	double scale_width = static_cast<double>(model_width) / img.cols;
+	double scale_height = static_cast<double>(model_height) / img.rows;
 
-	int new_width = static_cast<int>(img.cols * scale);
-	int new_height = static_cast<int>(img.rows * scale);
+	int new_width = static_cast<int>(img.cols * scale_width);
+	int new_height = static_cast<int>(img.rows * scale_height);
 
-	logger_.Info("Scale factor: " + std::to_string(scale) + ", New size before padding: " +
-	                 std::to_string(new_width) + "x" + std::to_string(new_height),
+	logger_.Info("ScaleOfWidth factor: " + std::to_string(scale_width) +
+	                 ", ScaleOfHeight factor: " + std::to_string(scale_height) +
+	                 ", New size before padding: " + std::to_string(new_width) + "x" +
+	                 std::to_string(new_height),
 	             kcurrent_module_name);
 
-	// Step 3.2: Resize image while preserving aspect ratio
-	cv::resize(img, img, cv::Size(static_cast<int>(model_width), static_cast<int>(model_height)), 0,
-	           0, cv::INTER_AREA);
+	// -------------
+	// // Step 3.2: Resize image while preserving aspect ratio
+	// cv::resize(img, img, cv::Size(static_cast<int>(model_width), static_cast<int>(model_height)), 0,
+	//            0, cv::INTER_AREA);
+	// Step 3.2: Resize image using the preserved aspect ratio dimensions
+	// Note: cv::INTER_LINEAR is generally recommended for both up-scaling and down-scaling in AI pipelines
+	cv::Mat resized_img;
+	cv::resize(img, resized_img, cv::Size(new_width, new_height), 0, 0, cv::INTER_LINEAR);
 
-	// Step 3.3: Create 512x512 canvas with black background (0.0 for float32)
-	cv::Mat canvas =
-	    cv::Mat::zeros(static_cast<int>(model_height), static_cast<int>(model_width), img.type());
-
-	// Step 3.4: Calculate padding to center the image
+	// -------------
+	// // Step 3.3: Create 512x512 canvas with black background (0.0 for float32)
+	// cv::Mat canvas =
+	//     cv::Mat::zeros(static_cast<int>(model_height), static_cast<int>(model_width), img.type());
+	//
+	// Step 3.3: Calculate padding to center the image
+	// We calculate remaining space and divide by 2.
+	// The modulo takes care of odd-numbered remainders (e.g., 1 pixel extra on bottom/right).
 	int pad_top = (static_cast<int>(model_height) - new_height) / 2;
+	int pad_bottom = static_cast<int>(model_height) - new_height - pad_top;
+
 	int pad_left = (static_cast<int>(model_width) - new_width) / 2;
+	int pad_right = static_cast<int>(model_width) - new_width - pad_left;
 
-	// Step 3.5: Copy resized image to center of canvas
-	cv::Rect roi(pad_left, pad_top, new_width, new_height);
-	img.copyTo(canvas(roi));
+	// // Step 3.4: Calculate padding to center the image
+	// int pad_top = (static_cast<int>(model_height) - new_height) / 2;
+	// int pad_left = (static_cast<int>(model_width) - new_width) / 2;
+	// // Step 3.5: Copy resized image to center of canvas
+	// cv::Rect roi(pad_left, pad_top, new_width, new_height);
+	// img.copyTo(canvas(roi));
 
-	img = canvas;
+	// img = canvas;
+
+	// logger_.Info("Final size with letterbox: Width=" + std::to_string(img.cols) + ", Height=" +
+	//                  std::to_string(img.rows) + ", Padding: top=" + std::to_string(pad_top) +
+	//                  ", left=" + std::to_string(pad_left),
+	//              kcurrent_module_name);
+
+	// Step 3.4: Apply the padding (Letterbox)
+	// cv::copyMakeBorder is highly optimized and safer than manual canvas copying.
+	// Since the image is CV_32FC3, cv::Scalar(0, 0, 0) correctly pads with 0.0 floats.
+	cv::copyMakeBorder(resized_img, img, pad_top, pad_bottom, pad_left, pad_right,
+	                   cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
 
 	logger_.Info("Final size with letterbox: Width=" + std::to_string(img.cols) + ", Height=" +
 	                 std::to_string(img.rows) + ", Padding: top=" + std::to_string(pad_top) +
-	                 ", left=" + std::to_string(pad_left),
+	                 ", bottom=" + std::to_string(pad_bottom) +
+	                 ", left=" + std::to_string(pad_left) + ", right=" + std::to_string(pad_right),
 	             kcurrent_module_name);
 
 	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");
