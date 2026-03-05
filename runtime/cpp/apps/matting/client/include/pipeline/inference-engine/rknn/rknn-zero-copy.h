@@ -36,8 +36,8 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 	TensorData infer(const TensorData& input) override;
 
 	// Get model input dimensions (NHWC format: [batch, height, width, channels])
-	int getInputHeight() const { return static_cast<int>(input_attr_.dims[1]); }
-	int getInputWidth() const { return static_cast<int>(input_attr_.dims[2]); }
+	size_t getInputHeight() const { return static_cast<size_t>(input_attr_.dims[1]); }
+	size_t getInputWidth() const { return static_cast<size_t>(input_attr_.dims[2]); }
 
    private:
 	// member functions

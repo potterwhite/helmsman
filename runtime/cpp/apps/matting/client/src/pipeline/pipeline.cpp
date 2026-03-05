@@ -84,12 +84,13 @@ int Pipeline::run() {
 	engine.load(onnx_path_);
 
 	// Get model input size (assumes square input: height == width)
-	int model_input_size = engine.getInputHeight();
+	size_t model_input_height = engine.getInputHeight();
+	size_t model_input_width = engine.getInputWidth();
 
 	// --------
 	// 2nd. Frontend: preprocess with model's input size
 	frontend.setOutputBinPath(output_bin_path_);
-	auto input = frontend.preprocess(image_path_, model_input_size);
+	auto input = frontend.preprocess(image_path_, model_input_width, model_input_height);
 
 	// --------
 	// 3rd. Inference Engine: run inference multiple times for benchmarking

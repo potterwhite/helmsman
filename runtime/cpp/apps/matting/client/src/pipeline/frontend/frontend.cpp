@@ -88,7 +88,8 @@ void ImageFrontend::setOutputBinPath(const std::string& path) {
 //   image_path: Path to input image
 //   target_size: Target size for model input (default 512, dynamically set from model)
 // ============================================================================
-TensorData ImageFrontend::preprocess(const std::string& image_path, int target_size) {
+TensorData ImageFrontend::preprocess(const std::string& image_path, size_t model_width,
+                                     size_t model_height) {
 
 	auto& logger_ = arcforge::embedded::utils::Logger::GetInstance();
 	auto& file_utils_ = arcforge::utils::FileUtils::GetInstance();
@@ -166,31 +167,32 @@ TensorData ImageFrontend::preprocess(const std::string& image_path, int target_s
 	//
 	// Note: target_size is now dynamically passed from model's input dimensions
 
-	logger_.Info("Original size: Width=" + std::to_string(img.cols) +
-	                 ", Height=" + std::to_string(img.rows),
-	             kcurrent_module_name);
+	logger_.Info(
+	    "Original size: Width=" + std::to_string(img.cols) + ", Height=" + std::to_string(img.rows),
+	    kcurrent_module_name);
 
 	// Step 3.1: Calculate scale factor to fit inside 512x512
-	double scale = std::min(static_cast<double>(target_size) / img.cols,
-	                        static_cast<double>(target_size) / img.rows);
+	double scale = std::min(static_cast<double>(model_width) / img.cols,
+	                        static_cast<double>(model_height) / img.rows);
 
 	int new_width = static_cast<int>(img.cols * scale);
 	int new_height = static_cast<int>(img.rows * scale);
 
-	logger_.Info("Scale factor: " + std::to_string(scale) +
-	                 ", New size before padding: " + std::to_string(new_width) + "x" +
-	                 std::to_string(new_height),
+	logger_.Info("Scale factor: " + std::to_string(scale) + ", New size before padding: " +
+	                 std::to_string(new_width) + "x" + std::to_string(new_height),
 	             kcurrent_module_name);
 
 	// Step 3.2: Resize image while preserving aspect ratio
-	cv::resize(img, img, cv::Size(new_width, new_height), 0, 0, cv::INTER_AREA);
+	cv::resize(img, img, cv::Size(static_cast<int>(model_width), static_cast<int>(model_height)), 0,
+	           0, cv::INTER_AREA);
 
 	// Step 3.3: Create 512x512 canvas with black background (0.0 for float32)
-	cv::Mat canvas = cv::Mat::zeros(target_size, target_size, img.type());
+	cv::Mat canvas =
+	    cv::Mat::zeros(static_cast<int>(model_height), static_cast<int>(model_width), img.type());
 
 	// Step 3.4: Calculate padding to center the image
-	int pad_top = (target_size - new_height) / 2;
-	int pad_left = (target_size - new_width) / 2;
+	int pad_top = (static_cast<int>(model_height) - new_height) / 2;
+	int pad_left = (static_cast<int>(model_width) - new_width) / 2;
 
 	// Step 3.5: Copy resized image to center of canvas
 	cv::Rect roi(pad_left, pad_top, new_width, new_height);
@@ -198,9 +200,9 @@ TensorData ImageFrontend::preprocess(const std::string& image_path, int target_s
 
 	img = canvas;
 
-	logger_.Info("Final size with letterbox: Width=" + std::to_string(img.cols) +
-	                 ", Height=" + std::to_string(img.rows) + ", Padding: top=" +
-	                 std::to_string(pad_top) + ", left=" + std::to_string(pad_left),
+	logger_.Info("Final size with letterbox: Width=" + std::to_string(img.cols) + ", Height=" +
+	                 std::to_string(img.rows) + ", Padding: top=" + std::to_string(pad_top) +
+	                 ", left=" + std::to_string(pad_left),
 	             kcurrent_module_name);
 
 	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");
@@ -249,10 +251,7 @@ TensorData ImageFrontend::preprocess(const std::string& image_path, int target_s
 	//
 	// 3. NWHC
 	// tensor_data.shape = {1, 3, static_cast<int64_t>(img.rows), static_cast<int64_t>(img.cols)};
-	tensor_data.shape = {1,
-	                     static_cast<int64_t>(img.rows),
-	                     static_cast<int64_t>(img.cols),
-	                     3};
+	tensor_data.shape = {1, static_cast<int64_t>(img.rows), static_cast<int64_t>(img.cols), 3};
 
 	return tensor_data;
 }
