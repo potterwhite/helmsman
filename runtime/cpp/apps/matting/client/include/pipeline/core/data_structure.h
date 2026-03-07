@@ -27,6 +27,12 @@
 typedef struct {
 	std::vector<float> data;
 	std::vector<int64_t> shape;
-	// int64_t height;
-	// int64_t width;
+
+	// --- ADD THESE METADATA FIELDS ---
+	int orig_width = 0;
+	int orig_height = 0;
+	int pad_top = 0;
+	int pad_bottom = 0;
+	int pad_left = 0;
+	int pad_right = 0;
 } TensorData;

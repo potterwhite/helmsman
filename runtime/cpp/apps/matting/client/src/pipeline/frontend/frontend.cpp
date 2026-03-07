@@ -1,4 +1,3 @@
-// ============================================================================
 // License Section
 // ============================================================================
 // Copyright (c) 2026 PotterWhite
@@ -83,8 +82,13 @@ void ImageFrontend::setOutputBinPath(const std::string& path) {
 //   • Bit-level debug capability via dumpBinary()
 //   • Controlled numeric range (0~255 float32)
 //   • Layout compatibility with RKNN inference
+//
+// Parameters:
+//   image_path: Path to input image
+//   target_size: Target size for model input (default 512, dynamically set from model)
 // ============================================================================
-TensorData ImageFrontend::preprocess(const std::string& image_path) {
+TensorData ImageFrontend::preprocess(const std::string& image_path, size_t model_width,
+                                     size_t model_height) {
 
 	auto& logger_ = arcforge::embedded::utils::Logger::GetInstance();
 	auto& file_utils_ = arcforge::utils::FileUtils::GetInstance();
@@ -149,54 +153,86 @@ TensorData ImageFrontend::preprocess(const std::string& image_path) {
 	// Phase 3 - Resize to Model Reference Size with Letterbox (Padding)
 	// =========================================================================
 	// CRITICAL OPTIMIZATION:
-	//   Use fixed 512x512 size with letterbox padding to avoid aspect ratio distortion.
+	//   Use model's input size with letterbox padding to avoid aspect ratio distortion.
 	//
 	// Reason:
 	//   Non-standard sizes like 512x896 cause NPU multi-core scheduling failure.
-	//   Fixed 512x512 enables 3-core parallel mode (3x performance gain).
+	//   Square sizes (512x512, 384x384) enable optimal NPU performance.
 	//
 	// Strategy:
-	//   1. Calculate scale to fit image inside 512x512 while preserving aspect ratio
+	//   1. Calculate scale to fit image inside target_size while preserving aspect ratio
 	//   2. Resize image to scaled size
-	//   3. Add black padding (letterbox) to reach exactly 512x512
+	//   3. Add black padding (letterbox) to reach exactly target_size x target_size
 	//
-	constexpr int target_size = 512;
+	// Note: target_size is now dynamically passed from model's input dimensions
 
-	logger_.Info("Original size: Width=" + std::to_string(img.cols) +
-	                 ", Height=" + std::to_string(img.rows),
-	             kcurrent_module_name);
+	logger_.Info(
+	    "Original size: Width=" + std::to_string(img.cols) + ", Height=" + std::to_string(img.rows),
+	    kcurrent_module_name);
 
 	// Step 3.1: Calculate scale factor to fit inside 512x512
-	double scale = std::min(static_cast<double>(target_size) / img.cols,
-	                        static_cast<double>(target_size) / img.rows);
+	double scale_width = static_cast<double>(model_width) / img.cols;
+	double scale_height = static_cast<double>(model_height) / img.rows;
 
-	int new_width = static_cast<int>(img.cols * scale);
-	int new_height = static_cast<int>(img.rows * scale);
+	int new_width = static_cast<int>(img.cols * scale_width);
+	int new_height = static_cast<int>(img.rows * scale_height);
 
-	logger_.Info("Scale factor: " + std::to_string(scale) +
+	logger_.Info("ScaleOfWidth factor: " + std::to_string(scale_width) +
+	                 ", ScaleOfHeight factor: " + std::to_string(scale_height) +
 	                 ", New size before padding: " + std::to_string(new_width) + "x" +
 	                 std::to_string(new_height),
 	             kcurrent_module_name);
 
-	// Step 3.2: Resize image while preserving aspect ratio
-	cv::resize(img, img, cv::Size(new_width, new_height), 0, 0, cv::INTER_AREA);
+	// save original cols/rows:
+	int original_w = img.cols;
+	int original_h = img.rows;
+	// -------------
+	// // Step 3.2: Resize image while preserving aspect ratio
+	// cv::resize(img, img, cv::Size(static_cast<int>(model_width), static_cast<int>(model_height)), 0,
+	//            0, cv::INTER_AREA);
+	// Step 3.2: Resize image using the preserved aspect ratio dimensions
+	// Note: cv::INTER_LINEAR is generally recommended for both up-scaling and down-scaling in AI pipelines
+	cv::Mat resized_img;
+	cv::resize(img, resized_img, cv::Size(new_width, new_height), 0, 0, cv::INTER_LINEAR);
 
-	// Step 3.3: Create 512x512 canvas with black background (0.0 for float32)
-	cv::Mat canvas = cv::Mat::zeros(target_size, target_size, img.type());
+	// -------------
+	// // Step 3.3: Create 512x512 canvas with black background (0.0 for float32)
+	// cv::Mat canvas =
+	//     cv::Mat::zeros(static_cast<int>(model_height), static_cast<int>(model_width), img.type());
+	//
+	// Step 3.3: Calculate padding to center the image
+	// We calculate remaining space and divide by 2.
+	// The modulo takes care of odd-numbered remainders (e.g., 1 pixel extra on bottom/right).
+	int pad_top = (static_cast<int>(model_height) - new_height) / 2;
+	int pad_bottom = static_cast<int>(model_height) - new_height - pad_top;
 
-	// Step 3.4: Calculate padding to center the image
-	int pad_top = (target_size - new_height) / 2;
-	int pad_left = (target_size - new_width) / 2;
+	int pad_left = (static_cast<int>(model_width) - new_width) / 2;
+	int pad_right = static_cast<int>(model_width) - new_width - pad_left;
 
-	// Step 3.5: Copy resized image to center of canvas
-	cv::Rect roi(pad_left, pad_top, new_width, new_height);
-	img.copyTo(canvas(roi));
+	// // Step 3.4: Calculate padding to center the image
+	// int pad_top = (static_cast<int>(model_height) - new_height) / 2;
+	// int pad_left = (static_cast<int>(model_width) - new_width) / 2;
+	// // Step 3.5: Copy resized image to center of canvas
+	// cv::Rect roi(pad_left, pad_top, new_width, new_height);
+	// img.copyTo(canvas(roi));
 
-	img = canvas;
+	// img = canvas;
 
-	logger_.Info("Final size with letterbox: Width=" + std::to_string(img.cols) +
-	                 ", Height=" + std::to_string(img.rows) + ", Padding: top=" +
-	                 std::to_string(pad_top) + ", left=" + std::to_string(pad_left),
+	// logger_.Info("Final size with letterbox: Width=" + std::to_string(img.cols) + ", Height=" +
+	//                  std::to_string(img.rows) + ", Padding: top=" + std::to_string(pad_top) +
+	//                  ", left=" + std::to_string(pad_left),
+	//              kcurrent_module_name);
+
+	// Step 3.4: Apply the padding (Letterbox)
+	// cv::copyMakeBorder is highly optimized and safer than manual canvas copying.
+	// Since the image is CV_32FC3, cv::Scalar(0, 0, 0) correctly pads with 0.0 floats.
+	cv::copyMakeBorder(resized_img, img, pad_top, pad_bottom, pad_left, pad_right,
+	                   cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
+
+	logger_.Info("Final size with letterbox: Width=" + std::to_string(img.cols) + ", Height=" +
+	                 std::to_string(img.rows) + ", Padding: top=" + std::to_string(pad_top) +
+	                 ", bottom=" + std::to_string(pad_bottom) +
+	                 ", left=" + std::to_string(pad_left) + ", right=" + std::to_string(pad_right),
 	             kcurrent_module_name);
 
 	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");
@@ -245,10 +281,21 @@ TensorData ImageFrontend::preprocess(const std::string& image_path) {
 	//
 	// 3. NWHC
 	// tensor_data.shape = {1, 3, static_cast<int64_t>(img.rows), static_cast<int64_t>(img.cols)};
-	tensor_data.shape = {1,
-	                     static_cast<int64_t>(img.rows),
-	                     static_cast<int64_t>(img.cols),
-	                     3};
+	tensor_data.shape = {1, static_cast<int64_t>(img.rows), static_cast<int64_t>(img.cols), 3};
+
+	// --- ADD THIS BLOCK ---
+	// Save the original dimensions and calculated paddings into the tensor metadata.
+	tensor_data.orig_width = img.cols;  // Note: Use the 'img.cols' BEFORE any resize happens,
+	// or pass them down. In your current code, you overwrite 'img'.
+
+
+	tensor_data.orig_width = original_w;
+	tensor_data.orig_height = original_h;
+	tensor_data.pad_top = pad_top;
+	tensor_data.pad_bottom = pad_bottom;
+	tensor_data.pad_left = pad_left;
+	tensor_data.pad_right = pad_right;
+	// ----------------------
 
 	return tensor_data;
 }
