@@ -1,4 +1,3 @@
-// ============================================================================
 // License Section
 // ============================================================================
 // Copyright (c) 2026 PotterWhite
@@ -184,6 +183,9 @@ TensorData ImageFrontend::preprocess(const std::string& image_path, size_t model
 	                 std::to_string(new_height),
 	             kcurrent_module_name);
 
+	// save original cols/rows:
+	int original_w = img.cols;
+	int original_h = img.rows;
 	// -------------
 	// // Step 3.2: Resize image while preserving aspect ratio
 	// cv::resize(img, img, cv::Size(static_cast<int>(model_width), static_cast<int>(model_height)), 0,
@@ -280,6 +282,20 @@ TensorData ImageFrontend::preprocess(const std::string& image_path, size_t model
 	// 3. NWHC
 	// tensor_data.shape = {1, 3, static_cast<int64_t>(img.rows), static_cast<int64_t>(img.cols)};
 	tensor_data.shape = {1, static_cast<int64_t>(img.rows), static_cast<int64_t>(img.cols), 3};
+
+	// --- ADD THIS BLOCK ---
+	// Save the original dimensions and calculated paddings into the tensor metadata.
+	tensor_data.orig_width = img.cols;  // Note: Use the 'img.cols' BEFORE any resize happens,
+	// or pass them down. In your current code, you overwrite 'img'.
+
+
+	tensor_data.orig_width = original_w;
+	tensor_data.orig_height = original_h;
+	tensor_data.pad_top = pad_top;
+	tensor_data.pad_bottom = pad_bottom;
+	tensor_data.pad_left = pad_left;
+	tensor_data.pad_right = pad_right;
+	// ----------------------
 
 	return tensor_data;
 }

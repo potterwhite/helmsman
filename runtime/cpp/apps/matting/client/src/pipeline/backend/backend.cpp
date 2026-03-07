@@ -110,6 +110,20 @@ cv::Mat MattingBackend::postprocess(const TensorData& output) {
 	cv::Mat clamped;
 	cv::min(cv::max(result, 0.0f), 1.0f, clamped);
 
+	// --- ADD THIS BLOCK TO RESTORE ORIGINAL SHAPE ---
+	// Step A: Crop out the letterbox padding
+	int valid_width = clamped.cols - output.pad_left - output.pad_right;
+	int valid_height = clamped.rows - output.pad_top - output.pad_bottom;
+
+	cv::Rect roi(output.pad_left, output.pad_top, valid_width, valid_height);
+	cv::Mat cropped_mat = clamped(roi);
+
+	// Step B: Resize the cropped image back to the original image dimensions
+	cv::Mat restored_mat;
+	cv::resize(cropped_mat, restored_mat, cv::Size(output.orig_width, output.orig_height), 0, 0,
+	           cv::INTER_LINEAR);  // or cv::INTER_CUBIC for better alpha edge quality
+	                               // ------------------------------------------------
+
 	const size_t total = HW * static_cast<size_t>(C);
 
 	file_utils.dumpBinary(std::vector<float>((float*)clamped.data, (float*)clamped.data + total),
@@ -118,7 +132,8 @@ cv::Mat MattingBackend::postprocess(const TensorData& output) {
 	// -------------------------
 	// 3. convert to 8bit image
 	cv::Mat output_8u;
-	clamped.convertTo(output_8u, (C_int == 1 ? CV_8UC1 : CV_8UC3), 255.0);
+	// clamped.convertTo(output_8u, (C_int == 1 ? CV_8UC1 : CV_8UC3), 255.0);
+	restored_mat.convertTo(output_8u, (C_int == 1 ? CV_8UC1 : CV_8UC3), 255.0);
 
 	cv::imwrite(output_path_ + "/cpp_11_result.png", output_8u);
 
