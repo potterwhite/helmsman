@@ -11,11 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ⚠ BREAKING CHANGES
 
-* 
+* TensorData: added orig_width/height + pad_top/bottom/left/right
+* Frontend::preprocess now takes model_width/height (no more hard-coded 512)
+* Postprocess: crops padding and resizes back to original resolution
+
 
 ### ✨ Added
 
 * dynamic input shape + letterbox metadata for correct output size ([#12](https://github.com/potterwhite/helmsman/issues/12)) ([035ff06](https://github.com/potterwhite/helmsman/commit/035ff068f33f70a9f8ba3bfc643a2e42053f8a8c))
+
+#### Features:
+* Read real model input size from RKNN/ONNX instead of hard-coding
+* Propagate letterbox metadata through entire pipeline
+* Output image now matches original input dimensions
+
+#### Chore:
+* Added benchmark scripts for 384×384, opt levels, normalization variants
+
+---
 
 ## [0.6.0](https://github.com/potterwhite/helmsman/compare/v0.5.0...v0.6.0) (2026-03-04)
 
