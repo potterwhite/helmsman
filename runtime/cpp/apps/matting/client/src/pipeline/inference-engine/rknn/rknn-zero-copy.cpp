@@ -225,8 +225,8 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 	// Step 1 - Validate input size and detect model precision
 	// ------------------------------------------------------------------------
 	// Determine model precision based on input tensor type
-	bool is_int8_model = (input_attr_.type == RKNN_TENSOR_INT8 ||
-	                      input_attr_.type == RKNN_TENSOR_UINT8);
+	bool is_int8_model =
+	    (input_attr_.type == RKNN_TENSOR_INT8 || input_attr_.type == RKNN_TENSOR_UINT8);
 	bool is_fp16_model = (input_attr_.type == RKNN_TENSOR_FLOAT16);
 
 	size_t expected_element_count;
@@ -312,8 +312,8 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 	// ------------------------------------------------------------------------
 	// Step 4 - Read output directly from zero-copy buffer (adaptive precision)
 	// ------------------------------------------------------------------------
-	bool is_int8_output = (output_attr_.type == RKNN_TENSOR_INT8 ||
-	                       output_attr_.type == RKNN_TENSOR_UINT8);
+	bool is_int8_output =
+	    (output_attr_.type == RKNN_TENSOR_INT8 || output_attr_.type == RKNN_TENSOR_UINT8);
 	bool is_fp16_output = (output_attr_.type == RKNN_TENSOR_FLOAT16);
 
 	size_t output_element_count;
@@ -362,19 +362,17 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 	std::chrono::duration<double, std::milli> dump_time = t4 - t3;
 
 	std::string precision_str = is_int8_model ? "INT8" : (is_fp16_model ? "FP16" : "FP32");
-	logger.Info(
-	    "   [Profiler] Input conversion (" + precision_str + ") cost: " +
-	    std::to_string(cast_in_time.count()) + " ms.",
-	    kcurrent_module_name);
+	logger.Info("   [Profiler] Input conversion (" + precision_str +
+	                ") cost: " + std::to_string(cast_in_time.count()) + " ms.",
+	            kcurrent_module_name);
 	logger.Info(
 	    "   [Profiler] Pure RKNN Run cost:   " + std::to_string(npu_run_time.count()) + " ms.",
 	    kcurrent_module_name);
 	logger.Info(
 	    "   [Profiler] Output conversion cost: " + std::to_string(cast_out_time.count()) + " ms.",
 	    kcurrent_module_name);
-	logger.Info(
-	    "   [Profiler] Binary Dump cost:     " + std::to_string(dump_time.count()) + " ms.",
-	    kcurrent_module_name);
+	logger.Info("   [Profiler] Binary Dump cost:     " + std::to_string(dump_time.count()) + " ms.",
+	            kcurrent_module_name);
 
 	// ------------------------------------------------------------------------
 	// Step 5 - Construct TensorData structure
@@ -387,6 +385,16 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 	for (uint32_t i = 0; i < output_attr_.n_dims; i++) {
 		output.shape.push_back(output_attr_.dims[i]);
 	}
+
+	// --- ADD THIS BLOCK ---
+	// Inherit metadata from input tensor to output tensor
+	output.orig_width = input.orig_width;
+	output.orig_height = input.orig_height;
+	output.pad_top = input.pad_top;
+	output.pad_bottom = input.pad_bottom;
+	output.pad_left = input.pad_left;
+	output.pad_right = input.pad_right;
+	// ----------------------
 
 	return output;
 }

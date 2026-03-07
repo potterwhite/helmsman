@@ -247,6 +247,17 @@ TensorData InferenceEngineRKNN::infer(const TensorData& input) {
 		output_tensor.shape.push_back(output_attrs_[0].dims[i]);
 		logger.Info(std::to_string(output_attrs_[0].dims[i]) + " ", kcurrent_module_name);
 	}
+
+	// --- ADD THIS BLOCK ---
+	// Inherit metadata from input tensor to output tensor
+	output_tensor.orig_width = input.orig_width;
+	output_tensor.orig_height = input.orig_height;
+	output_tensor.pad_top = input.pad_top;
+	output_tensor.pad_bottom = input.pad_bottom;
+	output_tensor.pad_left = input.pad_left;
+	output_tensor.pad_right = input.pad_right;
+	// ----------------------
+
 	logger.Info("\n", kcurrent_module_name);
 
 	// ------------------------------------------------------------------------
