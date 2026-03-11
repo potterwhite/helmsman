@@ -196,6 +196,15 @@ void InferenceEngineRKNNZeroCP::load(const std::string& model_path) {
 	rknn_set_io_mem(ctx_, input_mem_, &input_attr_);
 	rknn_set_io_mem(ctx_, output_mem_, &output_attr_);
 
+	// phase V - set cores
+	rknn_core_mask mask = RKNN_NPU_CORE_ALL;
+	auto retval = rknn_set_core_mask(ctx_, mask);
+	if (retval == RKNN_SUCC) {
+		logger.Info("Set core to " + arcforge::runtime::to_string(mask) + " Successfully");
+	} else {
+		logger.Warning("Set core to " + arcforge::runtime::to_string(mask) + " Failed");
+	}
+
 	logger.Info("Zero-copy buffers allocated and bound.", kcurrent_module_name);
 }
 
