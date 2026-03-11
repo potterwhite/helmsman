@@ -42,6 +42,7 @@ func_3_0_setup_modnet_softlinks() {
         "export_onnx.py            ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx.py"
         "inference_onnx.py         ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/inference_onnx.py"
         "generate_golden_files.py  ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/generate_golden_files.py"
+        "modnet_onnx.py            ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/modnet_onnx_v1.0.py"
     )
 
     for entry in "${SCRIPT_LINKS[@]}"; do

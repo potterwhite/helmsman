@@ -24,9 +24,44 @@
 # ==============================================================================
 
 func_4_1_ckpt_2_onnx(){
-    # (From A)
+    # Preparation -- 1. Time count start
     func_1_4_start_time_count __TASK_START_TIME
 
+    # Preparation -- 2. Select MODNet variant
+    func_1_1_log "Select MODNet variant:" "blue"
+    echo "1) Original (modnet_onnx.py)"
+    echo "2) Modified (modnet_onnx_modified.py)"
+    read -p "   Select [1-2]: " variant_choice
+
+    local export_script=""
+    local modnet_script=""
+    case $variant_choice in
+        2)
+            export_script="export_onnx_modified.py"
+            modnet_script="modnet_onnx_modified.py"
+            func_1_1_log "   Using: Modified variant" "yellow"
+            ;;
+        *)
+            export_script="export_onnx.py"
+            modnet_script="modnet_onnx.py"
+            func_1_1_log "   Using: Original variant" "yellow"
+            ;;
+    esac
+
+    # Preparation -- 3. Link selected scripts to target directory
+    local src_dir="${LV4_MODNET_SCRIPTS_DIR}"
+    local target_dir="${LV4_MODNET_SDK_DIR}/onnx"
+
+    mkdir -p "${target_dir}"
+    ln -nsf "${src_dir}/${export_script}" "${target_dir}/export_onnx.py"
+    if [ "$variant_choice" = "2" ]; then
+        ln -nsf "${src_dir}/${modnet_script}" "${target_dir}/modnet_onnx_modified.py"
+    else
+        ln -nsf "${src_dir}/${modnet_script}" "${target_dir}/modnet_onnx.py"
+    fi
+    func_1_1_log "   Linked ${export_script} and ${modnet_script} to target dir" "green"
+
+    # Preparation -- 4. Searching ckpt for selection
     func_1_1_log "🔎 Checking for pre-trained models (.ckpt)..." "blue"
     mapfile -t ckpt_files < <(find "$LV5_PRETRAINED_DIR" -maxdepth 1 -type l -name "*.ckpt" -o -name "*.ckpt")
 
@@ -40,13 +75,18 @@ func_4_1_ckpt_2_onnx(){
         return 1
     fi
 
+    # Processing -- 1. Choose ckpt
     func_1_1_log "   Please choose a .ckpt model to convert to ONNX:" "green"
     select ckpt_path in "${ckpt_files[@]}"; do
         if [[ -n "$ckpt_path" ]]; then break; else func_1_1_log "Invalid selection." "red"; fi
     done
 
     local ckpt_filename=$(basename "$ckpt_path")
-    local onnx_filename="${ckpt_filename%.ckpt}.onnx"
+    local onnx_suffix=""
+    if [ "$variant_choice" = "2" ]; then
+        onnx_suffix="_modified"
+    fi
+    local onnx_filename="${ckpt_filename%.ckpt}${onnx_suffix}.onnx"
     local onnx_path="${LV5_PRETRAINED_DIR}/${onnx_filename}"
 
     func_1_1_log "   Selected CKPT: $ckpt_filename" "yellow"

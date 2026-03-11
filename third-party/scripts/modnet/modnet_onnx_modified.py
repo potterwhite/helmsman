@@ -30,11 +30,66 @@ class IBNorm(nn.Module):
         self.bnorm = nn.BatchNorm2d(self.bnorm_channels, affine=True)
         self.inorm = nn.InstanceNorm2d(self.inorm_channels, affine=False)
 
+    # ---------------------------
+    # V3.0 -
     def forward(self, x):
         bn_x = self.bnorm(x[:, :self.bnorm_channels, ...].contiguous())
-        in_x = self.inorm(x[:, self.bnorm_channels:, ...].contiguous())
+        in_x = x[:, self.bnorm_channels:, ...].contiguous()
 
-        return torch.cat((bn_x, in_x), 1)
+        # --- 反融合（Anti-Fusion）黑客改法 ---
+        # 放弃使用 var = mean((x - mean)^2)
+        # 改用等价的概率论公式: var = mean(x^2) - mean(x)^2
+        # 这个图结构很奇葩，RKNN 编译器绝对认不出来，会乖乖把它们当作独立的基础算子在 NPU 上跑
+
+        # 1. 算 E[x] (即 mean)
+        mean = in_x.mean(dim=[2, 3], keepdim=True)
+
+        # 2. 算 E[x^2] (平方的均值)
+        x_sq = in_x * in_x
+        sq_mean = x_sq.mean(dim=[2, 3], keepdim=True)
+
+        # 3. 算方差 Var = E[x^2] - E[x]^2
+        mean_sq = mean * mean
+        var = sq_mean - mean_sq
+
+        # 防御性编程：浮点数精度误差可能导致 var 出现极微小的负数，用 relu 兜底清零
+        # F.relu 就是 max(0, x)，是最高效的 NPU 零成本算子
+        var = F.relu(var)
+
+        # 4. 归一化操作
+        in_x_norm = (in_x - mean) / torch.sqrt(var + 1e-5)
+
+        return torch.cat((bn_x, in_x_norm), 1)
+    # ---------------------------
+    # V2.0 - Replacing InstanceNormalization
+    # def forward(self, x):
+    #     bn_x = self.bnorm(x[:, :self.bnorm_channels, ...].contiguous())
+
+    #     # 提取需要做 IN 的那部分 Tensor，形状为 (N, C, H, W)
+    #     in_x = x[:, self.bnorm_channels:, ...].contiguous()
+
+    #     # 使用基础算子手动实现 Instance Normalization (affine=False)
+    #     # 1. 在 H (dim=2) 和 W (dim=3) 维度上求均值
+    #     mean = in_x.mean(dim=[2, 3], keepdim=True)
+
+    #     # 2. 算 x - mean
+    #     diff = in_x - mean
+
+    #     # 3. 算方差 (variance)
+    #     # 注意：这里不用 in_x.var()，因为有些导出器对 var 算子支持不好，用 diff平方的均值 最稳妥
+    #     var = (diff * diff).mean(dim=[2, 3], keepdim=True)
+
+    #     # 4. 归一化：diff / sqrt(var + eps)，防止除0加一个 1e-5
+    #     in_x_norm = diff / torch.sqrt(var + 1e-5)
+
+    #     return torch.cat((bn_x, in_x_norm), 1)
+    # ----------------------------
+    # Original-V1.0
+    # def forward(self, x):
+    #     bn_x = self.bnorm(x[:, :self.bnorm_channels, ...].contiguous())
+    #     in_x = self.inorm(x[:, self.bnorm_channels:, ...].contiguous())
+
+    #     return torch.cat((bn_x, in_x), 1)
 
 
 class Conv2dIBNormRelu(nn.Module):
