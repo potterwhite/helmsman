@@ -39,10 +39,13 @@ func_3_0_setup_modnet_softlinks() {
     #   file name                       source dir                    destination dir
     declare -a SCRIPT_LINKS=(
         "requirements.txt          ${LV1_ENVS_DIR}              ${LV4_MODNET_SDK_DIR}/onnx/requirements.txt"
-        "export_onnx.py            ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx.py"
         "inference_onnx.py         ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/inference_onnx.py"
         "generate_golden_files.py  ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/generate_golden_files.py"
-        "modnet_onnx.py            ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/modnet_onnx_v1.0.py"
+        # ------ export ------
+        "export/export_onnx.py            ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx.py"
+        "export/modnet_onnx.py            ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/modnet_onnx.py"
+        "export/export_onnx_modified.py   ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx_modified.py"
+        "export/modnet_onnx_modified.py   ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/modnet_onnx_modified.py"
     )
 
     for entry in "${SCRIPT_LINKS[@]}"; do
