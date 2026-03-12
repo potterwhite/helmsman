@@ -341,7 +341,7 @@ func_3_3_rebuild_sdk(){
                     git reset --hard HEAD
 
                     # Remove untracked files and directories
-                    git clean -fd
+                    git clean -fdx
                 )
 
                 func_1_1_log " [6/7] MODNet SDK reset OK." "green"
@@ -574,12 +574,13 @@ func_5_1_clean_project(){
         #     func_1_1_log "✅ Python Virtual Environment not exist. Remove Skipped." "green"
         fi
 
-        # if [ -d "${LV4_MODNET_SDK_DIR}" ]; then
-        #     rm -rf "${LV4_MODNET_SDK_DIR}"
-        #     func_1_1_log "✅ MODNet SDK Has been deleted." "green"
-        # # else
-        # #     func_1_1_log "✅ MODNet SDK not exist. Remove Skipped." "green"
-        # fi
+        if [ -d "${LV4_MODNET_SDK_DIR}" ]; then
+            # rm -rf "${LV4_MODNET_SDK_DIR}"
+            func_3_3_rebuild_sdk "modnet"
+            func_1_1_log "✅ MODNet SDK Has been deleted." "green"
+        # else
+        #     func_1_1_log "✅ MODNet SDK not exist. Remove Skipped." "green"
+        fi
 
         func_1_1_log "✅ 2nd Lv Clean has done." "green"
     }
