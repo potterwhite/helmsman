@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.8.0](https://github.com/potterwhite/helmsman/compare/v0.7.0...v0.8.0) (2026-03-12)
+
+
+### ✨ Added
+
+* **modnet:** eliminate InstanceNorm via graph rewrite to avoid NPU fallback  ([#14](https://github.com/potterwhite/helmsman/issues/14)) ([d804b01](https://github.com/potterwhite/helmsman/commit/d804b01043ca6d347a77fede6a604394b406cc9c))
+
+- Rewrite IBNorm InstanceNormalization branch using mathematically equivalent primitive ops (mean/mul/sqrt) based on Var(x) = E[x²] − (E[x])².
+
+- This intentionally breaks RKNN fusion patterns ("anti-fusion") so the compiler cannot reconstruct InstanceNormalization, preventing CPU transpose fallback and eliminating cross-device memory copies.
+
+- Result: ~40% latency improvement at 576x1024 on RK3588 (~430ms with all NPU cores).
+
+- Note: model architecture modifications live in Helmsman.git. ArcFoundry remains a generic ONNX → RKNN conversion framework.
+
+
+---
+
 ## [0.7.0](https://github.com/potterwhite/helmsman/compare/v0.6.0...v0.7.0) (2026-03-07)
 
 
