@@ -207,7 +207,7 @@ func_9_1_main_menu_entry() {
         echo "6. Clean build"
         echo "7. Clean all(build/venv/models/MODNet SDK etc)"
         echo "8. Exit"
-        read -p "   Select [1-6]: " choice
+        read -p "   Select [1-8]: " choice
 
         case $choice in
             1) func_3_2_setup_dep_before_build ;;

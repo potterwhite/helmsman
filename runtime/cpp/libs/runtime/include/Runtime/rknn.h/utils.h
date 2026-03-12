@@ -259,6 +259,44 @@ inline std::string to_string(const rknn_output_extend& ext) {
 }
 
 // -----------------------------------------------------------------------------
+// rknn_core_mask
+inline std::string to_string(rknn_core_mask mask) {
+	std::stringstream ss;
+
+	ss << "rknn_core_mask {\n";
+	ss << " value = " << static_cast<int>(mask) << "\n";
+
+	ss << " cores = [";
+
+	bool first = true;
+
+	auto append = [&](const char* name) {
+		if (!first)
+			ss << ", ";
+		ss << name;
+		first = false;
+	};
+
+	if (mask == RKNN_NPU_CORE_AUTO) {
+		append("AUTO");
+	} else {
+		if (mask & RKNN_NPU_CORE_0)
+			append("CORE_0");
+
+		if (mask & RKNN_NPU_CORE_1)
+			append("CORE_1");
+
+		if (mask & RKNN_NPU_CORE_2)
+			append("CORE_2");
+	}
+
+	ss << "]\n";
+	ss << "}";
+
+	return ss.str();
+}
+
+// -----------------------------------------------------------------------------
 // Bonus: one-liner for printing a vector of tensors (very useful)
 template <typename T>
 std::string to_string(const std::vector<T>& vec, const std::string& name = "vector") {
