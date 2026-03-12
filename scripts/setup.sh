@@ -79,8 +79,9 @@ func_3_0_setup_modnet_softlinks() {
 
     # --- [CONFIG] HARDCODE YOUR URLs HERE ---
     local URL_MOBILENET="https://huggingface.co/PotterWhite/MODNet/resolve/main/mobilenetv2_human_seg.ckpt"
-    local URL_PHOTO_CKPT="https://huggingface.co/PotterWhite/MODNet/resolve/main/modnet_photographic_portrait_matting.ckpt"
-    local URL_PHOTO_ONNX="https://huggingface.co/PotterWhite/MODNet/resolve/main/modnet_photographic_portrait_matting.onnx"
+    local URL_PHOTO_CKPT="https://huggingface.co/PotterWhite/MODNet/resolve/main/photographic/modnet_photographic_portrait_matting.ckpt"
+    local URL_PHOTO_ONNX="https://huggingface.co/PotterWhite/MODNet/resolve/main/photographic/modnet_photographic_portrait_matting.onnx"
+    local URL_PHOTO_ONNX_IN_FOLDED="https://huggingface.co/PotterWhite/MODNet/resolve/main/photographic/modnet_photographic_portrait_matting_in_folded.onnx"
     local URL_WEBCAM="https://huggingface.co/PotterWhite/MODNet/resolve/main/modnet_webcam_portrait_matting.ckpt"
     # ----------------------------------------
 
@@ -148,6 +149,11 @@ func_3_0_setup_modnet_softlinks() {
         "modnet_webcam_portrait_matting.ckpt" \
         "$URL_WEBCAM" \
         "${LV4_MODNET_SDK_DIR}/pretrained/modnet_webcam_portrait_matting.ckpt"
+
+    _process_model \
+        "modnet_photographic_portrait_matting_in_folded.onnx" \
+        "$URL_PHOTO_ONNX_IN_FOLDED" \
+        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_photographic_portrait_matting_in_folded.onnx"
 
     func_1_1_log "✅ Link setup and model verification complete." "green"
 }
