@@ -312,65 +312,156 @@ func_3_2_setup_dep_before_build() {
 }
 
 func_3_3_rebuild_sdk(){
+
     if [ x"$1" == x"modnet" ]; then
-        # ********************************************
-        # --- Step 6: Force Re-install MODNet sdk
+
         cd "${REPO_TOP_DIR}"
 
-        # 定义变量 (确保完全匹配)
+        # Relative path of the submodule inside the super repository
         REL_PATH="third-party/sdk/MODNet.git"
+
+        # Upstream repository URL (used only for nuclear rebuild)
         REMOTE_URL="https://github.com/ZHKKKe/MODNet.git"
 
-        # ==========================================
-        # Phase 1: 彻底清理所有残留 (Nuclear Clean)
-        # ==========================================
+        # Optional mode argument
+        MODE="${2:-reset}"
 
-        # 1. 尝试从 git 注册表中反初始化
-        git submodule deinit -f -- "${REL_PATH}" 2>/dev/null || true
+        # =========================================================
+        # Mode 1 (default): Reset the existing submodule to clean state
+        # =========================================================
+        if [ x"${MODE}" == x"reset" ]; then
 
-        # 2. 从 Git 索引(Index)中强制移除 (这一步解决 pathspec error)
-        # 即使它不在索引里，加了 || true 也不会报错
-        git rm --cached -f "${REL_PATH}" 2>/dev/null || true
+            func_1_1_log "   Resetting MODNet submodule to clean state..." "yellow"
 
-        # 3. 物理删除工作目录
-        rm -rf "${REL_PATH}"
+            if [ -d "${REL_PATH}" ]; then
+                (
+                    cd "${REL_PATH}" || exit 1
 
-        # 4. 【关键】清理 .git/modules 缓存
-        # 根据你提供的 tree 信息，这里可能有残留，我们把相关的全删了
-        rm -rf ".git/modules/third-party/sdk/MODNet.git"
-        # 你截图里多出来的那个奇怪目录也删掉，防止干扰
-        rm -rf ".git/modules/MODNet.git"
+                    # Discard all local modifications
+                    git reset --hard HEAD
 
-        func_1_1_log "   Cleanup complete. Re-adding from scratch..." "yellow"
+                    # Remove untracked files and directories
+                    git clean -fd
+                )
 
-        # ==========================================
-        # Phase 2: 全新添加 (Re-Add)
-        # ==========================================
+                func_1_1_log " [6/7] MODNet SDK reset OK." "green"
+            else
+                func_1_1_log "   Submodule directory not found. Try nuclear rebuild." "red"
+                exit 1
+            fi
 
-        # 使用 'git submodule add' 而不是 'update'
-        # 'add' 命令会自动做三件事：
-        # 1. 下载代码
-        # 2. 写入 .gitmodules
-        # 3. 将 submodule 信息写入 Git 索引 (修复你的核心问题)
-        # --force 允许我们在该目录被 git 认为是 ignored 或有残留时强制执行
-
-        if git submodule add --force "${REMOTE_URL}" "${REL_PATH}"; then
-            func_1_1_log "   Submodule added successfully." "green"
-        else
-            func_1_1_log "   'git submodule add' failed. Checking if it's already there..." "red"
-            # 如果 add 失败，可能是因为清理不彻底，或者网络问题，这里做一个兜底尝试
-            git submodule update --init --recursive --force -- "${REL_PATH}"
         fi
 
-        # 最后的确认
-        if [ -f "${REL_PATH}/.git" ]; then
-            func_1_1_log " [6/7] MODNet SDK force synced OK." "yellow"
-        else
-            func_1_1_log " [6/7] Force sync failed!" "red"
-            exit 1
+
+        # =========================================================
+        # Mode 2: Nuclear clean and re-add submodule
+        # (kept for recovery scenarios)
+        # =========================================================
+        if [ x"${MODE}" == x"nuclear" ]; then
+
+            func_1_1_log "   Performing nuclear rebuild of MODNet submodule..." "yellow"
+
+            # -----------------------------------------
+            # Phase 1: Full cleanup
+            # -----------------------------------------
+
+            # Deinitialize the submodule from git registry
+            git submodule deinit -f -- "${REL_PATH}" 2>/dev/null || true
+
+            # Remove submodule entry from index
+            git rm --cached -f "${REL_PATH}" 2>/dev/null || true
+
+            # Remove working directory
+            rm -rf "${REL_PATH}"
+
+            # Clean cached submodule metadata
+            rm -rf ".git/modules/third-party/sdk/MODNet.git"
+            rm -rf ".git/modules/MODNet.git"
+
+            func_1_1_log "   Cleanup complete. Re-adding from scratch..." "yellow"
+
+            # -----------------------------------------
+            # Phase 2: Re-add submodule
+            # -----------------------------------------
+
+            if git submodule add --force "${REMOTE_URL}" "${REL_PATH}"; then
+                func_1_1_log "   Submodule added successfully." "green"
+            else
+                func_1_1_log "   'git submodule add' failed. Trying fallback..." "red"
+                git submodule update --init --recursive --force -- "${REL_PATH}"
+            fi
+
+            # Final verification
+            if [ -f "${REL_PATH}/.git" ]; then
+                func_1_1_log " [6/7] MODNet SDK force synced OK." "yellow"
+            else
+                func_1_1_log " [6/7] Force sync failed!" "red"
+                exit 1
+            fi
+
         fi
     fi
 }
+# func_3_3_rebuild_sdk(){
+#     if [ x"$1" == x"modnet" ]; then
+#         # ********************************************
+#         # --- Step 6: Force Re-install MODNet sdk
+#         cd "${REPO_TOP_DIR}"
+
+#         # 定义变量 (确保完全匹配)
+#         REL_PATH="third-party/sdk/MODNet.git"
+#         REMOTE_URL="https://github.com/ZHKKKe/MODNet.git"
+
+#         # ==========================================
+#         # Phase 1: 彻底清理所有残留 (Nuclear Clean)
+#         # ==========================================
+
+#         # 1. 尝试从 git 注册表中反初始化
+#         git submodule deinit -f -- "${REL_PATH}" 2>/dev/null || true
+
+#         # 2. 从 Git 索引(Index)中强制移除 (这一步解决 pathspec error)
+#         # 即使它不在索引里，加了 || true 也不会报错
+#         git rm --cached -f "${REL_PATH}" 2>/dev/null || true
+
+#         # 3. 物理删除工作目录
+#         rm -rf "${REL_PATH}"
+
+#         # 4. 【关键】清理 .git/modules 缓存
+#         # 根据你提供的 tree 信息，这里可能有残留，我们把相关的全删了
+#         rm -rf ".git/modules/third-party/sdk/MODNet.git"
+#         # 你截图里多出来的那个奇怪目录也删掉，防止干扰
+#         rm -rf ".git/modules/MODNet.git"
+
+#         func_1_1_log "   Cleanup complete. Re-adding from scratch..." "yellow"
+
+#         # ==========================================
+#         # Phase 2: 全新添加 (Re-Add)
+#         # ==========================================
+
+#         # 使用 'git submodule add' 而不是 'update'
+#         # 'add' 命令会自动做三件事：
+#         # 1. 下载代码
+#         # 2. 写入 .gitmodules
+#         # 3. 将 submodule 信息写入 Git 索引 (修复你的核心问题)
+#         # --force 允许我们在该目录被 git 认为是 ignored 或有残留时强制执行
+
+#         if git submodule add --force "${REMOTE_URL}" "${REL_PATH}"; then
+#             func_1_1_log "   Submodule added successfully." "green"
+#         else
+#             func_1_1_log "   'git submodule add' failed. Checking if it's already there..." "red"
+#             # 如果 add 失败，可能是因为清理不彻底，或者网络问题，这里做一个兜底尝试
+#             git submodule update --init --recursive --force -- "${REL_PATH}"
+#         fi
+
+#         # 最后的确认
+#         if [ -f "${REL_PATH}/.git" ]; then
+#             func_1_1_log " [6/7] MODNet SDK force synced OK." "yellow"
+#         else
+#             func_1_1_log " [6/7] Force sync failed!" "red"
+#             exit 1
+#         fi
+#     fi
+# }
 
 # func_3_4_detect_onnxruntime_version() {
 #     func_1_1_log "🔍 Detecting ONNX Runtime version from Python venv..." "blue"
@@ -483,12 +574,12 @@ func_5_1_clean_project(){
         #     func_1_1_log "✅ Python Virtual Environment not exist. Remove Skipped." "green"
         fi
 
-        if [ -d "${LV4_MODNET_SDK_DIR}" ]; then
-            rm -rf "${LV4_MODNET_SDK_DIR}"
-            func_1_1_log "✅ MODNet SDK Has been deleted." "green"
-        # else
-        #     func_1_1_log "✅ MODNet SDK not exist. Remove Skipped." "green"
-        fi
+        # if [ -d "${LV4_MODNET_SDK_DIR}" ]; then
+        #     rm -rf "${LV4_MODNET_SDK_DIR}"
+        #     func_1_1_log "✅ MODNet SDK Has been deleted." "green"
+        # # else
+        # #     func_1_1_log "✅ MODNet SDK not exist. Remove Skipped." "green"
+        # fi
 
         func_1_1_log "✅ 2nd Lv Clean has done." "green"
     }
