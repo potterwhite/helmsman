@@ -11,3 +11,10 @@ opencv-python==4.5.1.48
 protobuf==3.20.1
 # Pin numpy to a version BEFORE np.object was removed
 numpy==1.21.6
+
+
+
+
+# ---------------------
+# Retrain Used
+scipy=1.10.1
