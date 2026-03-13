@@ -35,19 +35,21 @@ func_3_0_setup_modnet_softlinks() {
     # Part 1: Local Script Links (Source: BUILD_SCRIPT_DIR)
     # =========================================================
 
-    #   1ST field                         2nd Field                     3rd field
-    #   file name                         source dir                    destination dir
+    #   1ST field                           2nd Field                     3rd field
+    #   file name                           source dir                    destination dir
     declare -a SCRIPT_LINKS=(
-        "requirements.txt                 ${LV1_ENVS_DIR}              ${LV4_MODNET_SDK_DIR}/onnx/requirements.txt"
-        "inference_onnx.py                ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/inference_onnx.py"
-        "generate_golden_files.py         ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/generate_golden_files.py"
-        # ------ export ------
-        "export/export_onnx.py            ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx.py"
-        "export/modnet_onnx.py            ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/modnet_onnx.py"
-        "export/export_onnx_modified.py   ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx_modified.py"
-        "export/modnet_onnx_modified.py   ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/modnet_onnx_modified.py"
-        # ------ src/models ------
-        "src/models/modnet.py             ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/src/models/modnet.py"
+        "requirements.txt                   ${LV1_ENVS_DIR}              ${LV4_MODNET_SDK_DIR}/onnx/requirements.txt"
+        # ------ modnet/onnx ------
+        "onnx/inference_onnx.py             ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/inference_onnx.py"
+        "onnx/generate_golden_files.py      ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/generate_golden_files.py"
+        "onnx/export_onnx.py                ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx.py"
+        "onnx/modnet_onnx.py                ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/modnet_onnx.py"
+        "onnx/export_onnx_modified.py       ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx_modified.py"
+        "onnx/modnet_onnx_modified.py       ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/modnet_onnx_modified.py"
+        # ------ modnet/src/models ------
+        "src/models/modnet.py               ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/src/models/modnet.py"
+        # ------ modnet ------
+        "train_modnet_mvp.py                ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/train_modnet_mvp.py"
     )
 
     for entry in "${SCRIPT_LINKS[@]}"; do
