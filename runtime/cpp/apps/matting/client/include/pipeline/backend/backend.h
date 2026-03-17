@@ -36,11 +36,15 @@ class MattingBackend {
 	~MattingBackend();
 
 	void setOutputPath(const std::string& path);
+	void setBackgroundPath(const std::string& path);
+	void setForegroundImagePath(const std::string& path);
 
 	cv::Mat postprocess(const TensorData& output);
 
    private:
 	std::string output_path_;
+	std::string background_path_;
+	std::string foreground_image_path_;
 
 	cv::Mat nchwToHwc(const TensorData& tensor);
 };

@@ -48,10 +48,11 @@ Pipeline::~Pipeline() {
 }
 
 void Pipeline::init(const std::string& image_path, const std::string& onnx_path,
-                    const std::string& output_bin_path) {
+                    const std::string& output_bin_path, const std::string& background_path) {
 	this->image_path_ = image_path;
 	this->onnx_path_ = onnx_path;
 	this->output_bin_path_ = output_bin_path;
+	this->background_path_ = background_path;
 }
 
 void Pipeline::verify_parameters_necessary() {
@@ -111,6 +112,8 @@ int Pipeline::run() {
 	// --------
 	// 3rd. Backend: postprocess
 	backend.setOutputPath(output_bin_path_);
+	backend.setBackgroundPath(background_path_);
+	backend.setForegroundImagePath(image_path_);
 	auto result = backend.postprocess(output_tensor);
 
 	return 0;

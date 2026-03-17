@@ -6,3 +6,5 @@ modnet-models
 CMakeUserPresets.json
 
 debug/
+
+__pycache__
