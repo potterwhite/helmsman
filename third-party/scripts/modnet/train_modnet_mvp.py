@@ -85,8 +85,8 @@ class P3MDataset(Dataset):
 # ==========================================
 def main():
     # 强制路径：请根据你的服务器实际情况调整
-    TRAIN_IMAGE_DIR = "/home/developer/image-matting/primary-folder/dataset/P3M-10k/train/blurred_image"
-    TRAIN_MASK_DIR = "/home/developer/image-matting/primary-folder/dataset/P3M-10k/train/mask"
+    TRAIN_IMAGE_DIR = "/development/docker_volumes/src/ai/image-matting/primary-folder/dataset/P3M-10k/train/blurred_image"
+    TRAIN_MASK_DIR = "/development/docker_volumes/src/ai/image-matting/primary-folder/dataset/P3M-10k/train/mask"
 
     BATCH_SIZE = 4  # MVP 阶段先设小一点，防显存炸裂
     EPOCHS = 1      # 我们先只跑 1 个 epoch 验证能跑通
@@ -94,7 +94,8 @@ def main():
 
     print("🚀 [Phase 1.0] 初始化数据管道...")
     dataset = P3MDataset(TRAIN_IMAGE_DIR, TRAIN_MASK_DIR, input_size=512)
-    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, drop_last=True)
+    # dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, drop_last=True)
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0, drop_last=True)
 
     print("🚀 [Phase 1.1] 实例化纯 BN 版 MODNet...")
     # backbone_pretrained=False，因为我们彻底改了结构，需要用数据从头磨合
