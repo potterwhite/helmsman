@@ -50,6 +50,7 @@ func_3_0_setup_modnet_softlinks() {
         "src/models/modnet.py               ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/src/models/modnet.py"
         # ------ modnet ------
         "train_modnet_mvp.py                ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/train_modnet_mvp.py"
+        "train_modnet_block1_2.py           ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/train_modnet_block1_2.py"
     )
 
     for entry in "${SCRIPT_LINKS[@]}"; do
