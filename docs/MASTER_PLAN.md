@@ -25,9 +25,9 @@ Output: 1080P alpha matte at 30 FPS with hair-level edges
 |-------|------|--------|------|-------|
 | 1.0 | DataLoader + Dynamic Trimap | ✅ DONE | 2026-03-19 | P3MDataset class, 9421 samples |
 | 1.1 | IBNorm -> BatchNorm Surgery | ✅ DONE | 2026-03-13 | modnet.py modified, MVP 50-batch passed |
-| **1.2** | **Fine-tune Training** | **🔄 IN PROGRESS** | **2026-03-19** | **15ep, pretrained BB, 512x512** |
-| 1.3 | [Fallback] Knowledge Distillation | ⏳ Standby | - | Only if 1.2 quality is poor |
-| 1.4 | ONNX Export + Verification | ⏳ Pending | - | Fixed 512x512, check Netron |
+| 1.2 | Fine-tune Training | ✅ DONE | 2026-03-19 | 15ep, pretrained BB, 512x512 |
+| 1.3 | [Fallback] Knowledge Distillation | ⏳ Canceled | - | Only if 1.2 quality is poor |
+| 1.4 | ONNX Export + Verification | **⏳ IN PROGRESS** | - | Fixed 512x512, check Netron |
 
 ### Block 1.2 Training Progress
 
