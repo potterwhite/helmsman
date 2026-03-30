@@ -13,6 +13,7 @@ Start here every session. Read in this order before touching any code.
 |---|---|
 | [`1-for-ai/guide.md`](1-for-ai/guide.md) | ⭐ Working rules, commit format, workflow, 10 key architecture facts |
 | [`1-for-ai/codebase_map.md`](1-for-ai/codebase_map.md) | ⭐ Full codebase structure — read this instead of scanning files |
+| [`../zh/1-for-ai/ai_docs_system_template.md`](../zh/1-for-ai/ai_docs_system_template.md) | Docs system spec & template — **zh only** |
 
 ---
 
@@ -32,15 +33,3 @@ Start here every session. Read in this order before touching any code.
 | Document | Purpose |
 |---|---|
 | [`3-highlights/architecture_vision.md`](3-highlights/architecture_vision.md) | Strategic positioning, design philosophy, and key architectural choices |
-| [`3-highlights/archived/`](3-highlights/archived/) | Superseded decisions — kept for context, no longer active |
-
----
-
-## Other Docs (Non-AI-First)
-
-| Document | Purpose |
-|---|---|
-| [`../MASTER_PLAN.md`](../MASTER_PLAN.md) | Original human-written roadmap (4 phases, block status) |
-| [`../blocks/`](../blocks/) | Per-block execution notes (block-1.2-finetune-training.md) |
-| [`../knowledge/INDEX.md`](../knowledge/INDEX.md) | Edge AI self-study knowledge base (KB-001 through KB-009) |
-| [`../ai_docs_system_template.md`](../ai_docs_system_template.md) | Template used to create this documentation system |

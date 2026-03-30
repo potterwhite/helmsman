@@ -13,6 +13,7 @@
 |---|---|
 | [`1-for-ai/guide.md`](1-for-ai/guide.md) | ⭐ 工作规则、commit 格式、工作流、10 条关键架构事实 |
 | [`1-for-ai/codebase_map.md`](1-for-ai/codebase_map.md) | ⭐ 完整代码库结构——用此代替扫描源文件 |
+| [`1-for-ai/ai_docs_system_template.md`](1-for-ai/ai_docs_system_template.md) | 本 docs 系统的建设规范与模板（zh 专有） |
 
 ---
 
