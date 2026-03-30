@@ -2,6 +2,7 @@
 
 > **Purpose**: Explains *why* the project is built the way it is.
 > Strategic positioning, design philosophy, and the reasoning behind key decisions.
+> **中文版 →** [../../zh/3-highlights/architecture_vision.md](../../zh/3-highlights/architecture_vision.md)
 
 ---
 

@@ -1,6 +1,7 @@
 # Helmsman — Progress
 
 > Last updated: 2026-03-30
+> **中文版 →** [../../zh/2-progress/progress.md](../../zh/2-progress/progress.md)
 
 ---
 

@@ -5,6 +5,7 @@
 > **Status**: IN PROGRESS
 > **Date Started**: 2026-03-19
 > **Prerequisites**: Block 1.0 (DataLoader) ✅, Block 1.1 (BN Surgery) ✅
+> **English →** [../../en/2-progress/block-1.2-finetune-training.md](../../en/2-progress/block-1.2-finetune-training.md)
 
 ---
 

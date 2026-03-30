@@ -5,7 +5,7 @@
 </div>
 
 <p align="center">
-  <img src="https://github.com/potterwhite/helmsman/blob/9ea6501361a103451632dfe2b0e86fe4510f0ceb/docs/assets/background-light.png" alt="Project Banner" width="100%"/>
+  <img src="https://github.com/potterwhite/helmsman/blob/9ea6501361a103451632dfe2b0e86fe4510f0ceb/docs/zh/assets/background-light.png" alt="Project Banner" width="100%"/>
 </p>
 
 <p align="center">
@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="../README.md">English</a> | <strong>简体中文</strong>
+  <a href="../../../README.md">English</a> | <strong>简体中文</strong>
 </p>
 
 # helmsman

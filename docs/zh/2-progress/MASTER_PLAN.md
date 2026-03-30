@@ -3,6 +3,7 @@
 > **Project**: helmsman / MODNet Pure-BN Deployment
 > **Target**: RK3588 NPU, 1080P input, < 33ms per frame, hair-level edges
 > **Last Updated**: 2026-03-19 (training in progress)
+> **English →** [../../en/2-progress/MASTER_PLAN.md](../../en/2-progress/MASTER_PLAN.md)
 
 ---
 

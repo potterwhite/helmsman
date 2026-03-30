@@ -8,6 +8,8 @@
 > the relevant section in this document in the same commit/session.
 >
 > Last updated: 2026-03-30 (initial creation from project scan; added full pipeline + script function tables)
+>
+> **中文版 →** [../../zh/1-for-ai/codebase_map.md](../../zh/1-for-ai/codebase_map.md)
 
 ---
 

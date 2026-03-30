@@ -2,6 +2,7 @@
 
 > **Target audience:** AI coding agents (Claude Code, Cursor, etc.)
 > **Read this before touching any code.**
+> **English →** [../../en/1-for-ai/guide.md](../../en/1-for-ai/guide.md)
 
 ---
 
