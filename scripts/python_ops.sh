@@ -60,16 +60,16 @@ func_4_1_ckpt_2_onnx(){
 
     # Step 4: Scan the pretrained model directory for available .ckpt files
     func_1_1_log "🔎 Checking for pre-trained models (.ckpt)..." "blue"
-    mapfile -t ckpt_files < <(find "$LV5_PRETRAINED_DIR" -maxdepth 1 -type l -name "*.ckpt" -o -name "*.ckpt")
+    mapfile -t ckpt_files < <(find "$LV5_CHECKPOINTS_DIR" -maxdepth 1 -type l -name "*.ckpt" -o -name "*.ckpt")
 
     # If no symlink found, try regular files
     if [ ${#ckpt_files[@]} -eq 0 ]; then
-        mapfile -t ckpt_files < <(find "$LV5_PRETRAINED_DIR" -maxdepth 1 -type f -name "*.ckpt")
+        mapfile -t ckpt_files < <(find "$LV5_CHECKPOINTS_DIR" -maxdepth 1 -type f -name "*.ckpt")
     fi
 
     # Exit if no checkpoint files found
     if [ ${#ckpt_files[@]} -eq 0 ]; then
-        func_1_1_log "❌ No .ckpt models found in '$LV5_PRETRAINED_DIR'." "red"
+        func_1_1_log "❌ No .ckpt models found in '$LV5_CHECKPOINTS_DIR'." "red"
         return 1
     fi
 

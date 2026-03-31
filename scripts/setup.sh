@@ -146,7 +146,7 @@ func_3_0_setup_modnet_softlinks() {
     _process_model \
         "modnet_photographic_portrait_matting.ckpt" \
         "$URL_PHOTO_CKPT" \
-        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_photographic_portrait_matting.ckpt"
+        "${LV4_MODNET_SDK_DIR}/checkpoints/modnet_photographic_portrait_matting.ckpt"
 
     _process_model \
         "modnet_photographic_portrait_matting.onnx" \
@@ -156,7 +156,7 @@ func_3_0_setup_modnet_softlinks() {
     _process_model \
         "modnet_webcam_portrait_matting.ckpt" \
         "$URL_WEBCAM" \
-        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_webcam_portrait_matting.ckpt"
+        "${LV4_MODNET_SDK_DIR}/checkpoints/modnet_webcam_portrait_matting.ckpt"
 
     _process_model \
         "modnet_photographic_portrait_matting_in_folded.onnx" \

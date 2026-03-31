@@ -112,6 +112,7 @@ func_2_0_setup_env(){
     LV4_MODNET_SCRIPTS_DIR="${LV1_3RD_PARTY_DIR}/scripts/modnet"
     LV4_MODNET_MODELS_DIR="${LV1_3RD_PARTY_DIR}/models/modnet"
     LV5_PRETRAINED_DIR="${LV4_MODNET_SDK_DIR}/pretrained"
+    LV5_CHECKPOINTS_DIR="${LV4_MODNET_SDK_DIR}/checkpoints"
 
     DEV_REQUIREMENTS_FILE="${LV1_ENVS_DIR}/requirements.txt"
     LV2_GOLDEN_DIR="${LV1_BUILD_DIR}/golden"
