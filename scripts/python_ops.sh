@@ -182,7 +182,7 @@ func_4_5_generate_golden_interactive() {
     done
 
     # Step 5: Scan for available ONNX models
-    mapfile -t onnx_models < <(find "${LV1_MODELS_DOWNLOAD_DIR}" -type f -name "*.onnx")
+    mapfile -t onnx_models < <(find "${LV5_PRETRAINED_DIR}" -type f -o -type l -name "*.onnx")
 
     if [ ${#onnx_models[@]} -eq 0 ]; then
         func_1_2_err "No ONNX model found. Please convert first."
