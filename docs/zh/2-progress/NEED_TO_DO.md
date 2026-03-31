@@ -12,9 +12,10 @@
 
 ---
 
-Mar30.2026 15:00
-
+Mar31.2026
 - [ ] Block 1.4: Export `modnet_bn_best.ckpt` → ONNX using `export_onnx_modified.py`
+    我的包括modnet_bn_best.ckpt在内的所有文件都已存档到：https://huggingface.co/PotterWhite/MODNet/tree/main，请你自行去搜索，我已经做好详尽的目录结构规划，你一看就懂。
+    我目前应该是卡在从ckpt -> onnx；
 - [ ] Block 1.4: Verify in Netron — confirm zero `InstanceNormalization` nodes
 - [ ] Block 1.4: Generate golden files via `./helmsman golden`
 - [ ] Block 1.4: Build C++ native (`./helmsman build cpp cb`) and run inference
