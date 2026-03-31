@@ -7,8 +7,8 @@ yapf
 # helmsman prepare detects GPU via nvidia-smi and uses this file automatically.
 torch==2.0.1+cu118
 torchvision==0.15.2+cu118
-onnx==1.8.1
-onnxruntime==1.6.0
+onnx==1.14.1
+onnxruntime==1.15.1
 # opencv-python: If error occurs, cv-headless will be installed replaced
 opencv-python==4.5.1.48
 # Pin protobuf to a compatible version to avoid API breaking changes in 4.x
