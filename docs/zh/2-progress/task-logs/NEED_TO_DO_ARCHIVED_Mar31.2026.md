@@ -27,3 +27,7 @@ Mar31.2026
     Result: 8 golden bin files generated under build/golden/python/
     Used: green-fall-girl-point-to.png + modnet_photographic_portrait_matting.onnx
     md5: py_08_inference-Output.bin = 530eda0eb8131e76443bafc0cee8e46d
+- [x] hg/MODNet README 重整：合并 photographic/README.md → 顶层 README.md
+    commit: (在 hg/MODNet repo 中操作，非 helmsman.git)
+    Result: /development/rk3588s_volume/hg/MODNet/README.md 重写为 formal 点名册
+    包含：官方预训练模型 / 微调产物 / ONNX 变体 / 生成方法 / 部署指南 / 快速对照表
