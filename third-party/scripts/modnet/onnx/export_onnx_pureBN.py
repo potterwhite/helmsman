@@ -45,20 +45,10 @@ from collections import OrderedDict
 # sys.path surgery — must happen before any torch/onnx imports.
 #
 # Problem: This script lives in (or is symlinked into) MODNet.git/onnx/.
-# When Python runs it, MODNet.git/ ends up on sys.path as '' (CWD).
-# That causes `import onnx` to resolve to the local MODNet.git/onnx/
-# *directory* instead of the pip-installed onnx package.  PyTorch's internal
-# ONNX exporter does `import onnx` too, so it also hits the wrong package and
-# crashes with: AttributeError: module 'onnx' has no attribute 'load_from_string'
-#
-# Fix: strip '' and the absolute CWD from sys.path before importing torch/onnx,
-# then add MODNet.git/ back *after* those imports so src.models.modnet is found.
-# ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# sys.path surgery — must happen before any torch/onnx imports.
-#
-# Problem: This script lives in (or is symlinked into) MODNet.git/onnx/.
-# When Python runs it, '' (CWD = MODNet.git/) is on sys.path.
+# When Python runs it, '' (CWD = MODNet.git/) is on sys.path, AND when
+# invoked via `python -m onnx.export_onnx_pureBN`, Python pre-imports the
+# parent package `onnx` (= local MODNet.git/onnx/ dir) into sys.modules
+# *before* this script body executes.
 # That causes `import onnx` to resolve to the local MODNet.git/onnx/
 # *directory* instead of the pip-installed onnx package.  PyTorch's internal
 # ONNX exporter does a lazy `import onnx` inside torch.onnx.export(), so
@@ -66,12 +56,17 @@ from collections import OrderedDict
 # and crashes with:
 #   AttributeError: module 'onnx' has no attribute 'load_from_string'
 #
-# Fix (3 steps):
-#   1. Strip '' (CWD) from sys.path so local onnx/ won't shadow pip onnx.
-#   2. `import onnx` immediately — caches pip onnx in sys.modules['onnx'].
+# Fix (4 steps):
+#   1. Strip '' (CWD) and MODNet.git/ root from sys.path so local onnx/
+#      dir cannot shadow pip onnx.
+#   2. Evict sys.modules['onnx'] — required when run via `python -m`, because
+#      Python pre-loads the parent package into the cache before this script
+#      runs; without eviction, `import onnx` below returns the cached (wrong)
+#      local package regardless of sys.path.
+#   3. `import onnx` immediately — caches pip onnx in sys.modules['onnx'].
 #      Any later `import onnx` (including inside torch.onnx.export) will hit
 #      the cache and return the correct pip package, regardless of sys.path.
-#   3. Re-add MODNet.git/ so src.models.modnet is importable.
+#   4. Re-add MODNet.git/ so src.models.modnet is importable.
 # ---------------------------------------------------------------------------
 _modnet_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _cwd_abs = os.path.abspath('.')
@@ -80,7 +75,10 @@ for _entry in list(sys.path):
     if _entry in ('', _cwd_abs, _modnet_root):
         sys.path.remove(_entry)
 
-import onnx  # noqa: E402 — must be after '' removal; caches pip onnx in sys.modules
+# Evict any pre-cached local 'onnx' from sys.modules (critical for -m invocation)
+sys.modules.pop('onnx', None)
+
+import onnx  # noqa: E402 — must be after sys.path strip + sys.modules eviction
 
 import torch          # noqa: E402
 import torch.nn as nn # noqa: E402
