@@ -1,6 +1,6 @@
 # Helmsman — Progress
 
-> Last updated: 2026-03-30
+> Last updated: 2026-03-31
 > **English →** [../../en/2-progress/progress.md](../../en/2-progress/progress.md)
 
 ---
@@ -42,7 +42,7 @@
 | **1.1** | IBNorm → BatchNorm Surgery in `modnet.py` | ✅ Done | 2026-03-13 |
 | **1.2** | Fine-tune Training (15 epochs, P3M-10k) | ✅ Done | 2026-03-19 |
 | **1.3** | Knowledge Distillation | ⏳ Canceled | Not needed; Block 1.2 quality sufficient |
-| **1.4** | ONNX Export + Verification | 🔥 In progress | — |
+| **1.4** | ONNX Export + Verification | 🟡 部分完成 | — |
 
 ### Block 1.0 — 数据加载器 + 动态 Trimap ✅ DONE (2026-03-19)
 
@@ -94,22 +94,28 @@ Epochs 5-15: 已完成（训练健康，无过拟合信号）
 
 **决策**：Block 1.3（知识蒸馏）已取消——训练质量已满足直接进入下一步的要求。
 
-### Block 1.4 — ONNX 导出 + 验证 🔥 进行中
+### Block 1.4 — ONNX 导出 + 验证 🟡 部分完成（2026-03-31）
 
 **目标**：将 `modnet_bn_best.ckpt` 导出为 `.onnx`，验证不含 InstanceNorm 节点，并与 C++ golden 文件对比验证。
 
-**步骤**：
-1. 激活虚拟环境：`source .venv/bin/activate`
-2. 切换目录：`cd third-party/sdk/MODNet.git`
-3. 导出：`python3 -m onnx.export_onnx_modified --ckpt-path=checkpoints/modnet_bn_best.ckpt --output-path=checkpoints/modnet_bn_best.onnx`
-4. 用 Netron 验证：确认无 `InstanceNormalization` 节点
-5. 生成 golden 文件：`./helmsman golden`（选择 `modnet_bn_best.onnx` 和测试图片）
-6. 构建 C++ 原生：`./helmsman build cpp cb`
-7. 运行 C++ 推理：`Helmsman_Matting_Client <img> checkpoints/modnet_bn_best.onnx <output_dir>`
-8. 对比：`python3 tools/MODNet/verify_golden_tensor.py`
+**已完成步骤**：
+1. ✅ 创建 `export_onnx_pureBN.py`（`third-party/scripts/modnet/onnx/`，符号链接到 `MODNet.git/onnx/`）
+2. ✅ ONNX 导出成功：`modnet_bn_best.ckpt` → `modnet_bn_best_pureBN.onnx`（25M，opset 11）
+3. ✅ 节点验证通过：0 个 `InstanceNormalization` 节点；BN 节点已 fold 进 Conv（正常）
+
+**修复的 Bug（2026-03-31）**：
+- `func_3_3_rebuild_sdk`：submodule 未初始化时 reset 到错误 HEAD（commit `1a88cbe`）
+- `onnx==1.8.1` 不兼容 PyTorch 2.0.1 → 升级至 `onnx==1.14.1`，`onnxruntime==1.6.0` → `1.15.1`（commit `554ca64`）
+- 本地 `MODNet.git/onnx/` 目录遮蔽 pip `onnx` 包 → 在 `export_onnx_pureBN.py` 中做 sys.path 手术（commit `554ca64`）
+
+**剩余步骤**（需要测试图片放入 `helmsman.git/media/`）：
+4. 🔜 把测试图片（jpg/png）放入 `helmsman.git/media/`
+5. 🔜 生成 golden 文件：`./helmsman golden`（选 `modnet_bn_best_pureBN.onnx` + 测试图片）
+6. 🔜 构建 C++ 原生：`./helmsman build cpp cb`
+7. 🔜 运行 C++ 推理：`Helmsman_Matting_Client <img> checkpoints/modnet_bn_best_pureBN.onnx <output_dir>`
+8. 🔜 对比：`python3 tools/MODNet/verify_golden_tensor.py`
 
 **成功标准**：
-- Netron 中无 `InstanceNormalization` 节点
 - C++ 输出与 Python golden 在浮点误差范围内一致
 - 视觉透明遮罩边缘清晰，发丝细节可见
 
@@ -175,6 +181,6 @@ Epochs 5-15: 已完成（训练健康，无过拟合信号）
 
 | 问题 | 状态 | 备注 |
 |---|---|---|
-| `modnet_bn_best.ckpt` 视觉质量尚未验证 | 🔥 活跃 | 待 Block 1.4 ONNX 导出 + 视觉检查 |
+| `modnet_bn_best.ckpt` 视觉质量尚未验证 | 🔜 待完成 | ONNX 导出 ✅；待 golden 生成 + C++ 对比（需测试图片放入 `media/`） |
 | P3M-10k 数据集路径在训练脚本中硬编码 | ⚠️ 已知 | 手动修改 `train_modnet_block1_2.py` 顶部的路径 |
 | `evboard` 主机名 + 凭证在部署脚本中硬编码 | ⚠️ 已知 | 见 `tools/deploy_and_test.sh` |

@@ -6,7 +6,7 @@
 >
 > **维护规则：** 任何修改本文件中所列文件的 AI Agent，必须在同一 commit/会话中更新本文档的对应章节。
 >
-> 最后更新：2026-03-31（requirements 双文件方案：GPU/CPU 分离）
+> 最后更新：2026-03-31（export_onnx_pureBN.py + onnx 1.14.1 升级）
 >
 > **English →** [../../en/1-for-ai/codebase_map.md](../../en/1-for-ai/codebase_map.md)
 
@@ -67,6 +67,7 @@ helmsman.git/
 │
 ├── envs/
 │   ├── requirements.txt 🔒     ← Python 依赖——CPU 变体（默认；torch 2.0.1 CPU，ONNX 导出 / golden 生成用）
+│   │                              注：onnx==1.14.1（从 1.8.1 升级，torch 2.0.1 需要 ≥1.13）；onnxruntime==1.15.1
 │   └── requirements-gpu.txt    ← Python 依赖——GPU 变体（torch 2.0.1+cu118，RTX 3090 训练用；需 PyTorch WHL 源）
 │
 ├── modnet-models/ (gitignored) ← 下载的模型权重
@@ -152,6 +153,7 @@ third-party/scripts/modnet/onnx/export_onnx.py            → MODNet.git/onnx/
 third-party/scripts/modnet/onnx/modnet_onnx.py            → MODNet.git/onnx/
 third-party/scripts/modnet/onnx/export_onnx_modified.py   → MODNet.git/onnx/
 third-party/scripts/modnet/onnx/modnet_onnx_modified.py   → MODNet.git/onnx/
+third-party/scripts/modnet/onnx/export_onnx_pureBN.py     → MODNet.git/onnx/
 third-party/scripts/modnet/src/models/modnet.py           → MODNet.git/src/models/
 third-party/scripts/modnet/train_modnet_mvp.py            → MODNet.git/
 third-party/scripts/modnet/train_modnet_block1_2.py       → MODNet.git/
@@ -406,6 +408,7 @@ constexpr std::string_view kcurrent_module_name = "main-client";
 | `src/models/modnet.py` ★ | **修改版 MODNet 架构** — `Conv2dIBNormRelu` 仅使用 `nn.BatchNorm2d`（纯 BN），无 `IBNorm`，无 `InstanceNorm2d`。类：`MODNet`, `LRBranch`, `HRBranch`, `FusionBranch` |
 | `onnx/modnet_onnx_modified.py` ★ | 图改写模型：`IBNorm.forward()` 使用 `Var(x) = E[x²] − (E[x])²` 原语（反融合，防止 RKNN 重构 InstanceNorm） |
 | `onnx/export_onnx_modified.py` ★ | 将修改版模型导出为 ONNX（opset 11，动态轴）；处理 `DataParallel` state_dict 剥离；自动检测 CPU/GPU |
+| `onnx/export_onnx_pureBN.py` ★ | **Pure-BN ONNX 导出脚本** — 专为 `modnet_bn_best.ckpt` 设计；内含 sys.path 手术防止本地 `onnx/` 遮蔽 pip 包；opset 11，动态轴 |
 | `onnx/modnet_onnx.py` | 原始 ONNX 模型类（未修改） |
 | `onnx/export_onnx.py` | 将原始模型导出为 ONNX |
 | `onnx/inference_onnx.py` | 对单张图片做 Python ONNX 推理 |
