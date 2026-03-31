@@ -1,11 +1,12 @@
 pyyaml
 requests
 yapf
-# CPU-only torch: for ONNX export, inference validation, golden file generation
-# No GPU required. Install with pip directly (no special index needed for CPU).
-# Upgraded from 1.7.1 (bak) to 2.0.1 for consistency with GPU variant.
-torch==2.0.1
-torchvision==0.15.2
+# GPU variant (CUDA 11.8) — for training on RTX 3090 (sm_86).
+# Upgraded from 1.7.1+cu102 to 2.0.1+cu118 for sm_86 compatibility.
+# torch+cu118 must be installed from PyTorch WHL index, NOT pypi/tsinghua.
+# helmsman prepare detects GPU via nvidia-smi and uses this file automatically.
+torch==2.0.1+cu118
+torchvision==0.15.2+cu118
 onnx==1.8.1
 onnxruntime==1.6.0
 # opencv-python: If error occurs, cv-headless will be installed replaced

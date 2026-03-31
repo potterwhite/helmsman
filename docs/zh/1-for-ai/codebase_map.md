@@ -66,8 +66,8 @@ helmsman.git/
 │       └── train_modnet_block1_2.py   ← ★ 活跃：微调训练脚本
 │
 ├── envs/
-│   ├── requirements.txt 🔒     ← Python 依赖——GPU 变体（torch 2.0.1+cu118，需 PyTorch WHL 源）
-│   └── requirements-cpu.txt    ← Python 依赖——CPU 变体（torch 2.0.1 CPU，ONNX 导出 / golden 文件生成用）
+│   ├── requirements.txt 🔒     ← Python 依赖——CPU 变体（默认；torch 2.0.1 CPU，ONNX 导出 / golden 生成用）
+│   └── requirements-gpu.txt    ← Python 依赖——GPU 变体（torch 2.0.1+cu118，RTX 3090 训练用；需 PyTorch WHL 源）
 │
 ├── modnet-models/ (gitignored) ← 下载的模型权重
 ├── tools/                      ← 部署与基准测试 shell 脚本

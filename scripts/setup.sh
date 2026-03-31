@@ -238,12 +238,11 @@ func_3_2_setup_dep_before_build() {
     "${PIP_BIN}" install --upgrade pip
 
     # Handle Requirements — auto-detect GPU and pick the right file + index
-    # GPU path: requirements.txt (torch+cu118) needs PyTorch WHL index
-    # CPU path: requirements-cpu.txt (torch CPU) uses standard pypi
-    local _cpu_req_file="${LV1_ENVS_DIR}/requirements-cpu.txt"
-    local _gpu_req_file="${DEV_REQUIREMENTS_FILE}"
+    # CPU path (default): requirements.txt (torch CPU) — works on any machine
+    # GPU path: requirements-gpu.txt (torch+cu118) — needs PyTorch WHL index
+    local _cpu_req_file="${LV1_ENVS_DIR}/requirements.txt"
+    local _gpu_req_file="${LV1_ENVS_DIR}/requirements-gpu.txt"
     local _req_file=""
-    local _torch_extra_args=""
     if nvidia-smi &>/dev/null; then
         func_1_1_log "   GPU detected (nvidia-smi OK). Using GPU requirements: $_gpu_req_file" "green"
         _req_file="$_gpu_req_file"
@@ -251,26 +250,22 @@ func_3_2_setup_dep_before_build() {
         "${PIP_BIN}" install torch==2.0.1+cu118 torchvision==0.15.2+cu118 \
             --index-url https://download.pytorch.org/whl/cu118 \
             || func_1_2_err "Failed to install torch+cu118. Check network or PyTorch WHL URL."
-        # Install the rest (excluding torch lines) from tsinghua
-        "${PIP_BIN}" install -r "$_req_file" \
-            --ignore-installed torch torchvision \
-            -i https://pypi.tuna.tsinghua.edu.cn/simple \
-            || func_1_2_err "Failed to install GPU requirements."
     else
         func_1_1_log "   No GPU detected. Using CPU requirements: $_cpu_req_file" "yellow"
-        if [ ! -f "$_cpu_req_file" ]; then
-            func_1_2_err "CPU requirements file not found: $_cpu_req_file"
-        fi
         _req_file="$_cpu_req_file"
         "${PIP_BIN}" install torch==2.0.1 torchvision==0.15.2 \
             --index-url https://download.pytorch.org/whl/cpu \
             || func_1_2_err "Failed to install torch CPU. Check network."
-        # Install the rest (excluding torch lines) from tsinghua
-        "${PIP_BIN}" install -r "$_req_file" \
-            --ignore-installed torch torchvision \
-            -i https://pypi.tuna.tsinghua.edu.cn/simple \
-            || func_1_2_err "Failed to install CPU requirements."
     fi
+    if [ ! -f "$_req_file" ]; then
+        func_1_2_err "Requirements file not found: $_req_file"
+    fi
+    func_1_1_log "   Installing remaining packages from $_req_file..."
+    # torch/torchvision already installed above — skip them here
+    "${PIP_BIN}" install -r "$_req_file" \
+        --ignore-installed torch torchvision \
+        -i https://pypi.tuna.tsinghua.edu.cn/simple \
+        || func_1_2_err "Failed to install requirements from $_req_file."
 
     # Auto-fix OpenCV if needed (From B)
     # This remains critical: even if requirements.txt installed opencv-python,
