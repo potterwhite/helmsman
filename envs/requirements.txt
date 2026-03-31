@@ -11,7 +11,8 @@ onnxruntime==1.15.1
 # opencv-python: If error occurs, cv-headless will be installed replaced
 opencv-python==4.5.1.48
 # Pin protobuf to a compatible version to avoid API breaking changes in 4.x
-protobuf==3.20.1
+# 3.20.2: minimum version required by onnx==1.14.1 (>=3.20.2); stays below 4.x breaking API
+protobuf==3.20.2
 # Pin numpy to a version BEFORE np.object was removed
 numpy==1.21.6
 

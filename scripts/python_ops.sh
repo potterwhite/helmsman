@@ -130,7 +130,7 @@ func_4_2_inference_with_onnx(){
 
     # Step 4: Scan the media directory for input images (jpg, bmp, png)
     func_1_1_log "🔎 Scanning for images..." "blue"
-    mapfile -t images_list < <(find "${LV1_MEDIA_DIR}" -type f \( -name "*.jpg" -o -name "*.bmp" -o -name "*.png" \))
+    mapfile -t images_list < <(find -L "${LV1_MEDIA_DIR}" -type f \( -name "*.jpg" -o -name "*.bmp" -o -name "*.png" \))
 
     if [ ${#images_list[@]} -eq 0 ]; then
          func_1_1_log "❌ No images found in ${LV1_MEDIA_DIR}" "red"; return 1;
@@ -168,7 +168,7 @@ func_4_5_generate_golden_interactive() {
     mkdir -p "${LV2_GOLDEN_DIR}" "${LV2_GOLDEN_DEBUG_DIR}"
 
     # Step 3: Scan media directory for input images
-    mapfile -t images < <(find "${LV1_MEDIA_DIR}" -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.bmp" \))
+    mapfile -t images < <(find -L "${LV1_MEDIA_DIR}" -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.bmp" \))
 
     if [ ${#images[@]} -eq 0 ]; then
         func_1_2_err "No images found under ${LV1_MEDIA_DIR}"
