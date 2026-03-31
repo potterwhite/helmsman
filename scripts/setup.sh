@@ -88,6 +88,8 @@ func_3_0_setup_modnet_softlinks() {
     local URL_PHOTO_ONNX="https://huggingface.co/PotterWhite/MODNet/resolve/main/photographic/modnet_photographic_portrait_matting.onnx"
     local URL_PHOTO_ONNX_IN_FOLDED="https://huggingface.co/PotterWhite/MODNet/resolve/main/photographic/modnet_photographic_portrait_matting_in_folded.onnx"
     local URL_WEBCAM="https://huggingface.co/PotterWhite/MODNet/resolve/main/modnet_webcam_portrait_matting.ckpt"
+    # Pure-BN retrained model (Phase 1 Block 1.2 output, stored under finetune/checkpoints/)
+    local URL_BN_BEST="https://huggingface.co/PotterWhite/MODNet/resolve/main/photographic/finetune/checkpoints/modnet_bn_best.ckpt"
     # ----------------------------------------
 
     # Internal helper to handle the logic: Check -> Wget -> Link
@@ -159,6 +161,11 @@ func_3_0_setup_modnet_softlinks() {
         "modnet_photographic_portrait_matting_in_folded.onnx" \
         "$URL_PHOTO_ONNX_IN_FOLDED" \
         "${LV4_MODNET_SDK_DIR}/pretrained/modnet_photographic_portrait_matting_in_folded.onnx"
+
+    _process_model \
+        "modnet_bn_best.ckpt" \
+        "$URL_BN_BEST" \
+        "${LV4_MODNET_SDK_DIR}/checkpoints/modnet_bn_best.ckpt"
 
     func_1_1_log "✅ Link setup and model verification complete." "green"
 }
