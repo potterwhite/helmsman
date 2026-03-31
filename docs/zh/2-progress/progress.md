@@ -44,15 +44,15 @@
 | **1.3** | Knowledge Distillation | ⏳ Canceled | Not needed; Block 1.2 quality sufficient |
 | **1.4** | ONNX Export + Verification | 🔥 In progress | — |
 
-### Block 1.0 — DataLoader + Dynamic Trimap ✅ DONE (2026-03-19)
+### Block 1.0 — 数据加载器 + 动态 Trimap ✅ DONE (2026-03-19)
 
-`P3MDataset` class in `train_modnet_block1_2.py`:
-- Loads P3M-10k dataset (9,421 training samples)
-- Dynamic trimap generation via morphological dilation/erosion on ground truth mask
-- Color jitter augmentation (brightness/contrast/saturation/hue)
-- Output: `(image_tensor, trimap_tensor, gt_matte_tensor)` per sample
+`train_modnet_block1_2.py` 中的 `P3MDataset` 类：
+- 加载 P3M-10k 数据集（9,421 个训练样本）
+- 通过对真值遮罩做形态学膨胀/腐蚀生成动态 trimap
+- 色彩扰动增强（亮度/对比度/饱和度/色调）
+- 每个样本输出：`(image_tensor, trimap_tensor, gt_matte_tensor)`
 
-**Dataset structure expected**:
+**预期数据集结构**：
 ```
 P3M-10k/
   train/
@@ -63,118 +63,118 @@ P3M-10k/
     mask/*.png
 ```
 
-### Block 1.1 — IBNorm → BatchNorm Surgery ✅ DONE (2026-03-13)
+### Block 1.1 — IBNorm → BatchNorm 手术 ✅ DONE (2026-03-13)
 
-Modified `third-party/scripts/modnet/src/models/modnet.py`:
+修改文件：`third-party/scripts/modnet/src/models/modnet.py`
 
-**Before** — `IBNorm` splits channels: half BatchNorm + half InstanceNorm
-**After** — `Conv2dIBNormRelu` uses only `nn.BatchNorm2d` (Pure-BN). No `InstanceNorm2d` anywhere in the model.
+**修改前** — `IBNorm` 分割通道：一半 BatchNorm + 一半 InstanceNorm
+**修改后** — `Conv2dIBNormRelu` 仅使用 `nn.BatchNorm2d`（纯 BN）。模型中无任何 `InstanceNorm2d`。
 
-Verification: MVP smoke test (50 batches) passed without NaN — architecture healthy.
+验证：MVP 冒烟测试（50 个 batch）通过，无 NaN——架构健康。
 
-### Block 1.2 — Fine-Tune Training ✅ DONE (2026-03-19)
+### Block 1.2 — 微调训练 ✅ DONE (2026-03-19)
 
 ```
 Epochs: 15  |  BS: 8  |  LR: 0.01 → StepLR(step=5, gamma=0.1)
-Optimizer: SGD(momentum=0.9)  |  Input: 512×512
-Backbone: pretrained=True (ImageNet MobileNetV2, frozen)
-Val: P3M-500-P (500 images), every epoch
+优化器: SGD(momentum=0.9)  |  输入: 512×512
+骨干网络: pretrained=True (ImageNet MobileNetV2, 冻结)
+验证集: P3M-500-P (500 张图), 每轮验证一次
 ```
 
-Training results:
+训练结果：
 ```
-Epoch 1:  Train Loss 0.5410  Val L1 0.0264  → new best ✅
-Epoch 2:  Train Loss 0.3054  Val L1 0.0175  → new best ✅
-Epoch 3:  Train Loss 0.2433  Val L1 0.0146  → new best ✅
-Epoch 4:  Train Loss 0.2187  Val L1 0.0132  → new best ✅
-Epochs 5-15: Completed (HEALTHY, no overfitting)
+Epoch 1:  Train Loss 0.5410  Val L1 0.0264  → 新最优 ✅
+Epoch 2:  Train Loss 0.3054  Val L1 0.0175  → 新最优 ✅
+Epoch 3:  Train Loss 0.2433  Val L1 0.0146  → 新最优 ✅
+Epoch 4:  Train Loss 0.2187  Val L1 0.0132  → 新最优 ✅
+Epochs 5-15: 已完成（训练健康，无过拟合信号）
 ```
 
-Output: `third-party/sdk/MODNet.git/checkpoints/modnet_bn_best.ckpt`
+输出：`third-party/sdk/MODNet.git/checkpoints/modnet_bn_best.ckpt`
 
-**Decision**: Block 1.3 (Knowledge Distillation) CANCELED — training quality sufficient to proceed directly.
+**决策**：Block 1.3（知识蒸馏）已取消——训练质量已满足直接进入下一步的要求。
 
-### Block 1.4 — ONNX Export + Verification 🔥 IN PROGRESS
+### Block 1.4 — ONNX 导出 + 验证 🔥 进行中
 
-**Goal**: Export `modnet_bn_best.ckpt` → `.onnx`, verify no InstanceNorm nodes, validate against C++ golden files.
+**目标**：将 `modnet_bn_best.ckpt` 导出为 `.onnx`，验证不含 InstanceNorm 节点，并与 C++ golden 文件对比验证。
 
-**Steps**:
-1. Activate venv: `source .venv/bin/activate`
-2. Navigate: `cd third-party/sdk/MODNet.git`
-3. Export: `python3 -m onnx.export_onnx_modified --ckpt-path=checkpoints/modnet_bn_best.ckpt --output-path=checkpoints/modnet_bn_best.onnx`
-4. Verify in Netron: confirm no `InstanceNormalization` nodes
-5. Generate golden files: `./helmsman golden` (select `modnet_bn_best.onnx` + test image)
-6. Build C++ native: `./helmsman build cpp cb`
-7. Run C++ inference: `Helmsman_Matting_Client <img> checkpoints/modnet_bn_best.onnx <output_dir>`
-8. Compare: `python3 tools/MODNet/verify_golden_tensor.py`
+**步骤**：
+1. 激活虚拟环境：`source .venv/bin/activate`
+2. 切换目录：`cd third-party/sdk/MODNet.git`
+3. 导出：`python3 -m onnx.export_onnx_modified --ckpt-path=checkpoints/modnet_bn_best.ckpt --output-path=checkpoints/modnet_bn_best.onnx`
+4. 用 Netron 验证：确认无 `InstanceNormalization` 节点
+5. 生成 golden 文件：`./helmsman golden`（选择 `modnet_bn_best.onnx` 和测试图片）
+6. 构建 C++ 原生：`./helmsman build cpp cb`
+7. 运行 C++ 推理：`Helmsman_Matting_Client <img> checkpoints/modnet_bn_best.onnx <output_dir>`
+8. 对比：`python3 tools/MODNet/verify_golden_tensor.py`
 
-**Success criteria**:
-- No `InstanceNormalization` in Netron
-- C++ output matches Python golden within float tolerance
-- Visual alpha matte shows clean edges with hair detail
+**成功标准**：
+- Netron 中无 `InstanceNormalization` 节点
+- C++ 输出与 Python golden 在浮点误差范围内一致
+- 视觉透明遮罩边缘清晰，发丝细节可见
 
 ---
 
-## Phase 2 — INT8 Quantization (Pending)
+## Phase 2 — INT8 量化（待处理）
 
-| Block | Description | Status |
+| Block | 描述 | 状态 |
 |---|---|---|
-| **2.1** | Calibration Dataset (200 images from P3M-10k) | ⏳ Pending Block 1.4 |
-| **2.2** | RKNN Toolkit 2 conversion (`modnet_bn_best.onnx → .rknn`) | ⏳ Pending 2.1 |
-| **2.3** | Board Profiling (latency on RK3588) | ⏳ Pending 2.2 |
-| **2.4** | Mixed Precision Fallback (if INT8 quality degrades) | ⏳ Standby |
+| **2.1** | 校准数据集（从 P3M-10k 取 200 张图） | ⏳ 待 Block 1.4 |
+| **2.2** | RKNN Toolkit 2 转换（`modnet_bn_best.onnx → .rknn`） | ⏳ 待 2.1 |
+| **2.3** | 板端性能分析（RK3588 延迟） | ⏳ 待 2.2 |
+| **2.4** | 混合精度回退（若 INT8 质量下降） | ⏳ 备用 |
 
-**Target**: < 25ms @ 256×256 (scales to ~33ms @ 1080P with preprocessing).
+**目标**：< 25ms @ 256×256（含预处理，1080P 下约 ~33ms）。
 
 ---
 
-## Phase 3 — AI+CV Hybrid Pipeline (Pending)
+## Phase 3 — AI+CV 混合流水线（待处理）
 
-| Block | Description | Status |
+| Block | 描述 | 状态 |
 |---|---|---|
-| **3.1** | Guided Filter Integration (hair detail recovery) | ⏳ Pending Phase 2 |
-| **3.2** | Heterogeneous Pipeline (CPU/RGA + NPU + Mali GPU) | ⏳ Pending 3.1 |
+| **3.1** | Guided Filter 集成（发丝细节恢复） | ⏳ 待 Phase 2 |
+| **3.2** | 异构流水线（CPU/RGA + NPU + Mali GPU） | ⏳ 待 3.1 |
 
-**Rationale**: Train at 512×512 but deploy at 256×256. Guided Filter uses the original 1080P image to recover hair details that low-resolution NPU inference loses.
+**设计依据**：以 512×512 训练但以 256×256 部署。Guided Filter 使用原始 1080P 图像恢复低分辨率 NPU 推理丢失的发丝细节。
 
 ---
 
-## Phase 4 — Video Temporal Stability (Pending)
+## Phase 4 — 视频时序稳定（待处理）
 
-| Block | Description | Status |
+| Block | 描述 | 状态 |
 |---|---|---|
-| **4.1** | EMA Temporal Smoothing (`alpha = 0.3·model + 0.7·previous`) | ⏳ Pending Phase 3 |
+| **4.1** | EMA 时序平滑（`alpha = 0.3·当前帧 + 0.7·前一帧`） | ⏳ 待 Phase 3 |
 
 ---
 
-## Performance Benchmarks (Historical)
+## 性能基准（历史数据）
 
-| Date | Model | Resolution | Latency | Hardware | Notes |
+| 日期 | 模型 | 分辨率 | 延迟 | 硬件 | 备注 |
 |---|---|---|---|---|---|
-| 2026-03-04 | ONNX w/ InstanceNorm | 512×512 | 287.66ms | x86 native | v0.6.0 baseline |
-| 2026-03-12 | RKNN INT8 anti-fusion | 576×1024 | ~430ms | RK3588 NPU | v0.8.0; ~40% better than w/ InstanceNorm |
+| 2026-03-04 | ONNX（含 InstanceNorm） | 512×512 | 287.66ms | x86 原生 | v0.6.0 基准 |
+| 2026-03-12 | RKNN INT8 反融合 | 576×1024 | ~430ms | RK3588 NPU | v0.8.0；比含 InstanceNorm 版本快 ~40% |
 
 ---
 
-## Architecture Decisions Log
+## 架构决策日志
 
-| Date | Decision | Rationale |
+| 日期 | 决策 | 理由 |
 |---|---|---|
-| 2026-03-04 | Zero-Copy RKNN inference | Eliminates CPU→NPU memory copy overhead |
-| 2026-03-04 | Manual INT8 quantization in C++ | Bypasses NPU normalization overhead; controls data range |
-| 2026-03-07 | Letterbox + padding metadata propagation | Fixes output size mismatch when input aspect ≠ model aspect |
-| 2026-03-07 | Dynamic model input size reading | No more hard-coded 512; supports any model input dimension |
-| 2026-03-12 | Anti-fusion via `Var(x) = E[x²] − (E[x])²` | Prevents RKNN compiler from reconstructing InstanceNorm → CPU fallback |
-| 2026-03-13 | IBNorm → BatchNorm in training architecture | Train a native Pure-BN model (not just graph-rewrite a pretrained one) |
-| 2026-03-19 | 512×512 training, 256×256 deployment | Hair detail survives training; Phase 3 GF recovers at deployment |
-| 2026-03-19 | backbone_pretrained=True | 5–10× faster convergence; MobileNetV2 backbone unchanged |
+| 2026-03-04 | RKNN 零拷贝推理 | 消除 CPU→NPU 内存拷贝开销 |
+| 2026-03-04 | C++ 中手动 INT8 量化 | 绕过 NPU 归一化开销；掌控数据范围 |
+| 2026-03-07 | Letterbox + 填充元数据传递 | 修复输入宽高比≠模型输入比时的输出尺寸不匹配 |
+| 2026-03-07 | 动态读取模型输入尺寸 | 不再硬编码 512；支持任意模型输入维度 |
+| 2026-03-12 | 反融合：`Var(x) = E[x²] − (E[x])²` | 防止 RKNN 编译器重构 InstanceNorm → CPU 回退 |
+| 2026-03-13 | 训练架构中 IBNorm → BatchNorm | 训练原生纯 BN 模型（而非仅对预训练模型做图改写） |
+| 2026-03-19 | 512×512 训练，256×256 部署 | 发丝细节在训练中得以保留；Phase 3 GF 在部署时恢复 |
+| 2026-03-19 | backbone_pretrained=True | 收敛速度快 5–10 倍；MobileNetV2 骨干不做修改 |
 
 ---
 
-## Known Issues / Blockers
+## 已知问题 / 阻塞项
 
-| Issue | Status | Notes |
+| 问题 | 状态 | 备注 |
 |---|---|---|
-| `modnet_bn_best.ckpt` visual quality not yet verified | 🔥 Active | Pending Block 1.4 ONNX export + visual check |
-| P3M-10k dataset path hardcoded in training script | ⚠️ Known | Edit paths manually at top of `train_modnet_block1_2.py` |
-| `evboard` hostname + credentials hardcoded in deploy scripts | ⚠️ Known | See `tools/deploy_and_test.sh` |
+| `modnet_bn_best.ckpt` 视觉质量尚未验证 | 🔥 活跃 | 待 Block 1.4 ONNX 导出 + 视觉检查 |
+| P3M-10k 数据集路径在训练脚本中硬编码 | ⚠️ 已知 | 手动修改 `train_modnet_block1_2.py` 顶部的路径 |
+| `evboard` 主机名 + 凭证在部署脚本中硬编码 | ⚠️ 已知 | 见 `tools/deploy_and_test.sh` |

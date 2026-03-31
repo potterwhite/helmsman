@@ -1,6 +1,6 @@
 # Helmsman — Documentation Index
 
-> Last updated: 2026-03-30 · Status: Phase 1 Block 1.4 In Progress (ONNX export of Pure-BN retrained model)
+> Last updated: 2026-03-31 · Status: Phase 1 Block 1.4 In Progress (ONNX export of Pure-BN retrained model)
 > **中文版 →** [docs/zh/00_INDEX.md](../zh/00_INDEX.md)
 
 ---
@@ -22,8 +22,6 @@ Start here every session. Read in this order before touching any code.
 | Document | Purpose |
 |---|---|
 | [`2-progress/progress.md`](2-progress/progress.md) | All Phase/Block details, current status, performance benchmarks, architecture decision log |
-| [`2-progress/MASTER_PLAN.md`](2-progress/MASTER_PLAN.md) | Human-written roadmap (4 phases, block status) |
-| [`2-progress/block-1.2-finetune-training.md`](2-progress/block-1.2-finetune-training.md) | Block 1.2 fine-tune training execution notes |
 | [`../zh/2-progress/NEED_TO_DO.md`](../zh/2-progress/NEED_TO_DO.md) | Active task backlog — **zh only** (checkbox format, newest at top) |
 
 ---

@@ -1,40 +1,40 @@
-# Helmsman — AI Agent Guide
+# Helmsman — AI Agent 工作指南
 
-> **Target audience:** AI coding agents (Claude Code, Cursor, etc.)
-> **Read this before touching any code.**
+> **目标读者**：AI 编码 Agent（Claude Code、Cursor 等）
+> **碰任何代码之前请先读本文档。**
 > **English →** [../../en/1-for-ai/guide.md](../../en/1-for-ai/guide.md)
 
 ---
 
-## 1. Reading Order (every session)
+## 1. 每次会话的阅读顺序
 
-1. **This file** — understand how to work in this repo
-2. **[`codebase_map.md`](codebase_map.md)** — full codebase structure (replaces scanning)
-3. **[`../2-progress/progress.md`](../2-progress/progress.md)** — current phase + active tasks
-4. **Relevant reference doc** — only if your task requires it (api_spec, domain rules, etc.)
-
----
-
-## 2. Non-Negotiable Rules
-
-### Code
-- All source code and comments must be in **English**
-- Communicate with the human in **Chinese (中文)**
-- Do **not** end the session — always prompt the user for next steps
-
-### Commits
-- **One commit per STEP** — do not accumulate changes and commit at the end
-- Follow the commit message format below exactly
-- Never commit broken code or failing tests
-
-### Documentation
-- After modifying any file listed in `codebase_map.md`, update that file in the same commit
-- When a Phase block is completed, update the status in `../2-progress/progress.md`
-- When starting new work, add a date group entry to `../2-progress/NEED_TO_DO.md`
+1. **本文档** — 了解如何在本仓库工作
+2. **[`codebase_map.md`](codebase_map.md)** — 完整代码库结构（代替文件扫描）
+3. **[`../2-progress/progress.md`](../2-progress/progress.md)** — 当前阶段与活跃任务
+4. **相关参考文档** — 仅在任务需要时读取（API 规范、领域规则等）
 
 ---
 
-## 3. Commit Message Format
+## 2. 不可违反的规则
+
+### 代码
+- 所有源代码和注释必须使用**英文**
+- 与人类沟通时使用**中文**
+- **不得**擅自结束会话——始终等待用户的下一步指令
+
+### Commit
+- **每个步骤一个 commit** — 不要堆积多个改动后一次性提交
+- 严格遵循下方 commit 消息格式
+- 永远不要提交损坏的代码或失败的测试
+
+### 文档
+- 修改任何在 `codebase_map.md` 中列出的文件后，必须在同一个 commit 中更新该文档
+- 某个阶段 Block 完成后，在同一 commit 中更新 `../2-progress/progress.md` 中的状态
+- 开始新工作时，在 `../2-progress/NEED_TO_DO.md` 中添加日期组条目
+
+---
+
+## 3. Commit 消息格式
 
 ```
 <type>: <subject>
@@ -44,109 +44,138 @@
 <footer>
 ```
 
-**Type** (required): `feat` · `fix` · `docs` · `refactor` · `perf` · `test` · `build` · `chore`
+**类型**（必填）：`feat` · `fix` · `docs` · `refactor` · `perf` · `test` · `build` · `chore`
 
-**Subject** (required): English, ≤70 chars, present tense
+**主题**（必填）：英文，≤70 字符，现在时
 - ✅ `feat(rknn): implement zero-copy inference and INT8 quantization pipeline`
 - ✅ `fix: handle non-GPU environments in requirements.txt`
 - ❌ `Fixed bugs and updated stuff`
 
-**Body** (recommended): bullet points explaining what and why
+**正文**（推荐）：条目式说明做了什么、为什么这样做
 
-**Footer** (recommended): `Phase X BlockY.Z complete.`
+**尾部**（推荐）：`Phase X BlockY.Z complete.`
 
-> **Important**: The project uses **release-please** automation. Commits merged to `main` with
-> `feat:` prefix bump minor version; `fix:` bumps patch; `feat!:` (breaking) bumps major.
-
----
-
-## 4. How to Handle Human Requests
-
-### "Build a new feature"
-1. Ask clarifying questions (goal, affected files, breaking changes)
-2. Write a plan in `docs/` — **no code yet**
-3. Wait for approval
-4. Implement step by step, one commit per step
-
-### "There's a bug"
-1. Reproduce and understand the root cause
-2. Fix it
-3. Commit with `fix:` prefix
-
-### "Refactor / optimize something"
-1. Write a refactor plan in `docs/architecture/`
-2. Wait for approval
-3. Execute step by step
+> **重要**：本项目使用 **release-please** 自动发版。合并到 `main` 的 commit 中，`feat:` 前缀触发 minor 版本升级；`fix:` 触发 patch；`feat!:`（破坏性变更）触发 major。
 
 ---
 
-## 5. Common Pitfalls
+## 4. 如何处理用户请求
 
-| ❌ Wrong | ✅ Right |
+### "构建新功能"
+1. 提出澄清问题（目标、涉及文件、是否有破坏性变更）
+2. 在 `docs/` 中写计划——**此时不写代码**
+3. 等待用户批准
+4. 分步实施，每步一个 commit
+
+### "有 bug"
+1. 复现并理解根本原因
+2. 修复
+3. 用 `fix:` 前缀 commit
+
+### "重构 / 优化"
+1. 在 `docs/architecture/` 中写重构方案
+2. 等待用户批准
+3. 分步执行
+
+---
+
+## 5. 常见陷阱
+
+| ❌ 错误做法 | ✅ 正确做法 |
 |---|---|
-| Edit 10 files then do one big commit | Commit after each logical step |
-| Start coding without reading codebase_map | Read codebase_map first |
-| Edit code, forget to update codebase_map | Always sync codebase_map in same commit |
-| Vague commit message "fix bugs" | Specific message naming the root cause |
-| Invent new architectural patterns | Follow existing patterns in codebase_map |
-| Edit files in `third-party/sdk/MODNet.git/` directly | Edit in `third-party/scripts/modnet/` (they get symlinked in) |
-| Hardcode Python version or pip URLs | `func_2_0_setup_env()` in `common.sh` is the single source of truth |
-| Normalize input to [-1,1] in C++ frontend | Range is 0–255 float32; RKNN quantization handles normalization internally |
-| Use old ONNX Runtime API `GetInputName()` | Use `GetInputNameAllocated()` (updated since v0.5.0) |
-| Run `./helmsman build cpp build rk3588s` without `.env` | Create `runtime/cpp/.env` from `.env.example` first |
+| 修改 10 个文件后做一次大 commit | 每完成一个逻辑步骤就 commit |
+| 没读 codebase_map 就开始写代码 | 先读 codebase_map |
+| 改完代码，忘记更新 codebase_map | 始终在同一 commit 里同步 codebase_map |
+| 模糊的 commit 消息"fix bugs" | 具体消息，说明根本原因 |
+| 发明新的架构模式 | 遵循 codebase_map 中已有的模式 |
+| 直接修改 `third-party/sdk/MODNet.git/` 中的文件 | 在 `third-party/scripts/modnet/` 中修改（会被符号链接注入） |
+| 硬编码 Python 版本或 pip URL | `common.sh` 中的 `func_2_0_setup_env()` 是唯一真实来源 |
+| 在 C++ 前端将输入归一化到 [-1,1] | 数据范围是 0–255 float32；RKNN 量化通过校准数据内部处理归一化 |
+| 使用旧版 ONNX Runtime API `GetInputName()` | 使用 `GetInputNameAllocated()`（v0.5.0 之后已更新） |
+| 没有 `.env` 就运行 `./helmsman build cpp build rk3588s` | 先从 `.env.example` 创建 `runtime/cpp/.env` |
 
 ---
 
-## 6. Key Architecture Facts
+## 6. 关键架构事实
 
-- **CLI entry point is `helmsman`** (root Bash script). All sub-scripts in `scripts/` are *sourced*, never executed directly. Never run `scripts/*.sh` standalone.
-- **Python target is 3.8.10** — hard-coded in `common.sh` (`PYTHON_Target_VERSION`). All pip pins in `envs/requirements.txt` are calibrated for this version.
-- **C++ backend is compile-time selected** — `ENABLE_RKNN_BACKEND` define in CMake. Native (x86) = ONNX Runtime. `rk3588s`/`rv1126bp` presets = RKNN. Never add runtime branching for this.
-- **`TensorData` is the pipeline contract** — Frontend populates `orig_width/height` and `pad_top/bottom/left/right`. Backend MUST consume these to crop letterbox and restore original size. Never create `TensorData` without all fields.
-- **Input data range is 0–255 float32 in HWC** — Frontend does NOT normalize to [-1,1]. The RKNN quantization pipeline handles this via calibration data.
-- **Version number lives in `CHANGELOG.md`** — `arc_extract_version_from_changelog()` in CMake reads it. Never edit version numbers directly in `CMakeLists.txt`.
-- **Two working branches**: `main` (releases only, do not work here directly) and `retrain/modnet` (all current work).
-- **MODNet submodule is ephemeral** — `./helmsman cleanall` resets it. All permanent changes belong in `third-party/scripts/modnet/`; symlinks are re-created by `./helmsman prepare`.
-- **Anti-fusion is critical for RKNN** — Do not introduce `InstanceNormalization` anywhere in the model. The RKNN compiler will detect and reconstruct it, causing CPU fallback and ~40% latency regression.
-- **`runtime/cpp/.env` is gitignored and required** — `cpp_build.sh` exits immediately if it doesn't exist. Must be created manually from `.env.example`.
+- **CLI 入口是 `helmsman`**（根目录 Bash 脚本）。`scripts/` 下的所有子脚本均通过 source 引入，从不单独执行。永远不要单独运行 `scripts/*.sh`。
+- **Python 目标版本是 3.8.10** — 硬编码在 `common.sh`（`PYTHON_Target_VERSION`）中。`envs/requirements.txt` 中的所有 pip 版本号均针对此版本校准。
+- **C++ 后端在编译期选定** — CMake 中的 `ENABLE_RKNN_BACKEND` 定义。native（x86）= ONNX Runtime。`rk3588s`/`rv1126bp` 预设 = RKNN。永远不要为此添加运行时分支逻辑。
+- **`TensorData` 是流水线契约** — 前端填充 `orig_width/height` 和 `pad_top/bottom/left/right`。后端必须使用这些字段裁剪 letterbox 并恢复原始尺寸。创建 `TensorData` 时不得遗漏任何字段。
+- **输入数据范围是 0–255 float32 HWC 格式** — 前端不做归一化到 [-1,1]。RKNN 量化流水线通过校准数据处理归一化。
+- **版本号在 `CHANGELOG.md` 中** — CMake 通过 `arc_extract_version_from_changelog()` 读取。永远不要直接在 `CMakeLists.txt` 中修改版本号。
+- **两个工作分支**：`main`（仅用于发版，不要直接在这里工作）和 `retrain/modnet`（当前所有工作在此）。
+- **MODNet 子模块是临时性的** — `./helmsman cleanall` 会重置它。所有永久改动归属于 `third-party/scripts/modnet/`；符号链接由 `./helmsman prepare` 重新创建。
+- **反融合对 RKNN 至关重要** — 不要在模型任何地方引入 `InstanceNormalization`。RKNN 编译器会检测并重构它，导致 CPU 回退和约 40% 的延迟回归。
+- **`runtime/cpp/.env` 在 gitignore 中且为必需** — `cpp_build.sh` 若它不存在会立即退出。必须手动从 `.env.example` 创建。
 
 ---
 
-## 7. Development Commands
+## 7. 开发命令
 
 ```bash
-# Python environment setup & model operations
-./helmsman prepare              # Full setup: pyenv + Python 3.8 + venv + deps + MODNet submodule
-./helmsman convert              # .ckpt → .onnx (interactive: original or modified variant)
-./helmsman inference            # Run Python ONNX inference on an image (interactive)
-./helmsman golden               # Generate golden reference binary files (for C++ validation)
-./helmsman clean                # Clean build artifacts and build/
-./helmsman cleanall             # Nuclear clean: + .venv, models, MODNet submodule reset
+# Python 环境配置与模型操作
+./helmsman prepare              # 完整配置：pyenv + Python 3.8 + venv + 依赖 + MODNet 子模块
+./helmsman convert              # .ckpt → .onnx（交互式：选原始或修改版变体）
+./helmsman inference            # 对图片运行 Python ONNX 推理（交互式）
+./helmsman golden               # 生成 golden 参考二进制文件（用于 C++ 验证）
+./helmsman clean                # 清理构建产物和 build/
+./helmsman cleanall             # 彻底清理：+ .venv、模型、MODNet 子模块重置
 
-# C++ build commands
-./helmsman build cpp build              # Incremental build (native, release, shared)
-./helmsman build cpp cb                 # Clean + Build + Install (native)
-./helmsman build cpp build rk3588s      # Cross-compile for RK3588 (release)
-./helmsman build cpp cb rv1126bp debug  # Fresh build for RV1126BP, debug mode
-./helmsman build cpp list               # List all available CMake presets
-./helmsman build cpp clean rk3588s      # Clean RK3588 build only
-./helmsman build cpp test               # Build & run tests (native)
+# C++ 构建命令
+./helmsman build cpp build              # 增量构建（native, release, shared）
+./helmsman build cpp cb                 # 清理 + 构建 + 安装（native）
+./helmsman build cpp build rk3588s      # 交叉编译（RK3588, release）
+./helmsman build cpp cb rv1126bp debug  # 全新构建（RV1126BP, debug）
+./helmsman build cpp list               # 列出所有可用 CMake 预设
+./helmsman build cpp clean rk3588s      # 仅清理 RK3588 构建
+./helmsman build cpp test               # 构建并运行测试（native）
 
-# Direct CMake (bypass helmsman)
+# 直接使用 CMake（绕过 helmsman）
 cd runtime/cpp
 cmake --preset rk3588s-release
 cmake --build build/rk3588s-release -j$(nproc)
 cmake --install build/rk3588s-release
 
-# Deploy to board
-./tools/deploy_and_test.sh              # build rk3588s → rsync → remote infer
-./tools/deploy_and_benchmark.sh         # extended benchmark on board
+# 部署到开发板
+./tools/deploy_and_test.sh              # 构建 rk3588s → rsync → 远程推理
+./tools/deploy_and_benchmark.sh         # 在板端运行扩展基准测试
 
-# Validate C++ against Python golden files
+# 验证 C++ 与 Python golden 文件对比
 python3 tools/MODNet/verify_golden_tensor.py
 python3 tools/MODNet/reconstruct_from_bin.py
 
-# C++ binary usage (after install)
+# C++ 二进制用法（安装后）
 # runtime/cpp/install/<platform>/release/bin/Helmsman_Matting_Client
 Helmsman_Matting_Client <image_path> <model_path> <output_dir> [background_path]
 ```
+
+---
+
+## 8. PKB（个人知识库）路径 — AI Agent RAG 参考
+
+> 这些路径是用户的 Obsidian 知识库。AI Agent 可以读取这些文件获取更丰富的项目上下文。
+
+| 目录 | 用途 |
+|---|---|
+| `/home/james/syncthing/ObsidianVault/PARA-Vault/1_PROJECT/2025.18_Project_Helmsman/` | ⭐ **Helmsman 项目专属 PKB**（最重要）|
+| `/home/james/syncthing/ObsidianVault/PARA-Vault/3_RESOURCE/03_Tech_Stacks_and_Domains/03.2_Artificial_Intelligence/` | AI 技术通用知识库（RAG 参考） |
+| `/home/james/syncthing/ObsidianVault/PARA-Vault/2_AREA/03-Area-Career/Project_ArcFoundry/` | ArcFoundry 项目笔记（相关项目）|
+
+**Helmsman PKB 关键文件**：
+```
+1_PROJECT/2025.18_Project_Helmsman/
+├── 2025.18_Project_Helmsman.md          ← 项目主文件
+└── development/
+    └── stage-2/
+        └── 任务2.4-performance-optimization/
+            └── 重新训练-BN代替IN/
+                ├── roadmap.md            ← ⭐ 项目路线图（4 个阶段）
+                └── Phrase-1_Retrain/
+                    ├── 1.4.md            ← ⭐ Block 1.4 执行计划（当前活跃！）
+                    ├── Block 1.0_数据集与环境对齐.md
+                    ├── ✅Block 1.1 网络结构外科手术.md
+                    └── Block 1.2  粗调训练 (Fine-tuning).md
+```
+
+**规则**：不得在允许路径之外读取 PKB 的父目录。

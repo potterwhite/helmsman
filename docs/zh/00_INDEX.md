@@ -1,6 +1,6 @@
 # Helmsman — 文档索引
 
-> 最后更新：2026-03-30 · 状态：Phase 1 Block 1.4 进行中（Pure-BN 重训模型 ONNX 导出）
+> 最后更新：2026-03-31 · 状态：Phase 1 Block 1.4 进行中（Pure-BN 重训模型 ONNX 导出）
 > **English →** [../en/00_INDEX.md](../en/00_INDEX.md)
 
 ---
@@ -23,8 +23,6 @@
 |---|---|
 | [`2-progress/progress.md`](2-progress/progress.md) | 所有 Phase/Block 详情、当前状态、性能基准、架构决策日志 |
 | [`2-progress/NEED_TO_DO.md`](2-progress/NEED_TO_DO.md) | 活跃任务待办列表（checkbox 格式，最新在顶部） |
-| [`2-progress/MASTER_PLAN.md`](2-progress/MASTER_PLAN.md) | 项目路线图（4 个阶段，block 状态） |
-| [`2-progress/block-1.2-finetune-training.md`](2-progress/block-1.2-finetune-training.md) | Block 1.2 微调训练执行笔记 |
 
 ---
 
