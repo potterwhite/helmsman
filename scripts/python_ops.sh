@@ -34,8 +34,9 @@ func_4_1_ckpt_2_onnx(){
     #         This determines the ONNX export logic (original or modified)
     func_1_1_log "Select MODNet variant:" "blue"
     echo "1) Original (modnet_onnx.py)"
-    echo "2) Modified (modnet_onnx_modified.py)"
-    read -p "   Select [1-2]: " variant_choice
+    echo "2) Modified (modnet_onnx_modified.py) — anti-fusion, for pretrained IBNorm ckpt"
+    echo "3) Pure-BN  (export_onnx_pureBN.py)  — for retrained BatchNorm-only ckpt"
+    read -p "   Select [1-3]: " variant_choice
 
     # Step 3: Based on user selection, determine the export script filename
     #         and set a suffix for the output ONNX filename
@@ -43,9 +44,14 @@ func_4_1_ckpt_2_onnx(){
     local export_module="onnx.export_onnx"
     case $variant_choice in
         2)
-            func_1_1_log "   Using: Modified variant" "yellow"
+            func_1_1_log "   Using: Modified variant (anti-fusion IBNorm)" "yellow"
             onnx_suffix="_modified"
             export_module="onnx.export_onnx_modified"
+            ;;
+        3)
+            func_1_1_log "   Using: Pure-BN variant (retrained BatchNorm-only)" "yellow"
+            onnx_suffix="_pureBN"
+            export_module="onnx.export_onnx_pureBN"
             ;;
         *)
             func_1_1_log "   Using: Original variant" "yellow"
@@ -92,7 +98,9 @@ func_4_1_ckpt_2_onnx(){
     #         Use the export module determined by user choice (original or modified)
     func_1_1_log "🚀 Starting conversion..." "blue"
     cd "$LV4_MODNET_SDK_DIR"
-    "$PYTHON_BIN" -m ${export_module} --ckpt-path="$ckpt_path" --output-path="$onnx_path"
+    # PYTHONPATH=$LV4_MODNET_SDK_DIR ensures local onnx/ package takes priority
+    # over the installed onnx pip package (both named 'onnx', local one wins)
+    PYTHONPATH="$LV4_MODNET_SDK_DIR" "$PYTHON_BIN" -m ${export_module} --ckpt-path="$ckpt_path" --output-path="$onnx_path"
 
     # Step 9: Report final result to user
     if [ $? -eq 0 ]; then func_1_1_log "✅ Conversion successful!" "green"; else func_1_2_err "Conversion failed."; fi

@@ -46,6 +46,7 @@ func_3_0_setup_modnet_softlinks() {
         "onnx/modnet_onnx.py                ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/modnet_onnx.py"
         "onnx/export_onnx_modified.py       ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx_modified.py"
         "onnx/modnet_onnx_modified.py       ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/modnet_onnx_modified.py"
+        "onnx/export_onnx_pureBN.py         ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx_pureBN.py"
         # ------ modnet/src/models ------
         "src/models/modnet.py               ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/src/models/modnet.py"
         # ------ modnet ------
@@ -365,6 +366,12 @@ func_3_3_rebuild_sdk(){
             func_1_1_log "   Resetting MODNet submodule to clean state..." "yellow"
 
             if [ -d "${REL_PATH}" ]; then
+                # Ensure submodule is initialized and pointing at the correct commit
+                # before resetting. On a fresh host the submodule may be
+                # uninitialized, which causes 'git reset --hard HEAD' to reset
+                # to the *parent* repo's HEAD instead of MODNet's commit.
+                git submodule update --init -- "${REL_PATH}"
+
                 (
                     cd "${REL_PATH}" || exit 1
 
