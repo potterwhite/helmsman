@@ -6,7 +6,7 @@
 >
 > **维护规则：** 任何修改本文件中所列文件的 AI Agent，必须在同一 commit/会话中更新本文档的对应章节。
 >
-> 最后更新：2026-03-31（翻译为中文；内容与 en 版保持一致）
+> 最后更新：2026-03-31（requirements 双文件方案：GPU/CPU 分离）
 >
 > **English →** [../../en/1-for-ai/codebase_map.md](../../en/1-for-ai/codebase_map.md)
 
@@ -66,7 +66,8 @@ helmsman.git/
 │       └── train_modnet_block1_2.py   ← ★ 活跃：微调训练脚本
 │
 ├── envs/
-│   └── requirements.txt 🔒     ← Python 依赖（torch 2.0.1+cu118、onnx 1.8.1 等）
+│   ├── requirements.txt 🔒     ← Python 依赖——GPU 变体（torch 2.0.1+cu118，需 PyTorch WHL 源）
+│   └── requirements-cpu.txt    ← Python 依赖——CPU 变体（torch 2.0.1 CPU，ONNX 导出 / golden 文件生成用）
 │
 ├── modnet-models/ (gitignored) ← 下载的模型权重
 ├── tools/                      ← 部署与基准测试 shell 脚本

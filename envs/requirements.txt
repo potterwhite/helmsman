@@ -1,8 +1,11 @@
 pyyaml
 requests
 yapf
-# Upgraded from 1.7.1+cu102 to 2.0.1+cu118 for RTX 3090 (sm_86) compatibility
-# Install with: pip install torch==2.0.1+cu118 torchvision==0.15.2+cu118 --index-url https://download.pytorch.org/whl/cu118
+# GPU variant (CUDA 11.8) — for training on RTX 3090 (sm_86).
+# Requires PyTorch official WHL index, NOT pypi/tsinghua:
+#   pip install torch==2.0.1+cu118 torchvision==0.15.2+cu118 --index-url https://download.pytorch.org/whl/cu118
+# helmsman prepare will detect GPU and use the correct index automatically.
+# For CPU-only (ONNX export, golden files, no GPU): use requirements-cpu.txt instead.
 torch==2.0.1+cu118
 torchvision==0.15.2+cu118
 onnx==1.8.1

@@ -237,15 +237,39 @@ func_3_2_setup_dep_before_build() {
     # Ensure pip is up to date
     "${PIP_BIN}" install --upgrade pip
 
-    # Handle Requirements (Load from file only)
-    if [ -f "$DEV_REQUIREMENTS_FILE" ]; then
-        func_1_1_log "   Installing Python packages from $DEV_REQUIREMENTS_FILE..."
-        # "${PIP_BIN}" install --no-cache-dir -r "$DEV_REQUIREMENTS_FILE" -i https://pypi.tuna.tsinghua.edu.cn/simple
-        "${PIP_BIN}" install -r "$DEV_REQUIREMENTS_FILE" -i https://pypi.tuna.tsinghua.edu.cn/simple
+    # Handle Requirements — auto-detect GPU and pick the right file + index
+    # GPU path: requirements.txt (torch+cu118) needs PyTorch WHL index
+    # CPU path: requirements-cpu.txt (torch CPU) uses standard pypi
+    local _cpu_req_file="${LV1_ENVS_DIR}/requirements-cpu.txt"
+    local _gpu_req_file="${DEV_REQUIREMENTS_FILE}"
+    local _req_file=""
+    local _torch_extra_args=""
+    if nvidia-smi &>/dev/null; then
+        func_1_1_log "   GPU detected (nvidia-smi OK). Using GPU requirements: $_gpu_req_file" "green"
+        _req_file="$_gpu_req_file"
+        # torch+cu118 must come from PyTorch WHL, not pypi/tsinghua
+        "${PIP_BIN}" install torch==2.0.1+cu118 torchvision==0.15.2+cu118 \
+            --index-url https://download.pytorch.org/whl/cu118 \
+            || func_1_2_err "Failed to install torch+cu118. Check network or PyTorch WHL URL."
+        # Install the rest (excluding torch lines) from tsinghua
+        "${PIP_BIN}" install -r "$_req_file" \
+            --ignore-installed torch torchvision \
+            -i https://pypi.tuna.tsinghua.edu.cn/simple \
+            || func_1_2_err "Failed to install GPU requirements."
     else
-        func_1_1_log "❌ Requirements file not found at: $DEV_REQUIREMENTS_FILE" "red"
-        func_1_1_log "   Please create the file manually before running prepare." "yellow"
-        exit 1
+        func_1_1_log "   No GPU detected. Using CPU requirements: $_cpu_req_file" "yellow"
+        if [ ! -f "$_cpu_req_file" ]; then
+            func_1_2_err "CPU requirements file not found: $_cpu_req_file"
+        fi
+        _req_file="$_cpu_req_file"
+        "${PIP_BIN}" install torch==2.0.1 torchvision==0.15.2 \
+            --index-url https://download.pytorch.org/whl/cpu \
+            || func_1_2_err "Failed to install torch CPU. Check network."
+        # Install the rest (excluding torch lines) from tsinghua
+        "${PIP_BIN}" install -r "$_req_file" \
+            --ignore-installed torch torchvision \
+            -i https://pypi.tuna.tsinghua.edu.cn/simple \
+            || func_1_2_err "Failed to install CPU requirements."
     fi
 
     # Auto-fix OpenCV if needed (From B)
