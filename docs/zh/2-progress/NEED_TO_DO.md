@@ -12,26 +12,46 @@
 
 ---
 
-Mar31.2026
-- [ ] 新的onnx的推理结果，与之前的（已经被归档）md5sum不一致，你帮我检查。
-    ```bash
-    md5sum build/golden/python/py_0*
-    33160aa27e0a41079cb9feef750b0d65  build/golden/python/py_01_imread.bin
-    cdb2d7cd5199687dac64a1c3e5d47b79  build/golden/python/py_02_cvtColor.bin
-    cdb2d7cd5199687dac64a1c3e5d47b79  build/golden/python/py_03_ensure3Channel.bin
-    76ccba2a08544776dcd28488664dfa2c  build/golden/python/py_04_normalized.bin
-    480ee5867cbc0876b43a50a3e07ff20c  build/golden/python/py_05_resized.bin
-    9ca70aaceb36bb8d51d247b64abf58b3  build/golden/python/py_06_transposed.bin
-    9ca70aaceb36bb8d51d247b64abf58b3  build/golden/python/py_07_golden_reference_tensor-Input.bin
-    ac127a176f5e503db5ac09adf4dffed4  build/golden/python/py_08_inference-Output.bin
-    ```
-    第二次 golden 用的是 modnet_bn_best_pureBN.onnx（新训练的 Pure-BN 模型）
-    第一次 golden 用的是 modnet_photographic_portrait_matting.onnx（原版 IBNorm 模型）
-    py_01~py_07 md5 不变（预处理一致），py_08 不同 → **正常，不是 bug**。
-    两个不同的模型 → 推理权重不同 → 输出必然不同。
-    待办：确认当前 build/golden/python/ 里存的是 pureBN 的输出，后续 C++ 对比用此基准。
+Apr01.2026
 
-- [ ] Block 1.4: Build C++ native (`./helmsman build cpp cb`) and run inference
-    你去帮我把cpp的代码检查一下，我来执行。
+- [x] Block 1.4: cmake toolchain + rknn conditional compile fix
+    commit: (pending — see git commit below)
+    - CMakePresets.json: `native-release` preset 加入 `toolchainFile` 字段，让 cmake 4.x 正确加载 conan_toolchain.cmake
+    - client/src/CMakeLists.txt: rknn 源文件改为 `if(TARGET RKNNRT)` 条件加入，native 构建不再编译 rknn-*.cpp
+    - scripts/cpp_build.sh: 注释掉旧的 `-DCMAKE_TOOLCHAIN_FILE=` 命令行注入逻辑（已由 preset 承接）
+    - 结果：cmake configure 成功，OpenCV 找到，rknn_api.h 编译错误消失
+
+- [ ] Block 1.4: 修复 `getInputHeight()`/`getInputWidth()` — ONNX path 缺少这两个方法
+    文件: `runtime/cpp/apps/matting/client/src/pipeline/pipeline.cpp:88-89`
+    问题: `engine.getInputHeight()/getInputWidth()` 只在 `InferenceEngineRKNNZeroCP` 定义；
+          `InferenceEngineONNX` 无此接口（ONNX 模型动态轴，load 后没有固定维度）
+    方向: 见下方"AI 教练建议"
+
+    **AI 教练建议（只读，用户自行决定）**：
+    ONNX 模型使用动态轴 `[batch, 3, height, width]`，加载后无固定 h/w。
+    有两种方案：
+    - 方案 A（最小改动）：给 `InferenceEngineONNX` 加 `getInputHeight()`/`getInputWidth()`，
+      从模型 input tensor shape 读取（如果模型实际有具体值），或者返回一个 hardcoded 默认值（如 512）。
+      在 `onnx.h` 和 `onnx.cpp` 的 `load()` 里 parse `session_.GetInputTypeInfo(0)` 读维度。
+    - 方案 B（更干净）：pipeline.cpp 里不从 engine 查 h/w，改为从外部（config / 命令行参数）传入，
+      或者硬编码 512×512 用于 native 测试，RKNN path 继续用 `engine.getInputHeight()`.
+      结构上更清晰，且 ONNX 模型本来就是动态轴，"从模型查 h/w"语义上不准确。
+    推荐方案 B，只改 `pipeline.cpp`，改动最局限。
+
+- [ ] Block 1.4: Build C++ native 并生成 cpp_0*.bin
+    执行: `./helmsman build cpp cb native`
+    检查: 对比 `py_07_golden_reference_tensor-Input.bin` vs 对应的 C++ 输出
+
 - [ ] Block 1.4: Compare C++ vs Python golden with `verify_golden_tensor.py`
+
 - [ ] Block 1.4: Confirm visual alpha matte quality (hair detail)
+
+---
+
+Mar31.2026
+
+- [ ] 新的 ONNX 推理结果 md5 与上一次不一致：确认 pureBN 已替换原版
+    结论已知: py_01~py_07 (预处理) md5 不变；py_08 (推理输出) 不同是**正常的**
+    （两个不同模型 → 权重不同 → 输出必然不同）
+    待确认: `build/golden/python/` 里存的是 pureBN 模型的输出，后续 C++ 对比以此为基准。
+    md5: py_08_inference-Output.bin = ac127a176f5e503db5ac09adf4dffed4
