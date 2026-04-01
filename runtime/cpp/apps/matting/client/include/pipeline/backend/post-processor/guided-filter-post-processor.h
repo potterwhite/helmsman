@@ -30,23 +30,30 @@
  * Uses the original high-resolution image as a guide to snap the blurry
  * AI alpha mask edges onto real pixel boundaries (hair-level detail).
  *
- * Algorithm: cv::ximgproc::guidedFilter
- *   guide = grayscale original image (physical edge information)
- *   src   = coarse alpha mask from NPU inference (upscaled, blurry)
+ * Self-contained implementation of He et al. Guided Image Filtering (TPAMI 2013)
+ * using only opencv_core + opencv_imgproc (boxFilter). No contrib/ximgproc needed.
+ *
+ * Pipeline:
+ *   1. (optional) threshold alpha_f32 to harden soft edges before GF.
+ *      This is critical when the AI mask has a wide soft transition band
+ *      (e.g. 30-50px after upscaling from 512×512 → 1080P).
+ *      threshold=0 disables this step.
+ *   2. Run Guided Filter: snaps edges to physical pixel boundaries in guide.
  *
  * Tuning:
- *   radius  — larger = more smoothing, smaller = sharper edges
- *   epsilon — larger = more averaging, smaller = more edge-preserving
- *
- * Typical starting point: radius=16, epsilon=1e-4
+ *   radius    — search radius; larger = wider snap range, more halo
+ *   epsilon   — regularisation; keep small (1e-4~1e-6) for edge-preserving
+ *   threshold — pre-GF binarisation cutoff in [0,1]; 0 = disabled
  */
 class GuidedFilterPostProcessor : public IPostProcessor {
    public:
     /**
-     * @param radius   Filter radius in pixels (default: 16)
-     * @param epsilon  Regularisation coefficient (default: 1e-4)
+     * @param radius     Filter radius in pixels (default: 4)
+     * @param epsilon    Regularisation coefficient (default: 1e-4)
+     * @param threshold  Pre-GF hard threshold in [0,1]; 0.0 = disabled (default: 0.0)
      */
-    explicit GuidedFilterPostProcessor(int radius = 16, double epsilon = 1e-4);
+    explicit GuidedFilterPostProcessor(int radius = 4, double epsilon = 1e-4,
+                                       float threshold = 0.0f);
     ~GuidedFilterPostProcessor() override = default;
 
     cv::Mat process(const cv::Mat& alpha_f32, const cv::Mat& guide_bgr) const override;
@@ -54,4 +61,5 @@ class GuidedFilterPostProcessor : public IPostProcessor {
    private:
     int    radius_;
     double epsilon_;
+    float  threshold_;
 };

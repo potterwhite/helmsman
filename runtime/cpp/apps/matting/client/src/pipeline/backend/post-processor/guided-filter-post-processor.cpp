@@ -76,8 +76,8 @@ static cv::Mat guided_filter(const cv::Mat& guide,   // CV_32FC1
 
 // ---------------------------------------------------------------------------
 
-GuidedFilterPostProcessor::GuidedFilterPostProcessor(int radius, double epsilon)
-    : radius_(radius), epsilon_(epsilon) {}
+GuidedFilterPostProcessor::GuidedFilterPostProcessor(int radius, double epsilon, float threshold)
+    : radius_(radius), epsilon_(epsilon), threshold_(threshold) {}
 
 cv::Mat GuidedFilterPostProcessor::process(const cv::Mat& alpha_f32,
                                            const cv::Mat& guide_bgr) const {
@@ -92,15 +92,28 @@ cv::Mat GuidedFilterPostProcessor::process(const cv::Mat& alpha_f32,
             "GuidedFilterPostProcessor: alpha_f32 and guide_bgr must have the same size");
     }
 
-    // Convert BGR guide to grayscale float32 [0, 1]
+    // Step 1: Optional threshold — harden the soft alpha edge before GF.
+    // Without this, a wide soft transition band (~30-50px after upscaling from 512px)
+    // prevents GF from knowing which physical edge to snap to.
+    cv::Mat src;
+    if (threshold_ > 0.0f) {
+        cv::threshold(alpha_f32, src, static_cast<double>(threshold_), 1.0,
+                      cv::THRESH_BINARY);
+        src.convertTo(src, CV_32F);
+    } else {
+        src = alpha_f32;
+    }
+
+    // Step 2: Convert BGR guide to grayscale float32 [0, 1]
     cv::Mat guide_gray_8u;
     cv::cvtColor(guide_bgr, guide_gray_8u, cv::COLOR_BGR2GRAY);
     cv::Mat guide_f32;
     guide_gray_8u.convertTo(guide_f32, CV_32F, 1.0 / 255.0);
 
-    cv::Mat result = guided_filter(guide_f32, alpha_f32, radius_, epsilon_);
+    // Step 3: Guided filter — snap edges to physical pixel boundaries
+    cv::Mat result = guided_filter(guide_f32, src, radius_, epsilon_);
 
-    // Clamp back to [0, 1] — box filter arithmetic can produce tiny out-of-range values
+    // Clamp back to [0, 1]
     cv::Mat clamped;
     cv::min(cv::max(result, 0.0f), 1.0f, clamped);
 
