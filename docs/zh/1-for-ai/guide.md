@@ -45,6 +45,13 @@
 
 当用户说"我来操作"时，AI 切换到教练模式：只给命令和预期输出，不自己执行。
 
+当用户说"**你尽可能袖手旁观，但要对一切成竹于胸**"时，AI 进入**纯观察-教练模式**：
+- 完全不主动修改代码或执行命令
+- 只在用户提问时回答，或在用户执行后分析输出结果
+- 重点工作：记录用户每一步操作的参数和结果，保持对全局状态的掌握
+- 这一状态持续到用户明确解除（例如说"帮我做"或"你来"）
+- **2026-04-01 起本项目处于此模式**：C++ native 构建与调试由用户主导，AI 陪同观察并在被问到时给出分析
+
 ---
 
 ## 3. Commit 消息格式
@@ -104,6 +111,7 @@
 | 直接修改 `third-party/sdk/MODNet.git/` 中的文件 | 在 `third-party/scripts/modnet/` 中修改（会被符号链接注入） |
 | 硬编码 Python 版本或 pip URL | `common.sh` 中的 `func_2_0_setup_env()` 是唯一真实来源 |
 | 在 C++ 前端将输入归一化到 [-1,1] | 数据范围是 0–255 float32；RKNN 量化通过校准数据内部处理归一化 |
+| 认为 C++ 的 letterbox/INTER_LINEAR/0-255 是"Bug"并试图改成与 Python golden 一致 | **这些差异是故意的！** C++ 预处理（letterbox padding、`cv::INTER_LINEAR`、0-255 float32）是针对 ArcFoundry RKNN pipeline 专门调好的配置，与 Python golden（`cv2.INTER_AREA`、`/127.5-1`、无 padding）不同是正常且正确的行为。**永远不要**为了让 native ONNX 对比结果一致而修改这些参数——那会破坏 RKNN 推理 |
 | 使用旧版 ONNX Runtime API `GetInputName()` | 使用 `GetInputNameAllocated()`（v0.5.0 之后已更新） |
 | 没有 `.env` 就运行 `./helmsman build cpp build rk3588s` | 先从 `.env.example` 创建 `runtime/cpp/.env` |
 
@@ -121,6 +129,47 @@
 - **MODNet 子模块是临时性的** — `./helmsman cleanall` 会重置它。所有永久改动归属于 `third-party/scripts/modnet/`；符号链接由 `./helmsman prepare` 重新创建。
 - **反融合对 RKNN 至关重要** — 不要在模型任何地方引入 `InstanceNormalization`。RKNN 编译器会检测并重构它，导致 CPU 回退和约 40% 的延迟回归。
 - **`runtime/cpp/.env` 在 gitignore 中且为必需** — `cpp_build.sh` 若它不存在会立即退出。必须手动从 `.env.example` 创建。
+
+---
+
+## 7⁺. CMake 版本漂移警告（重要！）
+
+### 问题
+`conanfile.txt` 中写的是 `cmake/[>=3.18]`（浮动范围），Conan 会从 conancenter 解析到当前最新版（2026-04 = cmake/4.3.0）。
+
+**cmake 4.x 改变了 `--preset` + 工具链注入的行为**：
+- cmake 3.28.x：`-DCMAKE_TOOLCHAIN_FILE=...` 作为额外参数追加到 `cmake --preset` 后面，**能生效**
+- cmake 4.x：`--preset` 初始化阶段提前，命令行 `-D` 无法在正确时机插入工具链
+- 症状：`conan_toolchain.cmake` 未被加载 → `CMAKE_PREFIX_PATH` 未设置 → `find_package(OpenCV)` 失败
+
+### 现象
+```
+CMake Error at libs/cvkit/CMakeLists.txt:84 (find_package):
+Could not find a package configuration file provided by "OpenCV"
+```
+
+### 根本原因
+`scripts/cpp_build.sh` 用命令行 `-DCMAKE_TOOLCHAIN_FILE=...` 注入工具链，这在 cmake 4.x 里不够早。
+
+### 修复方案（二选一）
+
+**方案 A（推荐）：** 在 `runtime/cpp/conanfile.txt` 的 `[tool_requires]` 中固定 cmake 版本：
+```ini
+[tool_requires]
+cmake/3.28.6
+```
+这样 Conan 始终使用 3.28.6，不受 conancenter 更新影响，行为可复现。
+
+**方案 B：** 在 `runtime/cpp/CMakePresets.json` 的 `native-release` preset 中加入：
+```json
+"toolchainFile": "${sourceDir}/build/native-release/conan_toolchain.cmake",
+```
+这样工具链由 preset 直接加载，不依赖命令行 `-D` 注入。
+
+### 环境一致性建议
+- **不要**把 Docker 容器锁定到 Ubuntu 22 — cmake 版本问题与 Ubuntu 版本无关
+- **要**在 `conanfile.txt` 中 pin cmake 版本 — 这是 Conan 管理的依赖，应该像其他包一样固定
+- 用户本机的 `cmake 3.28.3`（`apt` 安装）与 Conan 下载的 `cmake 4.3.0` 是两个独立的 cmake，不冲突；Helmsman 构建只用 Conan 管理的那个
 
 ---
 
