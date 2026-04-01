@@ -1,5 +1,6 @@
 .venv
 media/
+media
 build
 modnet-models
 
