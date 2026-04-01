@@ -37,6 +37,8 @@ Apr01.2026
       或者硬编码 512×512 用于 native 测试，RKNN path 继续用 `engine.getInputHeight()`.
       结构上更清晰，且 ONNX 模型本来就是动态轴，"从模型查 h/w"语义上不准确。
     推荐方案 B，只改 `pipeline.cpp`，改动最局限。
+    ---直接用宏定义了，你可以看pipeline.cpp，然后更新docs，git commit
+    然后给我运行命令，推理同一张图片，获取md5，看效果。
 
 - [ ] Block 1.4: Build C++ native 并生成 cpp_0*.bin
     执行: `./helmsman build cpp cb native`

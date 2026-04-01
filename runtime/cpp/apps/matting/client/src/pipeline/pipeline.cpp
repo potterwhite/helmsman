@@ -84,9 +84,14 @@ int Pipeline::run() {
 	engine.setOutputBinPath(output_bin_path_);
 	engine.load(onnx_path_);
 
+#ifdef ENABLE_RKNN_BACKEND
 	// Get model input size (assumes square input: height == width)
 	size_t model_input_height = engine.getInputHeight();
 	size_t model_input_width = engine.getInputWidth();
+#else
+	size_t model_input_height = 512;  // Default input height for ONNX model
+	size_t model_input_width = 512;   // Default input width for ONNX model
+#endif
 
 	// --------
 	// 2nd. Frontend: preprocess with model's input size
@@ -118,4 +123,3 @@ int Pipeline::run() {
 
 	return 0;
 }
-
