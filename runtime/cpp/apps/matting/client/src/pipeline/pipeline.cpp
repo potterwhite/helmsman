@@ -22,6 +22,7 @@
 #include <chrono>
 #include "common-define.h"
 #include "pipeline/backend/backend.h"
+#include "pipeline/backend/post-processor/guided-filter-post-processor.h"
 #include "pipeline/frontend/frontend.h"
 
 #ifdef ENABLE_RKNN_BACKEND
@@ -119,6 +120,7 @@ int Pipeline::run() {
 	backend.setOutputPath(output_bin_path_);
 	backend.setBackgroundPath(background_path_);
 	backend.setForegroundImagePath(image_path_);
+	backend.setPostProcessor(std::make_shared<GuidedFilterPostProcessor>(4, 1e-2));
 	auto result = backend.postprocess(output_tensor);
 
 	return 0;

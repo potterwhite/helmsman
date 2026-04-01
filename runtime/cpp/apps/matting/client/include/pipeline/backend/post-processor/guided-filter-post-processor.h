@@ -22,39 +22,36 @@
 
 #pragma once
 
-#include <memory>
-#include <opencv2/opencv.hpp>
-#include "Utils/file/file-utils.h"
-#include "Utils/logger/logger.h"
-#include "Utils/logger/worker/consolesink.h"
-#include "Utils/logger/worker/filesink.h"
-#include "Utils/math/math-utils.h"
 #include "pipeline/backend/post-processor/i-post-processor.h"
-#include "pipeline/core/data_structure.h"
 
-class MattingBackend {
+/**
+ * @brief Guided Filter post-processor.
+ *
+ * Uses the original high-resolution image as a guide to snap the blurry
+ * AI alpha mask edges onto real pixel boundaries (hair-level detail).
+ *
+ * Algorithm: cv::ximgproc::guidedFilter
+ *   guide = grayscale original image (physical edge information)
+ *   src   = coarse alpha mask from NPU inference (upscaled, blurry)
+ *
+ * Tuning:
+ *   radius  — larger = more smoothing, smaller = sharper edges
+ *   epsilon — larger = more averaging, smaller = more edge-preserving
+ *
+ * Typical starting point: radius=16, epsilon=1e-4
+ */
+class GuidedFilterPostProcessor : public IPostProcessor {
    public:
-	MattingBackend();
-	~MattingBackend();
+    /**
+     * @param radius   Filter radius in pixels (default: 16)
+     * @param epsilon  Regularisation coefficient (default: 1e-4)
+     */
+    explicit GuidedFilterPostProcessor(int radius = 16, double epsilon = 1e-4);
+    ~GuidedFilterPostProcessor() override = default;
 
-	void setOutputPath(const std::string& path);
-	void setBackgroundPath(const std::string& path);
-	void setForegroundImagePath(const std::string& path);
-
-	/**
-	 * Attach an optional post-processor (e.g. GuidedFilterPostProcessor).
-	 * Pass nullptr to disable post-processing and use the raw alpha mask.
-	 */
-	void setPostProcessor(std::shared_ptr<IPostProcessor> processor);
-
-	cv::Mat postprocess(const TensorData& output);
+    cv::Mat process(const cv::Mat& alpha_f32, const cv::Mat& guide_bgr) const override;
 
    private:
-	std::string output_path_;
-	std::string background_path_;
-	std::string foreground_image_path_;
-
-	std::shared_ptr<IPostProcessor> post_processor_;  // nullptr = no post-processing
-
-	cv::Mat nchwToHwc(const TensorData& tensor);
+    int    radius_;
+    double epsilon_;
 };

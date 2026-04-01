@@ -22,39 +22,28 @@
 
 #pragma once
 
-#include <memory>
 #include <opencv2/opencv.hpp>
-#include "Utils/file/file-utils.h"
-#include "Utils/logger/logger.h"
-#include "Utils/logger/worker/consolesink.h"
-#include "Utils/logger/worker/filesink.h"
-#include "Utils/math/math-utils.h"
-#include "pipeline/backend/post-processor/i-post-processor.h"
-#include "pipeline/core/data_structure.h"
 
-class MattingBackend {
+/**
+ * @brief Contract for any alpha-mask post-processor.
+ *
+ * A post-processor takes:
+ *   - alpha_f32 : CV_32FC1 alpha mask at original resolution, values in [0, 1]
+ *   - guide_bgr : CV_8UC3 original BGR image at the same resolution
+ *
+ * It returns a refined CV_32FC1 alpha mask, also in [0, 1].
+ *
+ * Attach/detach processors via MattingBackend::setPostProcessor().
+ * If no processor is attached the raw alpha is used as-is.
+ */
+class IPostProcessor {
    public:
-	MattingBackend();
-	~MattingBackend();
+    virtual ~IPostProcessor() = default;
 
-	void setOutputPath(const std::string& path);
-	void setBackgroundPath(const std::string& path);
-	void setForegroundImagePath(const std::string& path);
-
-	/**
-	 * Attach an optional post-processor (e.g. GuidedFilterPostProcessor).
-	 * Pass nullptr to disable post-processing and use the raw alpha mask.
-	 */
-	void setPostProcessor(std::shared_ptr<IPostProcessor> processor);
-
-	cv::Mat postprocess(const TensorData& output);
-
-   private:
-	std::string output_path_;
-	std::string background_path_;
-	std::string foreground_image_path_;
-
-	std::shared_ptr<IPostProcessor> post_processor_;  // nullptr = no post-processing
-
-	cv::Mat nchwToHwc(const TensorData& tensor);
+    /**
+     * @param alpha_f32  Input alpha mask  (CV_32FC1, [0,1], original resolution)
+     * @param guide_bgr  Original BGR image (CV_8UC3, same size as alpha_f32)
+     * @return           Refined alpha mask (CV_32FC1, [0,1], same size)
+     */
+    virtual cv::Mat process(const cv::Mat& alpha_f32, const cv::Mat& guide_bgr) const = 0;
 };

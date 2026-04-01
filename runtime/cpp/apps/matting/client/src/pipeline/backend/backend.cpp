@@ -46,6 +46,10 @@ void MattingBackend::setForegroundImagePath(const std::string& path) {
 	foreground_image_path_ = path;
 }
 
+void MattingBackend::setPostProcessor(std::shared_ptr<IPostProcessor> processor) {
+	post_processor_ = std::move(processor);
+}
+
 cv::Mat MattingBackend::postprocess(const TensorData& output) {
 
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
@@ -131,6 +135,19 @@ cv::Mat MattingBackend::postprocess(const TensorData& output) {
 	cv::resize(cropped_mat, restored_mat, cv::Size(output.orig_width, output.orig_height), 0, 0,
 	           cv::INTER_LINEAR);  // or cv::INTER_CUBIC for better alpha edge quality
 	                               // ------------------------------------------------
+
+	// Step C: Optional post-processing (e.g. Guided Filter edge refinement).
+	// Attach a processor via setPostProcessor(); leave nullptr to skip.
+	if (post_processor_) {
+		cv::Mat guide_bgr = cv::imread(foreground_image_path_, cv::IMREAD_COLOR);
+		if (guide_bgr.empty()) {
+			logger.Warning(
+			    "Post-processor skipped: cannot load guide image: " + foreground_image_path_,
+			    kcurrent_module_name);
+		} else {
+			restored_mat = post_processor_->process(restored_mat, guide_bgr);
+		}
+	}
 
 	const size_t total = HW * static_cast<size_t>(C);
 
