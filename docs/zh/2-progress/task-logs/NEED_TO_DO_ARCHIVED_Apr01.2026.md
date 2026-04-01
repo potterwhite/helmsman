@@ -33,3 +33,26 @@ Apr01.2026
     commit: (pending — see batch commit)
     - `.gitignore` 加入 `media`（软链接，原来只有 `media/` 不匹配）
     - `docs/zh/1-for-ai/cpp-code-review.md` 删除（AI agent 自动生成的临时分析，有误导性内容）
+
+- [x] Block 1.4: Compare C++ vs Python golden — 深度数值对比
+    commit: (无代码改动，数值分析结论记录于 PKB)
+    结论: py_01~py_07 预处理 C++ vs Python md5 对比见 archived Apr01 — cpp_01~03 一致，
+    cpp_04/05/08 不同（预期，预处理路径故意不同）。详细 md5 见 NEED_TO_DO_ARCHIVED_Apr01.2026.md。
+
+- [x] Block 1.4: Confirm visual alpha matte quality (hair detail)
+    commit: (无代码改动，视觉质量分析记录于 PKB)
+    结论: 
+    - 原版 IBNorm Python：✅ 背景干净，发丝清晰
+    - Pure-BN Python：❌ 多处背景白斑，发丝丢失
+    - Pure-BN C++ native：✅ 背景干净但边缘模糊，发丝丢失
+    PKB 对比文档: [[Block 1.4 推理结果对比 — PureBN vs IBNorm]]
+    图片已复制到 PKB Phrase-1_Retrain/ 目录。
+    PKB bugs 记录: ✅Bug_cmake4x升级, ✅Bug_native构建rknn_api, ✅Bug_InferenceEngineONNX-getInputHeight
+
+Mar31.2026
+
+- [x] 新的 ONNX 推理结果 md5 与上一次不一致：确认 pureBN 已替换原版
+    commit: (无代码改动，归档确认)
+    结论已确认: build/golden/python/ 存的是 pureBN 模型输出；build/golden/python-pureBN/ 是同一份副本。
+    py_08_inference-Output.bin = ac127a176f5e503db5ac09adf4dffed4 ← pureBN 基准 md5 确认
+    原版 IBNorm py_08 = 530eda0eb8131e76443bafc0cee8e46d（不同，正常）
