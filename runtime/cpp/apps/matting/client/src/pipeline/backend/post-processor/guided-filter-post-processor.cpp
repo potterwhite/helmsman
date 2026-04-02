@@ -76,8 +76,8 @@ static cv::Mat guided_filter(const cv::Mat& guide,   // CV_32FC1
 
 // ---------------------------------------------------------------------------
 
-GuidedFilterPostProcessor::GuidedFilterPostProcessor(int radius, double epsilon, float threshold)
-    : radius_(radius), epsilon_(epsilon), threshold_(threshold) {}
+GuidedFilterPostProcessor::GuidedFilterPostProcessor(int radius, double epsilon, float threshold, int erode_iters)
+    : radius_(radius), epsilon_(epsilon), threshold_(threshold), erode_iters_(erode_iters) {}
 
 cv::Mat GuidedFilterPostProcessor::process(const cv::Mat& alpha_f32,
                                            const cv::Mat& guide_bgr) const {
@@ -104,13 +104,25 @@ cv::Mat GuidedFilterPostProcessor::process(const cv::Mat& alpha_f32,
         src = alpha_f32;
     }
 
-    // Step 2: Convert BGR guide to grayscale float32 [0, 1]
+    // Step 2: Optional morphological erosion — pull mask boundary inward.
+    // The AI mask silhouette tends to sit ~3-5px outside the true physical
+    // boundary. Eroding before GF compensates this offset so GF snaps to
+    // the correct edge rather than an already-offset one.
+    if (erode_iters_ > 0) {
+        cv::Mat src_8u;
+        src.convertTo(src_8u, CV_8U, 255.0);
+        cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+        cv::erode(src_8u, src_8u, kernel, cv::Point(-1, -1), erode_iters_);
+        src_8u.convertTo(src, CV_32F, 1.0 / 255.0);
+    }
+
+    // Step 3: Convert BGR guide to grayscale float32 [0, 1]
     cv::Mat guide_gray_8u;
     cv::cvtColor(guide_bgr, guide_gray_8u, cv::COLOR_BGR2GRAY);
     cv::Mat guide_f32;
     guide_gray_8u.convertTo(guide_f32, CV_32F, 1.0 / 255.0);
 
-    // Step 3: Guided filter — snap edges to physical pixel boundaries
+    // Step 4: Guided filter — snap edges to physical pixel boundaries
     cv::Mat result = guided_filter(guide_f32, src, radius_, epsilon_);
 
     // Clamp back to [0, 1]

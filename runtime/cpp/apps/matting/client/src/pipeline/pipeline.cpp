@@ -120,7 +120,7 @@ int Pipeline::run() {
 	backend.setOutputPath(output_bin_path_);
 	backend.setBackgroundPath(background_path_);
 	backend.setForegroundImagePath(image_path_);
-	backend.setPostProcessor(std::make_shared<GuidedFilterPostProcessor>(2, 1e-4, 0.2f));
+	backend.setPostProcessor(std::make_shared<GuidedFilterPostProcessor>(2, 1e-4, 0.3f, 1));
 	auto result = backend.postprocess(output_tensor);
 
 	return 0;
