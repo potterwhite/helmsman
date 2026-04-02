@@ -66,3 +66,11 @@ Apr02.2026
     3. 我接下来还能做什么提升质量呢？int8是提升速度，本身对抠图质量是没有正向影响的，反而还会降低质量的，所以int8基本是在抠图质量95～99%的满意度的时候才去做，我的理解对吗？
     commit: d97070d
     pkb: /development/volumes_pkb_helmsman/development/stage-2/任务2.4/重训MODNet/Phase-3-GF/Block-3.2-GF-后续问答.md
+
+- [x] 归档到pkb里
+    1. modnet原作者是用什么数据集呢？（已调研）
+    2. RKNN转换计划制定（已写入PKB并UAQ确认流程中）
+    commit: 2c48a3a (PKB docs written; RKNN conversion pending UAQ approval)
+    pkb-dataset: /development/volumes_pkb_helmsman/development/stage-2/任务2.4/重训MODNet/Phase-1-Again/Block-1.0-MODNet原作者数据集调研.md
+    pkb-rknn-plan: /development/volumes_pkb_helmsman/development/stage-2/任务2.4/重训MODNet/Phase-RKNN-PureBN/Block-R.0-RKNN转换计划.md
+    pkb-roadmap: /development/volumes_pkb_helmsman/development/stage-2/任务2.4/重训MODNet/00-Phase总览-任务2.4路线图.md
