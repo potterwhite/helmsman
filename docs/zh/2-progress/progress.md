@@ -12,10 +12,10 @@
 | **Phase 0** | Infrastructure & ONNX baseline | ✅ Done (v0.1.0 – v0.3.0) |
 | **Phase 1** | Model Retraining (Pure-BN MODNet) | 🔄 In Progress (~80%) |
 | **Phase 2** | INT8 Quantization (RKNN Toolkit 2) | ⏳ Pending |
-| **Phase 3** | AI+CV Hybrid Pipeline (Guided Filter) | ⏳ Pending |
+| **Phase 3** | AI+CV Hybrid Pipeline (Guided Filter) | ✅ Block 3.1 Done |
 | **Phase 4** | Temporal Smoothing (Video EMA) | ⏳ Pending |
 
-**Currently active:** Phase 1 Block 1.4 — ONNX Export + Verification of retrained Pure-BN checkpoint
+**Currently active:** Phase 1 Block 1.4 — ONNX Export + Verification of retrained Pure-BN checkpoint | Phase 3 Block 3.1 GF ✅ converged
 
 ---
 
@@ -134,14 +134,21 @@ Epochs 5-15: 已完成（训练健康，无过拟合信号）
 
 ---
 
-## Phase 3 — AI+CV 混合流水线（待处理）
+## Phase 3 — AI+CV 混合流水线
 
 | Block | 描述 | 状态 |
 |---|---|---|
-| **3.1** | Guided Filter 集成（发丝细节恢复） | ⏳ 待 Phase 2 |
+| **3.1** | Guided Filter 集成（发丝细节恢复） | ✅ 完成（Exp-08 最优：r=2, ε=1e-4, thr=0.2, erode=1） |
 | **3.2** | 异构流水线（CPU/RGA + NPU + Mali GPU） | ⏳ 待 3.1 |
 
 **设计依据**：以 512×512 训练但以 256×256 部署。Guided Filter 使用原始 1080P 图像恢复低分辨率 NPU 推理丢失的发丝细节。
+
+**Block 3.1 收敛结论（2026-04-02，Exp-01 ~ Exp-11）**：
+- 最终参数：`GuidedFilterPostProcessor(r=2, ε=1e-4, threshold=0.2, erode_iters=1)`
+- 流程：`threshold(0.2) → erode(3×3, iter=1) → GF(r=2, ε=1e-4)`
+- 效果：光晕消除 ✅，语义轮廓正确 ✅，躯干无空洞 ✅，发丝有结构 ✅
+- 剩余轻微锯齿为 GF 精确吸附 1080P 物理边界的自然结果，不可通过参数调优消除
+- 进一步改善需依赖更高质量的模型输出（Phase 1 重训或 INT8 后处理）
 
 ---
 
