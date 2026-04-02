@@ -56,3 +56,13 @@ Mar31.2026
     结论已确认: build/golden/python/ 存的是 pureBN 模型输出；build/golden/python-pureBN/ 是同一份副本。
     py_08_inference-Output.bin = ac127a176f5e503db5ac09adf4dffed4 ← pureBN 基准 md5 确认
     原版 IBNorm py_08 = 530eda0eb8131e76443bafc0cee8e46d（不同，正常）
+
+Apr02.2026
+
+- [x] 回答这个问题，并把问题本身和回答都转到pkb里去，然后归档该问题
+    目前GuidedFilter的进展，就是说最好的只能是exp08的那次，对吗？
+    1. 以后不同图片，例如是一条狗，非绿背景是否也是exp08效果最好呢？如果跟推理源高度相关，那么我们做GF的意义就很小了。
+    2. 如果我进行知识蒸馏block1.3，理论上提升npu抠图的质量对吗？这种质量提升，是针对所有类型的图像吗？
+    3. 我接下来还能做什么提升质量呢？int8是提升速度，本身对抠图质量是没有正向影响的，反而还会降低质量的，所以int8基本是在抠图质量95～99%的满意度的时候才去做，我的理解对吗？
+    commit: d97070d
+    pkb: /development/volumes_pkb_helmsman/development/stage-2/任务2.4/重训MODNet/Phase-3-GF/Block-3.2-GF-后续问答.md
