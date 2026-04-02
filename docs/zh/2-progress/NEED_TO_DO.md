@@ -18,6 +18,3 @@
 
 ---
 
-- [ ] 我还是认为stage-2的多level的roadmap做得不太好，我想象中，是每一个level做他们自己的事情，具体到下一个level,就让next level的roadmap自己解释，你只要给一个url jump 进去就好了。你现在感觉每一个roadmap都在描述in -> bn。我都不知道我在看哪一个level的roadmap,明白吗？
-- [ ] 而且1_PROJECT/2025.18_Project_Helmsman/development/stage-2/任务2.4/重训MODNet/retrain_modnet_roadmap里面，当前的progress怎么会是在GF呢，我们的gf不是早就结束了吗？而且下一个并不是int8，我的int8是最后一个，基本上就是能走到int8就对质量满意了。下一个应该是rknn啊，你怎么没有更新呢？
-

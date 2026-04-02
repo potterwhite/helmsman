@@ -89,3 +89,17 @@ Apr02.2026
     2. Top-Lv-Plan 文件删除（内容已保留在合并后文档）
     3. stage2_roadmap.md 重写为完整珍珠串入口：任务2.1→2.2→2.3→2.4，每层都有跳转链接到 Phase 级和 Block 级文档
     commit: 0dc9afa (PKB changes not committed to git; git only tracks helmsman.git)
+
+Apr02.2026 (continued)
+
+- [x] stage-2 多 level roadmap 层级问题：每一个 level 只描述自己的范围，用 jump link 到下一级
+    每个 roadmap 只负责导航到下一层，不重复描述下层细节。
+    操作：stage2_roadmap.md 已重写为纯导航珍珠串；retrain_modnet_roadmap.md 以 Phase 为粒度，
+    Block 详情在各 Phase 的 Block-*.md 里，roadmap 只保留 Block 列表 + jump link。
+    commit: (PKB 内部整理，无 helmsman.git 变更)
+
+- [x] retrain_modnet_roadmap 状态过期：GF 早已结束，下一步应该是 RKNN 而不是 INT8
+    已更新：Phase-2-GF → ✅（Exp-08 收敛）；Phase-3 从 INT8 改为 RKNN-PureBN；
+    Phase-4 改为 INT8（最后一步，质量满意后才做）；「完成」定义第 4 条 🔥 → ✅；
+    同时恢复了被误删的 Phase 1~5 全部详细内容（Block 表格、训练结果、关键文件、性能基准）。
+    commit: (PKB 内部整理，无 helmsman.git 变更)
