@@ -10,10 +10,13 @@
 >
 > 本文件归档后只保留**未完成**的条目。已完成记录永久保存在 `task-logs/` 里。
 
+
+> 三个pkb目录：
+> 1. /development/volumes_pkb_ai
+> 2. /development/volumes_pkb_arcfoundry
+> 3. /development/volumes_pkb_helmsman
+
 ---
 
-三个pkb目录：
-1. /development/volumes_pkb_ai
-2. /development/volumes_pkb_arcfoundry
-3. /development/volumes_pkb_helmsman
+
 
