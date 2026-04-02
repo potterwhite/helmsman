@@ -83,3 +83,9 @@ Apr02.2026
     5. roadmap.md 更新当前状态为 Phase-3-RKNN-PureBN 待做
     6. Phase-3-Distill（空目录）删除
     commit: 6e4aadb
+
+- [x] 合并 retrain_modnet_roadmap + Top-Lv-Plan；梳理 stage-2 珍珠串
+    1. Top-Lv-Plan 内容（核心概念扫盲 + 原始四阶段计划）融合进 retrain_modnet_roadmap.md（#原计划 + #当前Roadmap）
+    2. Top-Lv-Plan 文件删除（内容已保留在合并后文档）
+    3. stage2_roadmap.md 重写为完整珍珠串入口：任务2.1→2.2→2.3→2.4，每层都有跳转链接到 Phase 级和 Block 级文档
+    commit: 0dc9afa (PKB changes not committed to git; git only tracks helmsman.git)
