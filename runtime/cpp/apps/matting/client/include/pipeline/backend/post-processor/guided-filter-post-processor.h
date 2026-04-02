@@ -41,24 +41,30 @@
  *   2. (optional) morphological erosion to pull the binary mask boundary
  *      inward, compensating for the AI mask's tendency to sit ~3-5px
  *      outside the true physical boundary. erode_iters=0 disables this.
- *   3. Run Guided Filter: snaps edges to physical pixel boundaries in guide.
+ *   3. (optional) Gaussian blur on the binary src to soften pixel-level
+ *      jagged edges before GF, so GF snaps to a smooth boundary instead
+ *      of inheriting the discrete staircase. src_blur_ksize=0 disables this.
+ *   4. Run Guided Filter: snaps edges to physical pixel boundaries in guide.
  *
  * Tuning:
- *   radius      — search radius; larger = wider snap range, more halo
- *   epsilon     — regularisation; keep small (1e-4~1e-6) for edge-preserving
- *   threshold   — pre-GF binarisation cutoff in [0,1]; 0 = disabled
- *   erode_iters — post-threshold erosion iterations (3×3 kernel); 0 = disabled
+ *   radius         — search radius; larger = wider snap range, more halo
+ *   epsilon        — regularisation; keep small (1e-4~1e-6) for edge-preserving
+ *   threshold      — pre-GF binarisation cutoff in [0,1]; 0 = disabled
+ *   erode_iters    — post-threshold erosion iterations (3×3 kernel); 0 = disabled
+ *   src_blur_ksize — Gaussian blur kernel size for src after erode (must be odd); 0 = disabled
  */
 class GuidedFilterPostProcessor : public IPostProcessor {
    public:
     /**
-     * @param radius      Filter radius in pixels (default: 4)
-     * @param epsilon     Regularisation coefficient (default: 1e-4)
-     * @param threshold   Pre-GF hard threshold in [0,1]; 0.0 = disabled (default: 0.0)
-     * @param erode_iters Post-threshold erosion iterations with 3×3 kernel; 0 = disabled (default: 0)
+     * @param radius         Filter radius in pixels (default: 4)
+     * @param epsilon        Regularisation coefficient (default: 1e-4)
+     * @param threshold      Pre-GF hard threshold in [0,1]; 0.0 = disabled (default: 0.0)
+     * @param erode_iters    Post-threshold erosion iterations with 3×3 kernel; 0 = disabled (default: 0)
+     * @param src_blur_ksize Gaussian blur kernel size applied to src after erode (must be odd); 0 = disabled (default: 0)
      */
     explicit GuidedFilterPostProcessor(int radius = 4, double epsilon = 1e-4,
-                                       float threshold = 0.0f, int erode_iters = 0);
+                                       float threshold = 0.0f, int erode_iters = 0,
+                                       int src_blur_ksize = 0);
     ~GuidedFilterPostProcessor() override = default;
 
     cv::Mat process(const cv::Mat& alpha_f32, const cv::Mat& guide_bgr) const override;
@@ -68,4 +74,5 @@ class GuidedFilterPostProcessor : public IPostProcessor {
     double epsilon_;
     float  threshold_;
     int    erode_iters_;
+    int    src_blur_ksize_;
 };

@@ -76,8 +76,8 @@ static cv::Mat guided_filter(const cv::Mat& guide,   // CV_32FC1
 
 // ---------------------------------------------------------------------------
 
-GuidedFilterPostProcessor::GuidedFilterPostProcessor(int radius, double epsilon, float threshold, int erode_iters)
-    : radius_(radius), epsilon_(epsilon), threshold_(threshold), erode_iters_(erode_iters) {}
+GuidedFilterPostProcessor::GuidedFilterPostProcessor(int radius, double epsilon, float threshold, int erode_iters, int src_blur_ksize)
+    : radius_(radius), epsilon_(epsilon), threshold_(threshold), erode_iters_(erode_iters), src_blur_ksize_(src_blur_ksize) {}
 
 cv::Mat GuidedFilterPostProcessor::process(const cv::Mat& alpha_f32,
                                            const cv::Mat& guide_bgr) const {
@@ -116,13 +116,21 @@ cv::Mat GuidedFilterPostProcessor::process(const cv::Mat& alpha_f32,
         src_8u.convertTo(src, CV_32F, 1.0 / 255.0);
     }
 
-    // Step 3: Convert BGR guide to grayscale float32 [0, 1]
+    // Step 3: Optional Gaussian blur on src — soften pixel-level jagged edges
+    // on the binary mask before GF, so GF snaps to a smooth boundary rather
+    // than inheriting the staircase pattern from the discrete binary edge.
+    if (src_blur_ksize_ > 0) {
+        int ksize = (src_blur_ksize_ % 2 == 0) ? src_blur_ksize_ + 1 : src_blur_ksize_;
+        cv::GaussianBlur(src, src, cv::Size(ksize, ksize), 0);
+    }
+
+    // Step 4: Convert BGR guide to grayscale float32 [0, 1]
     cv::Mat guide_gray_8u;
     cv::cvtColor(guide_bgr, guide_gray_8u, cv::COLOR_BGR2GRAY);
     cv::Mat guide_f32;
     guide_gray_8u.convertTo(guide_f32, CV_32F, 1.0 / 255.0);
 
-    // Step 4: Guided filter — snap edges to physical pixel boundaries
+    // Step 5: Guided filter — snap edges to physical pixel boundaries
     cv::Mat result = guided_filter(guide_f32, src, radius_, epsilon_);
 
     // Clamp back to [0, 1]
