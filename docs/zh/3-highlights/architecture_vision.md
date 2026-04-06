@@ -82,11 +82,12 @@ C++ 推理引擎分为三个阶段，以干净的契约（`TensorData` 结构体
 
 1. ✅ ~~模型在 RK3588 上运行无 CPU 回退~~ (v0.8.0 — InstanceNorm 已消除)
 2. ✅ ~~纯 BN 模型重训完成~~ (Phase 1 Block 1.2 完成)
-3. 🔥 **纯 BN 模型已导出并验证** (Phase 1 Block 1.4 — 当前)
-4. ⏳ INT8 量化 RKNN 模型在 RK3588 上达到 <25ms @ 256×256
-5. ⏳ Guided Filter 后处理在完整 1080P 分辨率下恢复发丝细节
-6. ⏳ EMA 时序平滑消除视频输出中的抖动
-7. ⏳ 完整流水线在 RK3588 上基准测试达到 30 FPS @ 1080P
+3. ✅ ~~纯 BN 模型已导出并验证~~ (Phase 1 Block 1.4 完成)
+4. ✅ ~~Guided Filter 后处理在完整 1080P 分辨率下恢复发丝细节~~ (Phase 2-GF Exp-08 收敛)
+5. ✅ ~~Pure-BN FP16 RKNN 板端 benchmark 完成，BN 提速 30-45%~~ (Phase 3-RKNN R.7)
+6. 🔥 **INT8 量化 RKNN 模型达到目标延迟** (Phase 4-INT8 — 当前，288×512 优先)
+7. ⏳ EMA 时序平滑消除视频输出中的抖动
+8. ⏳ 完整流水线在 RK3588 上基准测试达到 30 FPS @ 1080P
 
 ---
 

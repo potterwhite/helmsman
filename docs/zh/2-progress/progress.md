@@ -1,6 +1,6 @@
 # Helmsman — Progress
 
-> Last updated: 2026-03-31
+> Last updated: 2026-04-06
 > **English →** [../../en/2-progress/progress.md](../../en/2-progress/progress.md)
 
 ---
@@ -11,11 +11,11 @@
 |---|---|---|
 | **Phase 0** | Infrastructure & ONNX baseline | ✅ Done (v0.1.0 – v0.3.0) |
 | **Phase 1** | Model Retraining (Pure-BN MODNet) | 🔄 In Progress (~80%) |
-| **Phase 2** | INT8 Quantization (RKNN Toolkit 2) | ⏳ Pending |
+| **Phase 2** | INT8 Quantization (RKNN Toolkit 2) | 🔜 当前（质量门槛：中规中矩即可） |
 | **Phase 3** | AI+CV Hybrid Pipeline (Guided Filter) | ✅ Block 3.1 Done |
 | **Phase 4** | Temporal Smoothing (Video EMA) | ⏳ Pending |
 
-**Currently active:** Phase 1 Block 1.4 — ONNX Export + Verification of retrained Pure-BN checkpoint | Phase 3 Block 3.1 GF ✅ converged
+**Currently active:** Phase 2 — INT8 Quantization (288×512 优先) | Phase 3 Block 3.1 GF ✅ converged | Phase 1 Block 1.4 ✅
 
 ---
 
@@ -121,16 +121,22 @@ Epochs 5-15: 已完成（训练健康，无过拟合信号）
 
 ---
 
-## Phase 2 — INT8 量化（待处理）
+## Phase 2 — INT8 量化（🔜 当前）
+
+> **质量门槛**（2026-04-06 更新）：中规中矩即可 — 不出大面积全黑/全噪点级别退化。
+> 原"95~99% 满意度才启动"已放宽：实际需求是追求速度，FP16 质量已确认可接受。
 
 | Block | 描述 | 状态 |
 |---|---|---|
-| **2.1** | 校准数据集（从 P3M-10k 取 200 张图） | ⏳ 待 Block 1.4 |
-| **2.2** | RKNN Toolkit 2 转换（`modnet_bn_best.onnx → .rknn`） | ⏳ 待 2.1 |
-| **2.3** | 板端性能分析（RK3588 延迟） | ⏳ 待 2.2 |
-| **2.4** | 混合精度回退（若 INT8 质量下降） | ⏳ 备用 |
+| **Q.1** | 校准数据集（P3M-10k 200 张 + 20 张复杂背景） | ⏳ 待开始 |
+| **Q.2** | RKNN Toolkit 2 转换（`modnet_bn_best_pureBN.onnx → .rknn`，INT8 288×512） | ⏳ 待 Q.1 |
+| **Q.3** | 板端性能基准（10轮 benchmark，INT8 vs FP16 对比） | ⏳ 待 Q.2 |
+| **Q.4** | 质量评估（INT8 vs FP16，退化容忍标准） | ⏳ 待 Q.3 |
+| **Q.5** | 256×256 INT8 对比（速度甜点探索） | ⏳ 待 Q.2 |
+| **Q.6** | 混合精度回退（若 INT8 质量下降） | ⏳ 备用 |
+| **Q.7** | 最终结论与推荐配置 | ⏳ 待 Q.3~Q.5 |
 
-**目标**：< 25ms @ 256×256（含预处理，1080P 下约 ~33ms）。
+**目标**：INT8 288×512 < 35ms（配合 GF 后处理 ~42ms 端到端 ≈ 24fps）；INT8 256×256 目标 30fps+。
 
 ---
 
@@ -166,6 +172,10 @@ Epochs 5-15: 已完成（训练健康，无过拟合信号）
 |---|---|---|---|---|---|
 | 2026-03-04 | ONNX（含 InstanceNorm） | 512×512 | 287.66ms | x86 原生 | v0.6.0 基准 |
 | 2026-03-12 | RKNN INT8 反融合 | 576×1024 | ~430ms | RK3588 NPU | v0.8.0；比含 InstanceNorm 版本快 ~40% |
+| 2026-04-03 | RKNN FP16 PureBN | 256×256 | ~30ms | RK3588 3NPU | BN 融合后 ~44% faster than IN |
+| 2026-04-03 | RKNN FP16 PureBN | 288×512 | ~61ms | RK3588 3NPU | BN 融合后 ~45% faster than IN |
+| 2026-04-03 | RKNN FP16 PureBN | 384×384 | ~66ms | RK3588 3NPU | BN 融合后 ~39% faster than IN |
+| 2026-04-03 | RKNN FP16 PureBN | 576×1024 | ~261ms | RK3588 3NPU | BN 融合后 ~34% faster than IN |
 
 ---
 
