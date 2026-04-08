@@ -102,8 +102,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
 #if 1
 	// v1.3.3 inference execution
-	if (argc != 4) {
-		std::cerr << "Usage: infer <image_path> <onnx_path> <output_bin>\n";
+	if (argc != 4 && argc != 5) {
+		std::cerr << "Usage: infer <image_path> <onnx_path> <output_bin> [background_path]\n";
 		return 1;
 	}
 
@@ -111,7 +111,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	const std::string onnx_path = argv[2];
 	// const std::string input_bin_path = argv[3];
 	const std::string output_bin_path = argv[3];
-	pipeline.init(image_path, onnx_path, output_bin_path);
+	const std::string background_path = (argc == 5) ? argv[4] : "";
+	pipeline.init(image_path, onnx_path, output_bin_path, background_path);
 
 	pipeline.run();
 

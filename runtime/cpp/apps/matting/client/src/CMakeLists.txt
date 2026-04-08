@@ -25,14 +25,20 @@
 set(PIPELINE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/pipeline.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/backend/backend.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/backend/post-processor/guided-filter-post-processor.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/frontend/frontend.cpp"
 )
 
 set(INFER_ENGINE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/onnx/onnx.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/rknn/rknn-zero-copy.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/rknn/rknn-non-zero-copy.cpp"
 )
+
+if(TARGET ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
+    list(APPEND INFER_ENGINE_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/rknn/rknn-zero-copy.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/rknn/rknn-non-zero-copy.cpp"
+    )
+endif()
 
 set(CLIENT_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/main-client.cpp"

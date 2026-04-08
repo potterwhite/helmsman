@@ -314,29 +314,29 @@ func_8_4_cpp_dispatch() {
         # A. Run Conan Install
         func_8_5_cpp_run_native_conan_install
 
-        # B. Locate the generated Toolchain
-        local toolchain_file="${CPP_BUILD_WITH_PLATFORM_DIR}/conan_toolchain.cmake"
+        # # B. Locate the generated Toolchain
+        # local toolchain_file="${CPP_BUILD_WITH_PLATFORM_DIR}/conan_toolchain.cmake"
 
-        if [ ! -f "$toolchain_file" ]; then
-            toolchain_file="${CPP_BUILD_WITH_PLATFORM_DIR}/build/${CPP_BUILD_TYPE}/generators/conan_toolchain.cmake"
-        fi
+        # if [ ! -f "$toolchain_file" ]; then
+        #     toolchain_file="${CPP_BUILD_WITH_PLATFORM_DIR}/build/${CPP_BUILD_TYPE}/generators/conan_toolchain.cmake"
+        # fi
 
-        if [ ! -f "$toolchain_file" ]; then
-             toolchain_file=$(find "${CPP_BUILD_WITH_PLATFORM_DIR}" -name "conan_toolchain.cmake" | head -n 1)
-        fi
+        # if [ ! -f "$toolchain_file" ]; then
+        #      toolchain_file=$(find "${CPP_BUILD_WITH_PLATFORM_DIR}" -name "conan_toolchain.cmake" | head -n 1)
+        # fi
 
-        # C. Inject Toolchain into CMake args
-        if [ -f "$toolchain_file" ]; then
-            func_1_1_log "   Injecting Toolchain: ${toolchain_file}" "green"
-            # extra_cmake_args="-DCMAKE_TOOLCHAIN_FILE=${toolchain_file} -DARC_INSTALL_SHERPA_TOOLS=${ARC_INSTALL_SHERPA_TOOLS}"
-            extra_cmake_args="-DCMAKE_TOOLCHAIN_FILE=${toolchain_file}"
-        else
-            func_1_1_log "⚠️  Conan toolchain not found. Proceeding with standard Preset configuration." "yellow"
-        fi
+        # # C. Inject Toolchain into CMake args
+        # if [ -f "$toolchain_file" ]; then
+        #     func_1_1_log "   Injecting Toolchain: ${toolchain_file}" "green"
+        #     # extra_cmake_args="-DCMAKE_TOOLCHAIN_FILE=${toolchain_file} -DARC_INSTALL_SHERPA_TOOLS=${ARC_INSTALL_SHERPA_TOOLS}"
+        #     extra_cmake_args="-DCMAKE_TOOLCHAIN_FILE=${toolchain_file}"
+        # else
+        #     func_1_1_log "⚠️  Conan toolchain not found. Proceeding with standard Preset configuration." "yellow"
+        # fi
 
-        # # Add ORT Root if detected
-        # local ort_root_arg=$(func_3_6_echo_ort_root_for_cmake)
-        # extra_cmake_args="${extra_cmake_args} ${ort_root_arg}"
+        # # # Add ORT Root if detected
+        # # local ort_root_arg=$(func_3_6_echo_ort_root_for_cmake)
+        # # extra_cmake_args="${extra_cmake_args} ${ort_root_arg}"
     else
         func_1_1_log ">> [Dependency] Skipping Conan for non-native platform or list action." "blue"
         if [ x"${DEBUG_MODE}" == x"1" ];then

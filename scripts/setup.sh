@@ -35,17 +35,23 @@ func_3_0_setup_modnet_softlinks() {
     # Part 1: Local Script Links (Source: BUILD_SCRIPT_DIR)
     # =========================================================
 
-    #   1ST field                       2nd Field                     3rd field
-    #   file name                       source dir                    destination dir
+    #   1ST field                           2nd Field                     3rd field
+    #   file name                           source dir                    destination dir
     declare -a SCRIPT_LINKS=(
-        "requirements.txt          ${LV1_ENVS_DIR}              ${LV4_MODNET_SDK_DIR}/onnx/requirements.txt"
-        "inference_onnx.py         ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/inference_onnx.py"
-        "generate_golden_files.py  ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/generate_golden_files.py"
-        # ------ export ------
-        "export/export_onnx.py            ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx.py"
-        "export/modnet_onnx.py            ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/modnet_onnx.py"
-        "export/export_onnx_modified.py   ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx_modified.py"
-        "export/modnet_onnx_modified.py   ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/modnet_onnx_modified.py"
+        "requirements.txt                   ${LV1_ENVS_DIR}              ${LV4_MODNET_SDK_DIR}/onnx/requirements.txt"
+        # ------ modnet/onnx ------
+        "onnx/inference_onnx.py             ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/inference_onnx.py"
+        "onnx/generate_golden_files.py      ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/generate_golden_files.py"
+        "onnx/export_onnx.py                ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx.py"
+        "onnx/modnet_onnx.py                ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/modnet_onnx.py"
+        "onnx/export_onnx_modified.py       ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx_modified.py"
+        "onnx/modnet_onnx_modified.py       ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/modnet_onnx_modified.py"
+        "onnx/export_onnx_pureBN.py         ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/onnx/export_onnx_pureBN.py"
+        # ------ modnet/src/models ------
+        "src/models/modnet.py               ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/src/models/modnet.py"
+        # ------ modnet ------
+        "train_modnet_mvp.py                ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/train_modnet_mvp.py"
+        "train_modnet_block1_2.py           ${LV4_MODNET_SCRIPTS_DIR}    ${LV4_MODNET_SDK_DIR}/train_modnet_block1_2.py"
     )
 
     for entry in "${SCRIPT_LINKS[@]}"; do
@@ -83,6 +89,8 @@ func_3_0_setup_modnet_softlinks() {
     local URL_PHOTO_ONNX="https://huggingface.co/PotterWhite/MODNet/resolve/main/photographic/modnet_photographic_portrait_matting.onnx"
     local URL_PHOTO_ONNX_IN_FOLDED="https://huggingface.co/PotterWhite/MODNet/resolve/main/photographic/modnet_photographic_portrait_matting_in_folded.onnx"
     local URL_WEBCAM="https://huggingface.co/PotterWhite/MODNet/resolve/main/modnet_webcam_portrait_matting.ckpt"
+    # Pure-BN retrained model (Phase 1 Block 1.2 output, stored under finetune/checkpoints/)
+    local URL_BN_BEST="https://huggingface.co/PotterWhite/MODNet/resolve/main/photographic/finetune/checkpoints/modnet_bn_best.ckpt"
     # ----------------------------------------
 
     # Internal helper to handle the logic: Check -> Wget -> Link
@@ -138,7 +146,7 @@ func_3_0_setup_modnet_softlinks() {
     _process_model \
         "modnet_photographic_portrait_matting.ckpt" \
         "$URL_PHOTO_CKPT" \
-        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_photographic_portrait_matting.ckpt"
+        "${LV4_MODNET_SDK_DIR}/checkpoints/modnet_photographic_portrait_matting.ckpt"
 
     _process_model \
         "modnet_photographic_portrait_matting.onnx" \
@@ -148,12 +156,17 @@ func_3_0_setup_modnet_softlinks() {
     _process_model \
         "modnet_webcam_portrait_matting.ckpt" \
         "$URL_WEBCAM" \
-        "${LV4_MODNET_SDK_DIR}/pretrained/modnet_webcam_portrait_matting.ckpt"
+        "${LV4_MODNET_SDK_DIR}/checkpoints/modnet_webcam_portrait_matting.ckpt"
 
     _process_model \
         "modnet_photographic_portrait_matting_in_folded.onnx" \
         "$URL_PHOTO_ONNX_IN_FOLDED" \
         "${LV4_MODNET_SDK_DIR}/pretrained/modnet_photographic_portrait_matting_in_folded.onnx"
+
+    _process_model \
+        "modnet_bn_best.ckpt" \
+        "$URL_BN_BEST" \
+        "${LV4_MODNET_SDK_DIR}/checkpoints/modnet_bn_best.ckpt"
 
     func_1_1_log "✅ Link setup and model verification complete." "green"
 }
@@ -232,16 +245,35 @@ func_3_2_setup_dep_before_build() {
     # Ensure pip is up to date
     "${PIP_BIN}" install --upgrade pip
 
-    # Handle Requirements (Load from file only)
-    if [ -f "$DEV_REQUIREMENTS_FILE" ]; then
-        func_1_1_log "   Installing Python packages from $DEV_REQUIREMENTS_FILE..."
-        # "${PIP_BIN}" install --no-cache-dir -r "$DEV_REQUIREMENTS_FILE" -i https://pypi.tuna.tsinghua.edu.cn/simple
-        "${PIP_BIN}" install -r "$DEV_REQUIREMENTS_FILE" -i https://pypi.tuna.tsinghua.edu.cn/simple
+    # Handle Requirements — auto-detect GPU and pick the right file + index
+    # CPU path (default): requirements.txt (torch CPU) — works on any machine
+    # GPU path: requirements-gpu.txt (torch+cu118) — needs PyTorch WHL index
+    local _cpu_req_file="${LV1_ENVS_DIR}/requirements.txt"
+    local _gpu_req_file="${LV1_ENVS_DIR}/requirements-gpu.txt"
+    local _req_file=""
+    if nvidia-smi &>/dev/null; then
+        func_1_1_log "   GPU detected (nvidia-smi OK). Using GPU requirements: $_gpu_req_file" "green"
+        _req_file="$_gpu_req_file"
+        # torch+cu118 must come from PyTorch WHL, not pypi/tsinghua
+        "${PIP_BIN}" install torch==2.0.1+cu118 torchvision==0.15.2+cu118 \
+            --index-url https://download.pytorch.org/whl/cu118 \
+            || func_1_2_err "Failed to install torch+cu118. Check network or PyTorch WHL URL."
     else
-        func_1_1_log "❌ Requirements file not found at: $DEV_REQUIREMENTS_FILE" "red"
-        func_1_1_log "   Please create the file manually before running prepare." "yellow"
-        exit 1
+        func_1_1_log "   No GPU detected. Using CPU requirements: $_cpu_req_file" "yellow"
+        _req_file="$_cpu_req_file"
+        "${PIP_BIN}" install torch==2.0.1 torchvision==0.15.2 \
+            --index-url https://download.pytorch.org/whl/cpu \
+            || func_1_2_err "Failed to install torch CPU. Check network."
     fi
+    if [ ! -f "$_req_file" ]; then
+        func_1_2_err "Requirements file not found: $_req_file"
+    fi
+    func_1_1_log "   Installing remaining packages from $_req_file..."
+    # torch/torchvision already installed above — skip them here
+    "${PIP_BIN}" install -r "$_req_file" \
+        --ignore-installed torch torchvision \
+        -i https://pypi.tuna.tsinghua.edu.cn/simple \
+        || func_1_2_err "Failed to install requirements from $_req_file."
 
     # Auto-fix OpenCV if needed (From B)
     # This remains critical: even if requirements.txt installed opencv-python,
@@ -312,65 +344,162 @@ func_3_2_setup_dep_before_build() {
 }
 
 func_3_3_rebuild_sdk(){
+
     if [ x"$1" == x"modnet" ]; then
-        # ********************************************
-        # --- Step 6: Force Re-install MODNet sdk
+
         cd "${REPO_TOP_DIR}"
 
-        # 定义变量 (确保完全匹配)
+        # Relative path of the submodule inside the super repository
         REL_PATH="third-party/sdk/MODNet.git"
+
+        # Upstream repository URL (used only for nuclear rebuild)
         REMOTE_URL="https://github.com/ZHKKKe/MODNet.git"
 
-        # ==========================================
-        # Phase 1: 彻底清理所有残留 (Nuclear Clean)
-        # ==========================================
+        # Optional mode argument
+        MODE="${2:-reset}"
 
-        # 1. 尝试从 git 注册表中反初始化
-        git submodule deinit -f -- "${REL_PATH}" 2>/dev/null || true
+        # =========================================================
+        # Mode 1 (default): Reset the existing submodule to clean state
+        # =========================================================
+        if [ x"${MODE}" == x"reset" ]; then
 
-        # 2. 从 Git 索引(Index)中强制移除 (这一步解决 pathspec error)
-        # 即使它不在索引里，加了 || true 也不会报错
-        git rm --cached -f "${REL_PATH}" 2>/dev/null || true
+            func_1_1_log "   Resetting MODNet submodule to clean state..." "yellow"
 
-        # 3. 物理删除工作目录
-        rm -rf "${REL_PATH}"
+            if [ -d "${REL_PATH}" ]; then
+                # Ensure submodule is initialized and pointing at the correct commit
+                # before resetting. On a fresh host the submodule may be
+                # uninitialized, which causes 'git reset --hard HEAD' to reset
+                # to the *parent* repo's HEAD instead of MODNet's commit.
+                git submodule update --init -- "${REL_PATH}"
 
-        # 4. 【关键】清理 .git/modules 缓存
-        # 根据你提供的 tree 信息，这里可能有残留，我们把相关的全删了
-        rm -rf ".git/modules/third-party/sdk/MODNet.git"
-        # 你截图里多出来的那个奇怪目录也删掉，防止干扰
-        rm -rf ".git/modules/MODNet.git"
+                (
+                    cd "${REL_PATH}" || exit 1
 
-        func_1_1_log "   Cleanup complete. Re-adding from scratch..." "yellow"
+                    # Discard all local modifications
+                    git reset --hard HEAD
 
-        # ==========================================
-        # Phase 2: 全新添加 (Re-Add)
-        # ==========================================
+                    # Remove untracked files and directories
+                    git clean -fdx
+                )
 
-        # 使用 'git submodule add' 而不是 'update'
-        # 'add' 命令会自动做三件事：
-        # 1. 下载代码
-        # 2. 写入 .gitmodules
-        # 3. 将 submodule 信息写入 Git 索引 (修复你的核心问题)
-        # --force 允许我们在该目录被 git 认为是 ignored 或有残留时强制执行
+                func_1_1_log " [6/7] MODNet SDK reset OK." "green"
+            else
+                func_1_1_log "   Submodule directory not found. Try nuclear rebuild." "red"
+                exit 1
+            fi
 
-        if git submodule add --force "${REMOTE_URL}" "${REL_PATH}"; then
-            func_1_1_log "   Submodule added successfully." "green"
-        else
-            func_1_1_log "   'git submodule add' failed. Checking if it's already there..." "red"
-            # 如果 add 失败，可能是因为清理不彻底，或者网络问题，这里做一个兜底尝试
-            git submodule update --init --recursive --force -- "${REL_PATH}"
         fi
 
-        # 最后的确认
-        if [ -f "${REL_PATH}/.git" ]; then
-            func_1_1_log " [6/7] MODNet SDK force synced OK." "yellow"
-        else
-            func_1_1_log " [6/7] Force sync failed!" "red"
-            exit 1
+
+        # =========================================================
+        # Mode 2: Nuclear clean and re-add submodule
+        # (kept for recovery scenarios)
+        # =========================================================
+        if [ x"${MODE}" == x"nuclear" ]; then
+
+            func_1_1_log "   Performing nuclear rebuild of MODNet submodule..." "yellow"
+
+            # -----------------------------------------
+            # Phase 1: Full cleanup
+            # -----------------------------------------
+
+            # Deinitialize the submodule from git registry
+            git submodule deinit -f -- "${REL_PATH}" 2>/dev/null || true
+
+            # Remove submodule entry from index
+            git rm --cached -f "${REL_PATH}" 2>/dev/null || true
+
+            # Remove working directory
+            rm -rf "${REL_PATH}"
+
+            # Clean cached submodule metadata
+            rm -rf ".git/modules/third-party/sdk/MODNet.git"
+            rm -rf ".git/modules/MODNet.git"
+
+            func_1_1_log "   Cleanup complete. Re-adding from scratch..." "yellow"
+
+            # -----------------------------------------
+            # Phase 2: Re-add submodule
+            # -----------------------------------------
+
+            if git submodule add --force "${REMOTE_URL}" "${REL_PATH}"; then
+                func_1_1_log "   Submodule added successfully." "green"
+            else
+                func_1_1_log "   'git submodule add' failed. Trying fallback..." "red"
+                git submodule update --init --recursive --force -- "${REL_PATH}"
+            fi
+
+            # Final verification
+            if [ -f "${REL_PATH}/.git" ]; then
+                func_1_1_log " [6/7] MODNet SDK force synced OK." "yellow"
+            else
+                func_1_1_log " [6/7] Force sync failed!" "red"
+                exit 1
+            fi
+
         fi
     fi
 }
+# func_3_3_rebuild_sdk(){
+#     if [ x"$1" == x"modnet" ]; then
+#         # ********************************************
+#         # --- Step 6: Force Re-install MODNet sdk
+#         cd "${REPO_TOP_DIR}"
+
+#         # 定义变量 (确保完全匹配)
+#         REL_PATH="third-party/sdk/MODNet.git"
+#         REMOTE_URL="https://github.com/ZHKKKe/MODNet.git"
+
+#         # ==========================================
+#         # Phase 1: 彻底清理所有残留 (Nuclear Clean)
+#         # ==========================================
+
+#         # 1. 尝试从 git 注册表中反初始化
+#         git submodule deinit -f -- "${REL_PATH}" 2>/dev/null || true
+
+#         # 2. 从 Git 索引(Index)中强制移除 (这一步解决 pathspec error)
+#         # 即使它不在索引里，加了 || true 也不会报错
+#         git rm --cached -f "${REL_PATH}" 2>/dev/null || true
+
+#         # 3. 物理删除工作目录
+#         rm -rf "${REL_PATH}"
+
+#         # 4. 【关键】清理 .git/modules 缓存
+#         # 根据你提供的 tree 信息，这里可能有残留，我们把相关的全删了
+#         rm -rf ".git/modules/third-party/sdk/MODNet.git"
+#         # 你截图里多出来的那个奇怪目录也删掉，防止干扰
+#         rm -rf ".git/modules/MODNet.git"
+
+#         func_1_1_log "   Cleanup complete. Re-adding from scratch..." "yellow"
+
+#         # ==========================================
+#         # Phase 2: 全新添加 (Re-Add)
+#         # ==========================================
+
+#         # 使用 'git submodule add' 而不是 'update'
+#         # 'add' 命令会自动做三件事：
+#         # 1. 下载代码
+#         # 2. 写入 .gitmodules
+#         # 3. 将 submodule 信息写入 Git 索引 (修复你的核心问题)
+#         # --force 允许我们在该目录被 git 认为是 ignored 或有残留时强制执行
+
+#         if git submodule add --force "${REMOTE_URL}" "${REL_PATH}"; then
+#             func_1_1_log "   Submodule added successfully." "green"
+#         else
+#             func_1_1_log "   'git submodule add' failed. Checking if it's already there..." "red"
+#             # 如果 add 失败，可能是因为清理不彻底，或者网络问题，这里做一个兜底尝试
+#             git submodule update --init --recursive --force -- "${REL_PATH}"
+#         fi
+
+#         # 最后的确认
+#         if [ -f "${REL_PATH}/.git" ]; then
+#             func_1_1_log " [6/7] MODNet SDK force synced OK." "yellow"
+#         else
+#             func_1_1_log " [6/7] Force sync failed!" "red"
+#             exit 1
+#         fi
+#     fi
+# }
 
 # func_3_4_detect_onnxruntime_version() {
 #     func_1_1_log "🔍 Detecting ONNX Runtime version from Python venv..." "blue"
@@ -484,7 +613,8 @@ func_5_1_clean_project(){
         fi
 
         if [ -d "${LV4_MODNET_SDK_DIR}" ]; then
-            rm -rf "${LV4_MODNET_SDK_DIR}"
+            # rm -rf "${LV4_MODNET_SDK_DIR}"
+            func_3_3_rebuild_sdk "modnet"
             func_1_1_log "✅ MODNet SDK Has been deleted." "green"
         # else
         #     func_1_1_log "✅ MODNet SDK not exist. Remove Skipped." "green"

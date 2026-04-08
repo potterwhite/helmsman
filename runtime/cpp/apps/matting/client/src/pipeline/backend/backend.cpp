@@ -38,6 +38,18 @@ void MattingBackend::setOutputPath(const std::string& path) {
 	output_path_ = path;
 }
 
+void MattingBackend::setBackgroundPath(const std::string& path) {
+	background_path_ = path;
+}
+
+void MattingBackend::setForegroundImagePath(const std::string& path) {
+	foreground_image_path_ = path;
+}
+
+void MattingBackend::setPostProcessor(std::shared_ptr<IPostProcessor> processor) {
+	post_processor_ = std::move(processor);
+}
+
 cv::Mat MattingBackend::postprocess(const TensorData& output) {
 
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
@@ -124,6 +136,19 @@ cv::Mat MattingBackend::postprocess(const TensorData& output) {
 	           cv::INTER_LINEAR);  // or cv::INTER_CUBIC for better alpha edge quality
 	                               // ------------------------------------------------
 
+	// Step C: Optional post-processing (e.g. Guided Filter edge refinement).
+	// Attach a processor via setPostProcessor(); leave nullptr to skip.
+	if (post_processor_) {
+		cv::Mat guide_bgr = cv::imread(foreground_image_path_, cv::IMREAD_COLOR);
+		if (guide_bgr.empty()) {
+			logger.Warning(
+			    "Post-processor skipped: cannot load guide image: " + foreground_image_path_,
+			    kcurrent_module_name);
+		} else {
+			restored_mat = post_processor_->process(restored_mat, guide_bgr);
+		}
+	}
+
 	const size_t total = HW * static_cast<size_t>(C);
 
 	file_utils.dumpBinary(std::vector<float>((float*)clamped.data, (float*)clamped.data + total),
@@ -137,7 +162,68 @@ cv::Mat MattingBackend::postprocess(const TensorData& output) {
 
 	cv::imwrite(output_path_ + "/cpp_11_result.png", output_8u);
 
-	logger.Info("Backend postprocess finished.", kcurrent_module_name);
+	// -------------------------
+	// 4. Composite foreground over background (cpp_12_composed.jpg)
+	//    Only executed when a background image path is provided.
+	if (!background_path_.empty()) {
+		// --- Load original foreground (BGR) ---
+		cv::Mat fg_bgr = cv::imread(foreground_image_path_, cv::IMREAD_COLOR);
+		if (fg_bgr.empty()) {
+			logger.Warning("Cannot load foreground image: " + foreground_image_path_ +
+			                   ", skipping composition.",
+			               kcurrent_module_name);
+		} else {
+			// --- Load background (BGR) and resize to match foreground ---
+			cv::Mat bg_bgr_raw = cv::imread(background_path_, cv::IMREAD_COLOR);
+			if (bg_bgr_raw.empty()) {
+				logger.Warning("Cannot load background image: " + background_path_ +
+				                   ", skipping composition.",
+				               kcurrent_module_name);
+			} else {
+				cv::Mat bg_bgr;
+				cv::resize(bg_bgr_raw, bg_bgr, cv::Size(fg_bgr.cols, fg_bgr.rows),
+				           0, 0, cv::INTER_LINEAR);
+
+				// --- Get alpha mask (output_8u is the matting result) ---
+				// output_8u may be CV_8UC1 (alpha only) or CV_8UC3
+				cv::Mat alpha_8u;
+				if (output_8u.channels() == 1) {
+					alpha_8u = output_8u;
+				} else {
+					// If multi-channel, use first channel as alpha
+					std::vector<cv::Mat> channels;
+					cv::split(output_8u, channels);
+					alpha_8u = channels[0];
+				}
+
+				// Resize alpha to foreground size if needed
+				if (alpha_8u.size() != fg_bgr.size()) {
+					cv::resize(alpha_8u, alpha_8u, fg_bgr.size(), 0, 0, cv::INTER_LINEAR);
+				}
+
+				// --- Alpha Compositing: C = alpha * F + (1 - alpha) * B ---
+				cv::Mat alpha_f32, alpha_3ch;
+				alpha_8u.convertTo(alpha_f32, CV_32FC1, 1.0 / 255.0);
+				cv::cvtColor(alpha_f32, alpha_3ch, cv::COLOR_GRAY2BGR);  // broadcast to 3ch
+
+				cv::Mat fg_f32, bg_f32;
+				fg_bgr.convertTo(fg_f32, CV_32FC3, 1.0 / 255.0);
+				bg_bgr.convertTo(bg_f32, CV_32FC3, 1.0 / 255.0);
+
+				cv::Mat composed_f32 = alpha_3ch.mul(fg_f32) +
+				                      (cv::Scalar(1.0, 1.0, 1.0) - alpha_3ch).mul(bg_f32);
+
+				cv::Mat composed_8u;
+				composed_f32.convertTo(composed_8u, CV_8UC3, 255.0);
+
+				cv::imwrite(output_path_ + "/cpp_12_composed.jpg", composed_8u);
+				logger.Info("Background composition saved: cpp_12_composed.jpg",
+				            kcurrent_module_name);
+			}
+		}
+	}
+
+
 
 	return output_8u;
 }

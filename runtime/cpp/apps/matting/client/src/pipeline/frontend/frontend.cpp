@@ -170,12 +170,21 @@ TensorData ImageFrontend::preprocess(const std::string& image_path, size_t model
 	    "Original size: Width=" + std::to_string(img.cols) + ", Height=" + std::to_string(img.rows),
 	    kcurrent_module_name);
 
-	// Step 3.1: Calculate scale factor to fit inside 512x512
+// Step 3.1: Calculate scale factor to fit inside 512x512
+#if 1
 	double scale_width = static_cast<double>(model_width) / img.cols;
 	double scale_height = static_cast<double>(model_height) / img.rows;
 
 	int new_width = static_cast<int>(img.cols * scale_width);
 	int new_height = static_cast<int>(img.rows * scale_height);
+#else
+	double scale = std::min(static_cast<double>(model_width) / img.cols,
+	                        static_cast<double>(model_height) / img.rows);
+	double scale_width = scale;
+	double scale_height = scale;
+	int new_width = static_cast<int>(std::round(img.cols * scale));
+	int new_height = static_cast<int>(std::round(img.rows * scale));
+#endif
 
 	logger_.Info("ScaleOfWidth factor: " + std::to_string(scale_width) +
 	                 ", ScaleOfHeight factor: " + std::to_string(scale_height) +
@@ -287,7 +296,6 @@ TensorData ImageFrontend::preprocess(const std::string& image_path, size_t model
 	// Save the original dimensions and calculated paddings into the tensor metadata.
 	tensor_data.orig_width = img.cols;  // Note: Use the 'img.cols' BEFORE any resize happens,
 	// or pass them down. In your current code, you overwrite 'img'.
-
 
 	tensor_data.orig_width = original_w;
 	tensor_data.orig_height = original_h;

@@ -34,8 +34,9 @@ func_4_1_ckpt_2_onnx(){
     #         This determines the ONNX export logic (original or modified)
     func_1_1_log "Select MODNet variant:" "blue"
     echo "1) Original (modnet_onnx.py)"
-    echo "2) Modified (modnet_onnx_modified.py)"
-    read -p "   Select [1-2]: " variant_choice
+    echo "2) Modified (modnet_onnx_modified.py) — anti-fusion, for pretrained IBNorm ckpt"
+    echo "3) Pure-BN  (export_onnx_pureBN.py)  — for retrained BatchNorm-only ckpt"
+    read -p "   Select [1-3]: " variant_choice
 
     # Step 3: Based on user selection, determine the export script filename
     #         and set a suffix for the output ONNX filename
@@ -43,9 +44,14 @@ func_4_1_ckpt_2_onnx(){
     local export_module="onnx.export_onnx"
     case $variant_choice in
         2)
-            func_1_1_log "   Using: Modified variant" "yellow"
+            func_1_1_log "   Using: Modified variant (anti-fusion IBNorm)" "yellow"
             onnx_suffix="_modified"
             export_module="onnx.export_onnx_modified"
+            ;;
+        3)
+            func_1_1_log "   Using: Pure-BN variant (retrained BatchNorm-only)" "yellow"
+            onnx_suffix="_pureBN"
+            export_module="onnx.export_onnx_pureBN"
             ;;
         *)
             func_1_1_log "   Using: Original variant" "yellow"
@@ -54,16 +60,16 @@ func_4_1_ckpt_2_onnx(){
 
     # Step 4: Scan the pretrained model directory for available .ckpt files
     func_1_1_log "🔎 Checking for pre-trained models (.ckpt)..." "blue"
-    mapfile -t ckpt_files < <(find "$LV5_PRETRAINED_DIR" -maxdepth 1 -type l -name "*.ckpt" -o -name "*.ckpt")
+    mapfile -t ckpt_files < <(find "$LV5_CHECKPOINTS_DIR" -maxdepth 1 -type l -name "*.ckpt" -o -name "*.ckpt")
 
     # If no symlink found, try regular files
     if [ ${#ckpt_files[@]} -eq 0 ]; then
-        mapfile -t ckpt_files < <(find "$LV5_PRETRAINED_DIR" -maxdepth 1 -type f -name "*.ckpt")
+        mapfile -t ckpt_files < <(find "$LV5_CHECKPOINTS_DIR" -maxdepth 1 -type f -name "*.ckpt")
     fi
 
     # Exit if no checkpoint files found
     if [ ${#ckpt_files[@]} -eq 0 ]; then
-        func_1_1_log "❌ No .ckpt models found in '$LV5_PRETRAINED_DIR'." "red"
+        func_1_1_log "❌ No .ckpt models found in '$LV5_CHECKPOINTS_DIR'." "red"
         return 1
     fi
 
@@ -92,7 +98,9 @@ func_4_1_ckpt_2_onnx(){
     #         Use the export module determined by user choice (original or modified)
     func_1_1_log "🚀 Starting conversion..." "blue"
     cd "$LV4_MODNET_SDK_DIR"
-    "$PYTHON_BIN" -m ${export_module} --ckpt-path="$ckpt_path" --output-path="$onnx_path"
+    # PYTHONPATH=$LV4_MODNET_SDK_DIR ensures local onnx/ package takes priority
+    # over the installed onnx pip package (both named 'onnx', local one wins)
+    PYTHONPATH="$LV4_MODNET_SDK_DIR" "$PYTHON_BIN" -m ${export_module} --ckpt-path="$ckpt_path" --output-path="$onnx_path"
 
     # Step 9: Report final result to user
     if [ $? -eq 0 ]; then func_1_1_log "✅ Conversion successful!" "green"; else func_1_2_err "Conversion failed."; fi
@@ -122,7 +130,7 @@ func_4_2_inference_with_onnx(){
 
     # Step 4: Scan the media directory for input images (jpg, bmp, png)
     func_1_1_log "🔎 Scanning for images..." "blue"
-    mapfile -t images_list < <(find "${LV1_MEDIA_DIR}" -type f \( -name "*.jpg" -o -name "*.bmp" -o -name "*.png" \))
+    mapfile -t images_list < <(find -L "${LV1_MEDIA_DIR}" -type f \( -name "*.jpg" -o -name "*.bmp" -o -name "*.png" \))
 
     if [ ${#images_list[@]} -eq 0 ]; then
          func_1_1_log "❌ No images found in ${LV1_MEDIA_DIR}" "red"; return 1;
@@ -160,7 +168,7 @@ func_4_5_generate_golden_interactive() {
     mkdir -p "${LV2_GOLDEN_DIR}" "${LV2_GOLDEN_DEBUG_DIR}"
 
     # Step 3: Scan media directory for input images
-    mapfile -t images < <(find "${LV1_MEDIA_DIR}" -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.bmp" \))
+    mapfile -t images < <(find -L "${LV1_MEDIA_DIR}" -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.bmp" \))
 
     if [ ${#images[@]} -eq 0 ]; then
         func_1_2_err "No images found under ${LV1_MEDIA_DIR}"
@@ -174,7 +182,7 @@ func_4_5_generate_golden_interactive() {
     done
 
     # Step 5: Scan for available ONNX models
-    mapfile -t onnx_models < <(find "${LV1_MODELS_DOWNLOAD_DIR}" -type f -name "*.onnx")
+    mapfile -t onnx_models < <(find "${LV5_PRETRAINED_DIR}" -type f -o -type l -name "*.onnx")
 
     if [ ${#onnx_models[@]} -eq 0 ]; then
         func_1_2_err "No ONNX model found. Please convert first."

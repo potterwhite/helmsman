@@ -22,6 +22,7 @@
 #include <chrono>
 #include "common-define.h"
 #include "pipeline/backend/backend.h"
+#include "pipeline/backend/post-processor/guided-filter-post-processor.h"
 #include "pipeline/frontend/frontend.h"
 
 #ifdef ENABLE_RKNN_BACKEND
@@ -48,10 +49,11 @@ Pipeline::~Pipeline() {
 }
 
 void Pipeline::init(const std::string& image_path, const std::string& onnx_path,
-                    const std::string& output_bin_path) {
+                    const std::string& output_bin_path, const std::string& background_path) {
 	this->image_path_ = image_path;
 	this->onnx_path_ = onnx_path;
 	this->output_bin_path_ = output_bin_path;
+	this->background_path_ = background_path;
 }
 
 void Pipeline::verify_parameters_necessary() {
@@ -83,9 +85,14 @@ int Pipeline::run() {
 	engine.setOutputBinPath(output_bin_path_);
 	engine.load(onnx_path_);
 
+#ifdef ENABLE_RKNN_BACKEND
 	// Get model input size (assumes square input: height == width)
 	size_t model_input_height = engine.getInputHeight();
 	size_t model_input_width = engine.getInputWidth();
+#else
+	size_t model_input_height = 512;  // Default input height for ONNX model
+	size_t model_input_width = 512;   // Default input width for ONNX model
+#endif
 
 	// --------
 	// 2nd. Frontend: preprocess with model's input size
@@ -111,8 +118,10 @@ int Pipeline::run() {
 	// --------
 	// 3rd. Backend: postprocess
 	backend.setOutputPath(output_bin_path_);
+	backend.setBackgroundPath(background_path_);
+	backend.setForegroundImagePath(image_path_);
+	backend.setPostProcessor(std::make_shared<GuidedFilterPostProcessor>(2, 1e-4, 0.2f, 1));
 	auto result = backend.postprocess(output_tensor);
 
 	return 0;
 }
-

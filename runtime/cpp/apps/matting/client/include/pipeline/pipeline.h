@@ -36,7 +36,7 @@ class Pipeline {
    public:
 	static Pipeline& GetInstance();
 	void init(const std::string& image_path, const std::string& onnx_path,
-	          const std::string& output_bin_path);
+	          const std::string& output_bin_path, const std::string& background_path = "");
 
 	int run();
 
@@ -56,4 +56,5 @@ class Pipeline {
 	std::string image_path_;
 	std::string onnx_path_;
 	std::string output_bin_path_;
+	std::string background_path_;
 };
