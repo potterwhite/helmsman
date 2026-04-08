@@ -1,8 +1,11 @@
 .venv
 media/
+media
 build
 modnet-models
 
 CMakeUserPresets.json
 
 debug/
+
+__pycache__
