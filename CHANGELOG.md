@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.9.0](https://github.com/potterwhite/helmsman/compare/v0.8.0...v0.9.0) (2026-04-08)
+
+
+### ✨ Added
+
+* Pure-BN MODNet end-to-end pipeline — retrain, ONNX export, C++ GuidedFilter, RKNN prep ([#16](https://github.com/potterwhite/helmsman/issues/16)) ([bee7cf3](https://github.com/potterwhite/helmsman/commit/bee7cf3f098783d6311e786ac2f63a5061eb1c01))
+
 ## [0.8.0](https://github.com/potterwhite/helmsman/compare/v0.7.0...v0.8.0) (2026-03-12)
 
 
