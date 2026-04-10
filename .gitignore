@@ -9,3 +9,5 @@ CMakeUserPresets.json
 debug/
 
 __pycache__
+rvm-models
+!rvm-models/.gitkeep
