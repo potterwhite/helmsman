@@ -47,7 +47,11 @@ class MattingBackend {
 	 */
 	void setPostProcessor(std::shared_ptr<IPostProcessor> processor);
 
-	cv::Mat postprocess(const TensorData& output);
+	// Accept multi-tensor output from InferenceEngine.
+	// Selects the pha (alpha matte) tensor by name or position:
+	//   - MODNet: outputs[0] = pha
+	//   - RVM:    outputs[1] = pha (outputs[0] = fgr)
+	cv::Mat postprocess(const std::vector<TensorData>& outputs);
 
    private:
 	std::string output_path_;

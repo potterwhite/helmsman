@@ -29,32 +29,50 @@
 #include "Utils/logger/worker/consolesink.h"
 #include "Utils/logger/worker/filesink.h"
 #include "Utils/math/math-utils.h"
+#include "pipeline/core/recurrent-state-manager.h"
 
-// constexpr std::string_view kcurrent_app_name = "Pipeline";
+// ---------------------------------------------------------------------------
+// ModelType — explicit model type selection
+//
+// The caller (main-client) chooses which model type to run.
+// InferenceEngine itself is model-agnostic (N→M tensor).
+// Pipeline uses this enum to decide:
+//   - Whether to initialize RecurrentStateManager
+//   - How many benchmark iterations to run
+//   - Which backend post-processing path to take
+// ---------------------------------------------------------------------------
+enum class ModelType {
+	kMODNet,  // Single-frame matting (1 input → 1 output)
+	kRVM,     // Video matting with recurrent state (5 inputs → 6 outputs)
+};
 
 class Pipeline {
    public:
 	static Pipeline& GetInstance();
-	void init(const std::string& image_path, const std::string& onnx_path,
-	          const std::string& output_bin_path, const std::string& background_path = "");
+	void init(const std::string& image_path, const std::string& model_path,
+	          const std::string& output_bin_path, const std::string& background_path = "",
+	          ModelType model_type = ModelType::kMODNet);
 
 	int run();
 
    private:
-	// member functions
 	Pipeline();
 	~Pipeline();
 
-	// int main_pipeline();
-
 	void verify_parameters_necessary();
-	// TensorData& processing_pipeline(const std::string& imagePath, const std::string& outputBinPath,
-	//                                 TensorData& tensor_data);
+
+	// MODNet path: single-frame inference with benchmarking
+	int runMODNet();
+
+	// RVM path: multi-frame inference with recurrent state management
+	int runRVM();
 
    private:
-	// member variables
 	std::string image_path_;
-	std::string onnx_path_;
+	std::string model_path_;
 	std::string output_bin_path_;
 	std::string background_path_;
+	ModelType   model_type_ = ModelType::kMODNet;
+
+	RecurrentStateManager state_mgr_;
 };
