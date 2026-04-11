@@ -21,18 +21,43 @@
  */
 
 #pragma once
+#include <cstddef>
 #include <string>
+#include <vector>
 #include "pipeline/core/data_structure.h"
+
+// ---------------------------------------------------------------------------
+// InferenceEngine — abstract inference interface
+//
+// Supports arbitrary N-input / M-output models:
+//   - MODNet: N=1, M=1  (single image → single alpha matte)
+//   - RVM:    N=5, M=6  (src + r1i~r4i → fgr + pha + r1o~r4o)
+//   - Future: SAM2, etc. — no new subclass needed, just fill vectors
+//
+// Recurrent state management is the responsibility of the caller (Pipeline),
+// NOT of InferenceEngine. InferenceEngine is stateless.
+// ---------------------------------------------------------------------------
 
 class InferenceEngine {
    public:
 	virtual ~InferenceEngine() = default;
 
 	virtual void load(const std::string& model_path) = 0;
-	virtual TensorData infer(const TensorData& input) = 0;
 
-	// getter and setter
-	virtual void setOutputBinPath(const std::string& path) { output_bin_path_ = path; };
+	// Run inference: N inputs → M outputs.
+	// Caller is responsible for pre-sizing `outputs` or leaving it empty
+	// (implementations must resize outputs to match model output count).
+	virtual void infer(
+	    const std::vector<TensorData>& inputs,
+	          std::vector<TensorData>& outputs
+	) = 0;
+
+	// Getters for model input dimensions (used by Pipeline to configure frontend).
+	virtual std::size_t getInputHeight() const { return 0; }
+	virtual std::size_t getInputWidth()  const { return 0; }
+
+	// Optional: path for debug binary dumps.
+	virtual void setOutputBinPath(const std::string& path) { output_bin_path_ = path; }
 
    protected:
 	std::string output_bin_path_;

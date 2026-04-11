@@ -22,17 +22,23 @@
 
 #pragma once
 
+#include <string>
 #include <vector>
 
 typedef struct {
-	std::vector<float> data;
-	std::vector<int64_t> shape;
+	// --- Tensor identity ---
+	std::string name;             // tensor name (e.g. "src", "r1i", "pha", "r1o")
+                                  // empty string is valid for legacy single-tensor paths
 
-	// --- ADD THESE METADATA FIELDS ---
-	int orig_width = 0;
+	// --- Tensor data ---
+	std::vector<float>     data;
+	std::vector<int64_t>   shape;
+
+	// --- Letterbox metadata (filled by ImageFrontend, consumed by MattingBackend) ---
+	int orig_width  = 0;
 	int orig_height = 0;
-	int pad_top = 0;
-	int pad_bottom = 0;
-	int pad_left = 0;
-	int pad_right = 0;
+	int pad_top     = 0;
+	int pad_bottom  = 0;
+	int pad_left    = 0;
+	int pad_right   = 0;
 } TensorData;
