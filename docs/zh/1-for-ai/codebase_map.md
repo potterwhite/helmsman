@@ -279,8 +279,12 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 ## `apps/matting/client/` ★ — 主应用程序
 
 **二进制**：`Helmsman_Matting_Client`
-**用法**：`Helmsman_Matting_Client <image> <model> <output_dir> [background]`
+**用法**：`Helmsman_Matting_Client <image> <model> <output_dir> [background] [--rvm]`
 **安装路径**：`runtime/cpp/install/<platform>/release/bin/`
+
+**CLI 标志**：
+- `--rvm` — 使用 RVM 模式（递归状态 + 5 帧循环）
+- `--modnet` — 使用 MODNet 模式（默认，单帧 + 10× benchmark）
 
 ### 抠图流水线（C++ 数据流）
 

@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <chrono>
 #include <csignal>  // For signal handling
+#include <cstring>  // For strcmp
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <sstream>  // For std::ostringstream
@@ -42,12 +43,9 @@
 
 using namespace arcforge::embedded;
 
-// const std::string_view kcurrent_module_name = "matting-client";
-
 const std::string ksocket_path = "/tmp/soCket.paTh";
 
 // --- kill signal capture ---
-// static bool g_stop_signal_received = false;
 static std::atomic<bool> g_stop_signal_received(false);
 
 auto& logger = arcforge::embedded::utils::Logger::GetInstance();
@@ -73,50 +71,97 @@ bool isRelease() {
 	return build_type == "Release";
 }
 
+// ============================================================================
+// CLI Usage:
+//
+//   Helmsman_Matting_Client <image> <model> <output_dir> [background] [--rvm]
+//
+// Positional arguments:
+//   image        Path to input image
+//   model        Path to ONNX or RKNN model file
+//   output_dir   Directory for output files and debug dumps
+//   background   (optional) Path to background image for compositing
+//
+// Flags:
+//   --rvm        Use RVM (Robust Video Matting) mode with recurrent states.
+//                Default is MODNet (single-frame matting).
+//
+// Examples:
+//   # MODNet (default):
+//   Helmsman_Matting_Client photo.png modnet.onnx ./output/
+//
+//   # RVM:
+//   Helmsman_Matting_Client photo.png rvm.rknn ./output/ --rvm
+//
+//   # RVM with background compositing:
+//   Helmsman_Matting_Client photo.png rvm.rknn ./output/ bg.jpg --rvm
+// ============================================================================
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
-	// auto& logger = arcforge::embedded::utils::Logger::GetInstance();
-	// logger.setLevel(arcforge::embedded::utils::LoggerLevel::kdebug);
 
-	//*****************************************************
-	// logger level configuration
-	// obtain logger unique instance
-
-	// 1. Configure logger level
-	if (isRelease() == true) {
+	// -----------------------------------------------
+	// 1. Configure logger
+	// -----------------------------------------------
+	if (isRelease()) {
 		logger.setLevel(arcforge::embedded::utils::LoggerLevel::kinfo);
 	} else {
 		logger.setLevel(arcforge::embedded::utils::LoggerLevel::kdebug);
 	}
 
-	// 2. Configure output targets (Sinks)
 	logger.ClearSinks();
-	// logger.AddSink(
-	//     std::make_shared<arcforge::embedded::utils::FileSink>("/root/my_app_client.log"));
 	logger.AddSink(std::make_shared<arcforge::embedded::utils::ConsoleSink>());
 
-	//----------------------------------
-
-	// setup signal handler
+	// Setup signal handler
 	signal(SIGINT, SignalHandler);
-	// signal(SIGTERM, SignalHandler);
 
-#if 1
-	// v1.3.3 inference execution
-	if (argc != 4 && argc != 5) {
-		std::cerr << "Usage: infer <image_path> <onnx_path> <output_bin> [background_path]\n";
+	// -----------------------------------------------
+	// 2. Parse arguments
+	// -----------------------------------------------
+	// Scan for --rvm flag anywhere in argv, then collect positional args.
+	ModelType model_type = ModelType::kMODNet;
+	std::vector<std::string> positional_args;
+
+	for (int i = 1; i < argc; ++i) {
+		if (std::strcmp(argv[i], "--rvm") == 0) {
+			model_type = ModelType::kRVM;
+		} else if (std::strcmp(argv[i], "--modnet") == 0) {
+			model_type = ModelType::kMODNet;  // explicit default
+		} else {
+			positional_args.push_back(argv[i]);
+		}
+	}
+
+	if (positional_args.size() < 3 || positional_args.size() > 4) {
+		std::cerr << "Usage: " << argv[0]
+		          << " <image_path> <model_path> <output_dir> [background_path] [--rvm]\n"
+		          << "\n"
+		          << "Flags:\n"
+		          << "  --rvm      Use RVM (Robust Video Matting) with recurrent states\n"
+		          << "  --modnet   Use MODNet single-frame matting (default)\n";
 		return 1;
 	}
 
-	const std::string image_path = argv[1];
-	const std::string onnx_path = argv[2];
-	// const std::string input_bin_path = argv[3];
-	const std::string output_bin_path = argv[3];
-	const std::string background_path = (argc == 5) ? argv[4] : "";
-	pipeline.init(image_path, onnx_path, output_bin_path, background_path);
+	const std::string image_path      = positional_args[0];
+	const std::string model_path      = positional_args[1];
+	const std::string output_bin_path = positional_args[2];
+	const std::string background_path = (positional_args.size() == 4) ? positional_args[3] : "";
 
+	// -----------------------------------------------
+	// 3. Log configuration
+	// -----------------------------------------------
+	std::string mode_str = (model_type == ModelType::kRVM) ? "RVM" : "MODNet";
+	logger.Info("Model type: " + mode_str, kcurrent_module_name);
+	logger.Info("Image:      " + image_path, kcurrent_module_name);
+	logger.Info("Model:      " + model_path, kcurrent_module_name);
+	logger.Info("Output:     " + output_bin_path, kcurrent_module_name);
+	if (!background_path.empty()) {
+		logger.Info("Background: " + background_path, kcurrent_module_name);
+	}
+
+	// -----------------------------------------------
+	// 4. Run pipeline
+	// -----------------------------------------------
+	pipeline.init(image_path, model_path, output_bin_path, background_path, model_type);
 	pipeline.run();
-
-#endif
 
 	std::cout << "hello " << kcurrent_module_name << std::endl;
 
