@@ -62,169 +62,154 @@ InferenceEngineONNX::~InferenceEngineONNX() {
 // ============================================================================
 void InferenceEngineONNX::load(const std::string& model_path) {
 
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+	auto& logger  = arcforge::embedded::utils::Logger::GetInstance();
 	auto& runtime = arcforge::runtime::RuntimeONNX::GetInstance();
 
-	// Create ONNX Runtime session
-	session_ =
-	    std::make_unique<Ort::Session>(env_, model_path.c_str(), runtime.init_session_option());
+	session_ = std::make_unique<Ort::Session>(
+	    env_, model_path.c_str(), runtime.init_session_option());
 
 	Ort::AllocatorWithDefaultOptions allocator;
 
-	// Retrieve input and output tensor names
-	// (These APIs may be deprecated in future ONNX versions)
-	input_name_ = (session_->GetInputNameAllocated(0, allocator)).get();
+	const std::size_t n_inputs  = session_->GetInputCount();
+	const std::size_t n_outputs = session_->GetOutputCount();
 
-	output_name_ = (session_->GetOutputNameAllocated(0, allocator)).get();
+	input_names_.clear();
+	output_names_.clear();
 
-	// Query input tensor shape
-	std::vector<int64_t> input_shape =
-	    session_->GetInputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
-
-	logger.Info("Input Name: " + input_name_, kcurrent_module_name);
-	logger.Info("Output Name: " + output_name_, kcurrent_module_name);
-
-	logger.Info("Input Shape: ");
-	for (auto s : input_shape) {
-		logger.Info(std::to_string(s) + " ", kcurrent_module_name);
+	for (std::size_t i = 0; i < n_inputs; ++i) {
+		input_names_.push_back(session_->GetInputNameAllocated(i, allocator).get());
 	}
-	logger.Info("\n");
+	for (std::size_t i = 0; i < n_outputs; ++i) {
+		output_names_.push_back(session_->GetOutputNameAllocated(i, allocator).get());
+	}
+
+	logger.Info("Loaded ONNX model: " + model_path, kcurrent_module_name);
+	logger.Info("  inputs:  " + std::to_string(n_inputs),  kcurrent_module_name);
+	logger.Info("  outputs: " + std::to_string(n_outputs), kcurrent_module_name);
+	for (auto& n : input_names_)  logger.Info("    in  " + n, kcurrent_module_name);
+	for (auto& n : output_names_) logger.Info("    out " + n, kcurrent_module_name);
 }
 
 // ============================================================================
-// Step 2~7 - Run Inference
+// Step 2~7 - Run Inference (N inputs → M outputs)
+//
+// Input layout contract:
+//   - inputs[0] (image/src): NHWC float32, range 0~255
+//     → converted to NCHW + normalized to 0~1 before ORT run
+//   - inputs[1..N-1] (recurrent states r*i): already NCHW float32, raw values
+//     → passed through as-is (no layout conversion, no normalization)
+//
+// Output layout:
+//   - all outputs are NCHW float32 as returned by ORT
 // ============================================================================
-TensorData InferenceEngineONNX::infer(const TensorData& input) {
+void InferenceEngineONNX::infer(
+    const std::vector<TensorData>& inputs,
+          std::vector<TensorData>& outputs)
+{
+	auto& logger     = arcforge::embedded::utils::Logger::GetInstance();
+	auto& file_utils = arcforge::utils::FileUtils::GetInstance();
 
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
-	auto& file_utils_ = arcforge::utils::FileUtils::GetInstance();
+	const std::size_t n_in  = inputs.size();
+	const std::size_t n_out = output_names_.size();
 
-	// ------------------------------------------------------------------------
-	// Step 2 - Architecture Adaptation (NHWC → NCHW)
-	//
-	// Frontend provides:
-	//   Layout: NHWC
-	//   Example shape: [1, 512, 896, 3]
-	//   Data range: 0~255
-	//
-	// ONNX model expects:
-	//   Layout: NCHW
-	//   Example shape: [1, 3, 512, 896]
-	//   Data range: 0~1 (normalized)
-	// ------------------------------------------------------------------------
+	// ----------------------------------------------------------------
+	// Build ORT input tensors
+	// ----------------------------------------------------------------
+	Ort::MemoryInfo mem_info =
+	    Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
-	int64_t N = input.shape[0];  // Batch size
-	int64_t H = input.shape[1];  // Height
-	int64_t W = input.shape[2];  // Width
-	int64_t C = input.shape[3];  // Channels
+	// We need stable pointers: keep converted buffers alive until Run().
+	std::vector<std::vector<float>> converted_bufs(n_in);
+	std::vector<Ort::Value>         ort_inputs;
+	ort_inputs.reserve(n_in);
 
-	// ONNX requires int64_t for shape definition
-	std::vector<int64_t> onnx_input_shape = {N, C, H, W};
+	for (std::size_t i = 0; i < n_in; ++i) {
+		const TensorData& td = inputs[i];
 
-	// Convert to size_t for safe memory operations
-	size_t size_N = static_cast<size_t>(N);
-	size_t size_H = static_cast<size_t>(H);
-	size_t size_W = static_cast<size_t>(W);
-	size_t size_C = static_cast<size_t>(C);
+		if (i == 0) {
+			// --- Image input: NHWC 0~255 → NCHW 0~1 ---
+			const int64_t N = td.shape[0];
+			const int64_t H = td.shape[1];
+			const int64_t W = td.shape[2];
+			const int64_t C = td.shape[3];
+			const std::size_t sN = static_cast<std::size_t>(N);
+			const std::size_t sH = static_cast<std::size_t>(H);
+			const std::size_t sW = static_cast<std::size_t>(W);
+			const std::size_t sC = static_cast<std::size_t>(C);
+			const std::size_t total = sN * sC * sH * sW;
 
-	size_t input_tensor_size = size_N * size_C * size_H * size_W;
+			converted_bufs[i].resize(total);
+			for (std::size_t c = 0; c < sC; ++c)
+				for (std::size_t h = 0; h < sH; ++h)
+					for (std::size_t w = 0; w < sW; ++w)
+						converted_bufs[i][c*sH*sW + h*sW + w] =
+						    td.data[h*sW*sC + w*sC + c] / 255.0f;
 
-	// Validate total element count
-	if (input_tensor_size != input.data.size()) {
-		logger.Error("Size mismatch!", kcurrent_module_name);
-		throw std::runtime_error("Input size mismatch");
-	}
-
-	// Allocate memory for NCHW data
-	std::vector<float> nchw_data(input_tensor_size);
-
-	// ------------------------------------------------------------------------
-	// Step 3 - Memory Reordering + Normalization Recovery
-	//
-	// Convert:
-	//   NHWC memory layout → NCHW memory layout
-	//
-	// Restore normalization:
-	//   Divide pixel values by 255.0f
-	//   Convert 0~255 → 0~1
-	// ------------------------------------------------------------------------
-
-	for (size_t c = 0; c < size_C; ++c) {
-		for (size_t h = 0; h < size_H; ++h) {
-			for (size_t w = 0; w < size_W; ++w) {
-
-				size_t nhwc_idx = h * size_W * size_C + w * size_C + c;
-
-				size_t nchw_idx = c * size_H * size_W + h * size_W + w;
-
-				nchw_data[nchw_idx] = input.data[nhwc_idx] / 255.0f;
-			}
+			std::vector<int64_t> shape_nchw = {N, C, H, W};
+			ort_inputs.push_back(Ort::Value::CreateTensor<float>(
+			    mem_info, converted_bufs[i].data(), total,
+			    shape_nchw.data(), shape_nchw.size()));
+		} else {
+			// --- Recurrent state: NCHW float32, pass through ---
+			const std::size_t total = td.data.size();
+			converted_bufs[i] = td.data;   // copy (ORT needs non-const ptr)
+			ort_inputs.push_back(Ort::Value::CreateTensor<float>(
+			    mem_info, converted_bufs[i].data(), total,
+			    td.shape.data(), td.shape.size()));
 		}
 	}
 
-	logger.Info("Data translated from NHWC(0~255) to NCHW(0~1) for ONNX.", kcurrent_module_name);
+	// ----------------------------------------------------------------
+	// Prepare name pointer arrays for ORT Run()
+	// ----------------------------------------------------------------
+	std::vector<const char*> in_ptrs, out_ptrs;
+	in_ptrs.reserve(n_in);
+	out_ptrs.reserve(n_out);
+	for (auto& s : input_names_)  in_ptrs.push_back(s.c_str());
+	for (auto& s : output_names_) out_ptrs.push_back(s.c_str());
 
-	// ------------------------------------------------------------------------
-	// Step 4 - Create ONNX Input Tensor
-	// ------------------------------------------------------------------------
+	// ----------------------------------------------------------------
+	// Run inference
+	// ----------------------------------------------------------------
+	auto ort_outputs = session_->Run(
+	    Ort::RunOptions{nullptr},
+	    in_ptrs.data(),  ort_inputs.data(),  n_in,
+	    out_ptrs.data(), n_out);
 
-	Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+	// ----------------------------------------------------------------
+	// Collect outputs
+	// ----------------------------------------------------------------
+	outputs.clear();
+	outputs.reserve(n_out);
 
-	Ort::Value input_tensor =
-	    Ort::Value::CreateTensor<float>(memory_info, nchw_data.data(), input_tensor_size,
-	                                    onnx_input_shape.data(), onnx_input_shape.size());
+	for (std::size_t j = 0; j < n_out; ++j) {
+		float*       data_ptr = ort_outputs[j].GetTensorMutableData<float>();
+		auto         shape    = ort_outputs[j].GetTensorTypeAndShapeInfo().GetShape();
+		std::size_t  total    = 1;
+		for (auto s : shape) total *= static_cast<std::size_t>(s);
 
-	// ------------------------------------------------------------------------
-	// Step 5 - Execute Inference
-	// ------------------------------------------------------------------------
+		TensorData td;
+		td.name  = output_names_[j];
+		td.shape = shape;
+		td.data.assign(data_ptr, data_ptr + total);
 
-	const char* input_name = input_name_.c_str();
-	const char* output_name = output_name_.c_str();
+		// Propagate letterbox metadata from primary input (src)
+		td.orig_width  = inputs[0].orig_width;
+		td.orig_height = inputs[0].orig_height;
+		td.pad_top     = inputs[0].pad_top;
+		td.pad_bottom  = inputs[0].pad_bottom;
+		td.pad_left    = inputs[0].pad_left;
+		td.pad_right   = inputs[0].pad_right;
 
-	auto output_tensors =
-	    session_->Run(Ort::RunOptions{nullptr}, &input_name, &input_tensor, 1, &output_name, 1);
-
-	// ------------------------------------------------------------------------
-	// Step 6 - Extract Output Tensor
-	// ------------------------------------------------------------------------
-
-	float* output_data = output_tensors[0].GetTensorMutableData<float>();
-
-	auto output_shape = output_tensors[0].GetTensorTypeAndShapeInfo().GetShape();
-
-	logger.Info("Output Shape: ");
-	for (auto s : output_shape) {
-		logger.Info(std::to_string(s) + " ", kcurrent_module_name);
+		outputs.push_back(std::move(td));
 	}
-	logger.Info("\n");
 
-	size_t output_tensor_size = 1;
-	for (auto s : output_shape) {
-		output_tensor_size *= static_cast<size_t>(s);
+	// Debug dump for primary output (index 0)
+	if (!output_bin_path_.empty()) {
+		file_utils.dumpBinary(outputs[0].data,
+		    output_bin_path_ + "cpp_08_inference-Output.bin");
 	}
 
-	// ------------------------------------------------------------------------
-	// Step 7 - Dump Output and Construct TensorData
-	// ------------------------------------------------------------------------
-
-	std::vector<float> output_vector(output_data, output_data + output_tensor_size);
-
-	file_utils_.dumpBinary(output_vector, output_bin_path_ + "cpp_08_inference-Output.bin");
-
-	TensorData output;
-	output.data.assign(output_data, output_data + output_tensor_size);
-
-	output.shape = output_shape;
-
-	// --- ADD THIS BLOCK ---
-	// Inherit metadata from input tensor to output tensor
-	output.orig_width = input.orig_width;
-	output.orig_height = input.orig_height;
-	output.pad_top = input.pad_top;
-	output.pad_bottom = input.pad_bottom;
-	output.pad_left = input.pad_left;
-	output.pad_right = input.pad_right;
-	// ----------------------
-
-	return output;
+	logger.Info("infer() complete: " + std::to_string(n_in) + " in / " +
+	            std::to_string(n_out) + " out", kcurrent_module_name);
 }

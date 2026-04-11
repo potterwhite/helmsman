@@ -36,21 +36,22 @@ class InferenceEngineONNX : public InferenceEngine {
    public:
 	InferenceEngineONNX();
 	~InferenceEngineONNX();
-	// static InferenceEngineONNX& GetInstance();
 
 	void load(const std::string& model_path) override;
-	TensorData infer(const TensorData& input) override;
+
+	// N-input / M-output inference (general interface).
+	// For MODNet: inputs.size()==1, outputs will have 1 element.
+	// For RVM:    inputs.size()==5, outputs will have 6 elements.
+	void infer(
+	    const std::vector<TensorData>& inputs,
+	          std::vector<TensorData>& outputs
+	) override;
 
    private:
-	// member functions
-
-   private:
-	// member variables
 	Ort::Env env_;
 	std::unique_ptr<Ort::Session> session_;
 
-	std::string input_name_;
-	std::string output_name_;
-
-
+	// Cached names for all inputs and outputs (populated in load()).
+	std::vector<std::string> input_names_;
+	std::vector<std::string> output_names_;
 };
