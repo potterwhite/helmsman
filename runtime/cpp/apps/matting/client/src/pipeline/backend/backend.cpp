@@ -50,10 +50,36 @@ void MattingBackend::setPostProcessor(std::shared_ptr<IPostProcessor> processor)
 	post_processor_ = std::move(processor);
 }
 
-cv::Mat MattingBackend::postprocess(const TensorData& output) {
+cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs) {
 
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 	auto& file_utils = arcforge::utils::FileUtils::GetInstance();
+
+	if (outputs.empty()) {
+		throw std::runtime_error("Backend received empty outputs");
+	}
+
+	// -------------------------
+	// Select the pha (alpha matte) tensor from outputs.
+	// Strategy: first try by name ("pha"), then fall back to positional convention.
+	//   - MODNet: outputs[0] = pha (only output)
+	//   - RVM:    outputs[0] = fgr, outputs[1] = pha
+	const TensorData* pha_ptr = nullptr;
+	for (const auto& td : outputs) {
+		if (td.name == "pha") {
+			pha_ptr = &td;
+			break;
+		}
+	}
+	if (!pha_ptr) {
+		// Fall back: if single output, use [0]; otherwise use [1] (RVM convention)
+		pha_ptr = (outputs.size() == 1) ? &outputs[0] : &outputs[1];
+	}
+
+	const TensorData& output = *pha_ptr;
+
+	logger.Info("Backend: selected pha tensor '" + output.name + "' from " +
+	            std::to_string(outputs.size()) + " outputs", kcurrent_module_name);
 
 	if (output.shape.size() != 4) {
 		throw std::runtime_error("Output tensor must be NCHW");

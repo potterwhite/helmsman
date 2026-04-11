@@ -6,7 +6,7 @@
 >
 > **维护规则：** 任何修改本文件中所列文件的 AI Agent，必须在同一 commit/会话中更新本文档的对应章节。
 >
-> 最后更新：2026-03-31（export_onnx_pureBN.py + onnx 1.14.1 升级）
+> 最后更新：2026-04-11（Phase-3 C++ 集成：InferenceEngine N→M tensor、RecurrentStateManager、Pipeline RVM 路径）
 >
 > **English →** [../../en/1-for-ai/codebase_map.md](../../en/1-for-ai/codebase_map.md)
 
@@ -301,28 +301,42 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 │                 │  6. 将 HWC float32 内存复制到 tensor_data.data
 │                 │  7. 填充 TensorData 元数据（orig_w/h, pad_*）
 └────────┬────────┘
-         │ TensorData {data, shape[NHWC], orig_w, orig_h, pad_top/bottom/left/right}
+         │ vector<TensorData>:
+         │   MODNet: [src]
+         │   RVM:    [src, r1i, r2i, r3i, r4i] (由 RecurrentStateManager 注入)
          ▼
 ┌─────────────────────────────┐
 │   InferenceEngine（抽象）   │  → pipeline/inference-engine/base/inference-engine.h
 │   .load(model_path)         │
-│   .infer(TensorData)        │
+│   .infer(vector<in>,        │  ★ N-input / M-output 泛化接口
+│          vector<out>)       │    MODNet: 1→1,  RVM: 5→6
 │                             │
 │  RKNN 路径（ENABLE_RKNN_BACKEND）:
 │  ├─ InferenceEngineRKNNZeroCP  ← 生产环境主选
-│  │   - rknn_create_mem（NPU 可见缓冲区）
-│  │   - memcpy 输入到 input_mem_->virt_addr
+│  │   - 多组 rknn_create_mem（N 输入 + M 输出缓冲区）
+│  │   - 遍历 inputs 逐个 memcpy 到 input_mems_[i]->virt_addr
 │  │   - rknn_run()
 │  └─ InferenceEngineRKNN       ← 非零拷贝（备选）
 │
 │  ONNX 路径（native/x86 默认）:
 │  └─ InferenceEngineONNX       ← ONNX Runtime 1.16.3
 └────────┬────────────────────┘
-         │ TensorData {data, shape[NCHW], 相同元数据}
+         │ vector<TensorData>:
+         │   MODNet: [pha]
+         │   RVM:    [fgr, pha, r1o, r2o, r3o, r4o]
+         ▼
+┌─────────────────────────────┐
+│  RecurrentStateManager      │  → pipeline/core/recurrent-state-manager.h
+│  (仅 RVM 路径)               │
+│  .update(outputs)           │  保存 r1o~r4o → 下一帧的 r1i~r4i
+│  .inject(inputs)            │  将 r1i~r4i 追加到 inputs
+└────────┬────────────────────┘
+         │ vector<TensorData> outputs
          ▼
 ┌─────────────────┐
 │  MattingBackend │  → pipeline/backend/backend.cpp
 │  ::postprocess()│
+│   (vector<TD>)  │  ★ 按名称选取 pha tensor
 │                 │  1. NCHW → HWC 转换（遍历 C,H,W）
 │                 │  2. 截断到 [0,1]
 │                 │  3. 裁剪 letterbox 填充（使用 pad_* 元数据）
@@ -340,26 +354,30 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 |---|---|
 | `src/main-client.cpp` | 入口点；配置 logger、信号处理，调用 `Pipeline::init()` + `run()` |
 | `include/common-define.h` | `kcurrent_module_name = "main-client"` |
-| `include/pipeline/pipeline.h` | `Pipeline` 单例：`init()`, `run()` |
-| `src/pipeline/pipeline.cpp` 🔒 | 编排：加载模型 → 预处理 → 推理（×10 基准）→ 后处理 |
-| `include/pipeline/core/data_structure.h` 🔒 | `TensorData` 结构体（data, shape, orig_w/h, pad_*） |
+| `include/pipeline/pipeline.h` | `Pipeline` 单例：`init()`, `run()`, `runMODNet()`, `runRVM()` + `ModelType` 枚举 |
+| `src/pipeline/pipeline.cpp` 🔒 | 编排：MODNet 路径（1→1 + 10× 基准）/ RVM 路径（5→6 + 递归状态 + 5 帧循环）|
+| `include/pipeline/core/data_structure.h` 🔒 | `TensorData` 结构体（name, data, shape, orig_w/h, pad_*） |
+| `include/pipeline/core/recurrent-state-manager.h` ★ | `RecurrentStateManager`：RVM 递归状态持久化（init/reset/inject/update） |
+| `src/pipeline/core/recurrent-state-manager.cpp` ★ | RecurrentStateManager 实现 |
 | `include/pipeline/frontend/frontend.h` | `ImageFrontend`: `preprocess(image_path, model_w, model_h)` |
 | `src/pipeline/frontend/frontend.cpp` 🔒 | BGR→RGB→float32→letterbox→HWC 张量（0–255 范围） |
-| `include/pipeline/inference-engine/base/inference-engine.h` 🔒 | `InferenceEngine` 抽象基类：`load()`, `infer()`, `setOutputBinPath()`, `getInputHeight()`, `getInputWidth()` |
-| `include/pipeline/inference-engine/rknn/rknn-zero-copy.h` | `InferenceEngineRKNNZeroCP` |
-| `src/pipeline/inference-engine/rknn/rknn-zero-copy.cpp` | 通过 `rknn_create_mem` 分配 NPU 缓冲区，绑定，memcpy，`rknn_run`，读取输出 |
-| `include/pipeline/inference-engine/rknn/rknn-non-zero-copy.h` | `InferenceEngineRKNN`（备选） |
+| `include/pipeline/inference-engine/base/inference-engine.h` 🔒 | `InferenceEngine` 抽象基类：`load()`, `infer(vector<in>, vector<out>)` — N→M 泛化接口 |
+| `include/pipeline/inference-engine/rknn/rknn-zero-copy.h` | `InferenceEngineRKNNZeroCP` — 多组 zero-copy buffer |
+| `src/pipeline/inference-engine/rknn/rknn-zero-copy.cpp` | N 输入 × M 输出 zero-copy：遍历 input_mems_/output_mems_，自适应 INT8/FP16/FP32 |
+| `include/pipeline/inference-engine/rknn/rknn-non-zero-copy.h` | `InferenceEngineRKNN`（备选）|
+| `src/pipeline/inference-engine/rknn/rknn-non-zero-copy.cpp` | N→M non-zero-copy：rknn_inputs_set 多组 + rknn_outputs_get 多组 |
 | `include/pipeline/inference-engine/onnx/onnx.h` | `InferenceEngineONNX` |
-| `src/pipeline/inference-engine/onnx/onnx.cpp` | `OrtSession::Run`，通过 `GetInputNameAllocated()` 进行张量 I/O |
-| `include/pipeline/backend/backend.h` | `MattingBackend`: `postprocess(TensorData)` → `cv::Mat` |
+| `src/pipeline/inference-engine/onnx/onnx.cpp` | N→M ORT Run：inputs[0] NHWC→NCHW+归一化，inputs[1..N] 直通 |
+| `include/pipeline/backend/backend.h` | `MattingBackend`: `postprocess(vector<TensorData>)` → `cv::Mat` — 按名选 pha |
 | `src/pipeline/backend/backend.cpp` 🔒 | NCHW→HWC，截断，裁剪 letterbox，缩放至原始尺寸，保存 PNG/JPG |
 
 ### `TensorData` 契约 🔒
 
 ```cpp
 typedef struct {
-    std::vector<float> data;      // 展平的 float 数组
-    std::vector<int64_t> shape;   // {1,H,W,C}（NHWC）用于输入；{1,C,H,W}（NCHW）用于输出
+    std::string            name;  // tensor 名称 ("src", "r1i", "pha", "r1o" 等)
+    std::vector<float>     data;  // 展平的 float 数组
+    std::vector<int64_t>   shape; // {1,H,W,C}（NHWC）用于输入；{1,C,H,W}（NCHW）用于输出
     int orig_width;   // letterbox 前的原始图像宽度
     int orig_height;  // letterbox 前的原始图像高度
     int pad_top;      // 顶部黑色填充像素数

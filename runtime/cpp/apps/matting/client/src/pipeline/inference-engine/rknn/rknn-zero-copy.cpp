@@ -28,25 +28,14 @@
 #include "Utils/other/other-utils.h"
 
 // ============================================================================
-// InferenceEngineRKNNZeroCP
+// InferenceEngineRKNNZeroCP — N-input / M-output Zero-Copy Mode
 //
-// This class implements RKNN inference using Zero-Copy mode.
-//
-// Zero-Copy Design Philosophy:
-//   • Allocate NPU-visible buffers once
-//   • Bind buffers directly to input/output tensors
-//   • Avoid rknn_inputs_set / rknn_outputs_get
-//   • CPU writes directly into NPU memory
-//   • CPU reads directly from NPU output buffer
-//
-// High-Level Lifecycle:
-//
-//   Step 1 - Initialize RKNN context
-//   Step 2 - Query input/output attributes
-//   Step 3 - Allocate zero-copy buffers
-//   Step 4 - Bind buffers to tensors
-//   Step 5 - Run inference
-//   Step 6 - Read output directly from mapped memory
+// Changes from the original 1-in/1-out version:
+//   - input_mem_ / output_mem_ (single) → input_mems_ / output_mems_ (vector)
+//   - input_attr_ / output_attr_ (single) → input_attrs_ / output_attrs_ (vector)
+//   - load() queries ALL input/output attrs and allocates ALL buffers
+//   - infer() iterates over all inputs/outputs
+//   - MODNet (1-in/1-out) is the trivial special case of this general path
 // ============================================================================
 
 InferenceEngineRKNNZeroCP::InferenceEngineRKNNZeroCP() {
@@ -55,7 +44,6 @@ InferenceEngineRKNNZeroCP::InferenceEngineRKNNZeroCP() {
 }
 
 InferenceEngineRKNNZeroCP::~InferenceEngineRKNNZeroCP() {
-	// Ensure buffers are released before destroying context
 	releaseBuffers();
 	if (ctx_) {
 		rknn_destroy(ctx_);
@@ -63,142 +51,106 @@ InferenceEngineRKNNZeroCP::~InferenceEngineRKNNZeroCP() {
 }
 
 // ============================================================================
-// Release Zero-Copy Buffers
-//
-// Must be called before destroying context to avoid memory leak.
+// Release all zero-copy buffers
 // ============================================================================
 void InferenceEngineRKNNZeroCP::releaseBuffers() {
-	if (input_mem_) {
-		rknn_destroy_mem(ctx_, input_mem_);
-		input_mem_ = nullptr;
+	for (auto* mem : input_mems_) {
+		if (mem) rknn_destroy_mem(ctx_, mem);
 	}
+	input_mems_.clear();
 
-	if (output_mem_) {
-		rknn_destroy_mem(ctx_, output_mem_);
-		output_mem_ = nullptr;
+	for (auto* mem : output_mems_) {
+		if (mem) rknn_destroy_mem(ctx_, mem);
 	}
+	output_mems_.clear();
 }
 
 // ============================================================================
 // Load Model and Initialize Zero-Copy Environment
 //
-// Major Phases:
-//
-//   Phase I   - Initialize RKNN context
-//   Phase II  - Query input/output metadata
-//   Phase III - Allocate zero-copy memory
-//   Phase IV  - Bind memory to tensors
+// Phase I   - Initialize RKNN context
+// Phase II  - Query ALL input/output metadata
+// Phase III - Allocate zero-copy memory for EACH input and output
+// Phase IV  - Bind memory to tensors
+// Phase V   - Set NPU core mask
 // ============================================================================
 void InferenceEngineRKNNZeroCP::load(const std::string& model_path) {
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 
-	// ------------------------------------------------------------------------
-	// Phase I - RKNN Context Initialization
-	// ------------------------------------------------------------------------
-
-	// // I. Read RKNN model from binary buffer (disabled version)
-	// std::ifstream file(model_path, std::ios::binary | std::ios::ate);
-	// size_t model_size = static_cast<size_t>(file.tellg());
-	// file.seekg(0);
-	// std::vector<uint8_t> model_data(model_size);
-	// file.read(reinterpret_cast<char*>(model_data.data()), static_cast<std::streamsize>(model_size));
-	// file.close();
-
-	/* II. RKNN context initialization explanation:
-	 *
-	 * rknn_context *context:
-	 *     Pointer to RKNN runtime context.
-	 *
-	 * void *model:
-	 *     Either:
-	 *       - Pointer to binary RKNN model data
-	 *       - OR file path string to RKNN model
-	 *
-	 * uint32_t size:
-	 *     > 0 : model is binary data
-	 *     = 0 : model is file path
-	 *
-	 * uint32_t flag:
-	 *     Initialization flags (default behavior = 0)
-	 *
-	 * rknn_init_extend:
-	 *     Optional extended initialization config.
-	 *     Pass NULL when not needed.
-	 */
-
-	// ---------------
-	// Option 1: Binary buffer mode (disabled here)
-	// int ret = rknn_init(&ctx_, model_data.data(), static_cast<uint32_t>(model_size), 0, nullptr);
-
-	// ---------------
-	// Option 2: File path mode (used here)
+	// ----------------------------------------------------------------
+	// Phase I - RKNN Context Initialization (file path mode)
+	// ----------------------------------------------------------------
 	int ret = rknn_init(&ctx_, const_cast<void*>(static_cast<const void*>(model_path.c_str())), 0,
 	                    0, nullptr);
-
 	if (ret < 0) {
 		throw std::runtime_error("rknn_init failed!");
-	} else {
-		logger.Info("RKNN model loaded and context initialized successfully.",
-		            kcurrent_module_name);
 	}
+	logger.Info("RKNN model loaded and context initialized.", kcurrent_module_name);
 
-	// ------------------------------------------------------------------------
-	// Phase II - Query Model Input/Output Information
-	// ------------------------------------------------------------------------
-
-	// Step 2.1 Query number of input/output tensors
+	// ----------------------------------------------------------------
+	// Phase II - Query model input/output counts and attributes
+	// ----------------------------------------------------------------
 	rknn_query(ctx_, RKNN_QUERY_IN_OUT_NUM, &io_num_, sizeof(io_num_));
 
-	logger.Info("Input num: " + std::to_string(io_num_.n_input), kcurrent_module_name);
-	logger.Info("Output num: " + std::to_string(io_num_.n_output), kcurrent_module_name);
+	const uint32_t n_in  = io_num_.n_input;
+	const uint32_t n_out = io_num_.n_output;
 
-	// Step 2.2 Query input and output tensor attributes
-	memset(&input_attr_, 0, sizeof(input_attr_));
-	input_attr_.index = 0;
-	rknn_query(ctx_, RKNN_QUERY_INPUT_ATTR, &input_attr_, sizeof(input_attr_));
+	logger.Info("Input num: "  + std::to_string(n_in),  kcurrent_module_name);
+	logger.Info("Output num: " + std::to_string(n_out), kcurrent_module_name);
 
-	memset(&output_attr_, 0, sizeof(output_attr_));
-	output_attr_.index = 0;
-	rknn_query(ctx_, RKNN_QUERY_OUTPUT_ATTR, &output_attr_, sizeof(output_attr_));
-
-	// Step 2.3 Echo input/output information for debugging
-	input_size_ = input_attr_.size;
-	output_size_ = output_attr_.size;
-
-	logger.Info("Input size bytes: " + std::to_string(input_size_), kcurrent_module_name);
-	logger.Info("Output size bytes: " + std::to_string(output_size_), kcurrent_module_name);
-
-	logger.Info("Input attr: " + arcforge::runtime::to_string(input_attr_));
-	logger.Info("Output attr: " + arcforge::runtime::to_string(output_attr_));
-
-	// ------------------------------------------------------------------------
-	// Phase III - Create Zero-Copy Buffers
-	// ------------------------------------------------------------------------
-	// rknn_create_mem allocates NPU-accessible memory.
-	// This memory is shared between CPU and NPU.
-	// No additional copy is needed during inference.
-	// ------------------------------------------------------------------------
-	input_mem_ = rknn_create_mem(ctx_, static_cast<uint32_t>(input_size_));
-	output_mem_ = rknn_create_mem(ctx_, static_cast<uint32_t>(output_size_));
-
-	if (!input_mem_ || !output_mem_) {
-		throw std::runtime_error("rknn_create_mem failed!");
+	// Query each input attribute
+	input_attrs_.resize(n_in);
+	for (uint32_t i = 0; i < n_in; ++i) {
+		memset(&input_attrs_[i], 0, sizeof(rknn_tensor_attr));
+		input_attrs_[i].index = i;
+		rknn_query(ctx_, RKNN_QUERY_INPUT_ATTR, &input_attrs_[i], sizeof(rknn_tensor_attr));
+		logger.Info("Input[" + std::to_string(i) + "] attr: " +
+		            arcforge::runtime::to_string(input_attrs_[i]));
 	}
 
-	// ------------------------------------------------------------------------
-	// Phase IV - Bind Memory to Tensor Descriptors
-	// ------------------------------------------------------------------------
-	// rknn_set_io_mem connects allocated memory with model input/output.
-	// After binding:
-	//   • Writing into input_mem_->virt_addr feeds the model
-	//   • Reading from output_mem_->virt_addr retrieves results
-	// ------------------------------------------------------------------------
-	rknn_set_io_mem(ctx_, input_mem_, &input_attr_);
-	rknn_set_io_mem(ctx_, output_mem_, &output_attr_);
+	// Query each output attribute
+	output_attrs_.resize(n_out);
+	for (uint32_t i = 0; i < n_out; ++i) {
+		memset(&output_attrs_[i], 0, sizeof(rknn_tensor_attr));
+		output_attrs_[i].index = i;
+		rknn_query(ctx_, RKNN_QUERY_OUTPUT_ATTR, &output_attrs_[i], sizeof(rknn_tensor_attr));
+		logger.Info("Output[" + std::to_string(i) + "] attr: " +
+		            arcforge::runtime::to_string(output_attrs_[i]));
+	}
 
-	// phase V - set cores
+	// ----------------------------------------------------------------
+	// Phase III - Allocate zero-copy buffers for all inputs and outputs
+	// ----------------------------------------------------------------
+	input_mems_.resize(n_in, nullptr);
+	for (uint32_t i = 0; i < n_in; ++i) {
+		input_mems_[i] = rknn_create_mem(ctx_, static_cast<uint32_t>(input_attrs_[i].size));
+		if (!input_mems_[i]) {
+			throw std::runtime_error("rknn_create_mem failed for input[" + std::to_string(i) + "]");
+		}
+	}
+
+	output_mems_.resize(n_out, nullptr);
+	for (uint32_t i = 0; i < n_out; ++i) {
+		output_mems_[i] = rknn_create_mem(ctx_, static_cast<uint32_t>(output_attrs_[i].size));
+		if (!output_mems_[i]) {
+			throw std::runtime_error("rknn_create_mem failed for output[" + std::to_string(i) + "]");
+		}
+	}
+
+	// ----------------------------------------------------------------
+	// Phase IV - Bind memory to tensor descriptors
+	// ----------------------------------------------------------------
+	for (uint32_t i = 0; i < n_in; ++i) {
+		rknn_set_io_mem(ctx_, input_mems_[i], &input_attrs_[i]);
+	}
+	for (uint32_t i = 0; i < n_out; ++i) {
+		rknn_set_io_mem(ctx_, output_mems_[i], &output_attrs_[i]);
+	}
+
+	// ----------------------------------------------------------------
+	// Phase V - Set NPU core mask
+	// ----------------------------------------------------------------
 	rknn_core_mask mask = RKNN_NPU_CORE_ALL;
-	// rknn_core_mask mask = RKNN_NPU_CORE_AUTO;
 	auto retval = rknn_set_core_mask(ctx_, mask);
 	if (retval == RKNN_SUCC) {
 		logger.Info("Set core to " + arcforge::runtime::to_string(mask) + " Successfully");
@@ -206,172 +158,182 @@ void InferenceEngineRKNNZeroCP::load(const std::string& model_path) {
 		logger.Warning("Set core to " + arcforge::runtime::to_string(mask) + " Failed");
 	}
 
-	logger.Info("Zero-copy buffers allocated and bound.", kcurrent_module_name);
+	logger.Info("Zero-copy buffers allocated and bound: " +
+	            std::to_string(n_in) + " inputs, " +
+	            std::to_string(n_out) + " outputs.", kcurrent_module_name);
 }
 
 // ============================================================================
-// Inference (Zero-Copy Mode, FP16 Model)
+// Inference — N inputs → M outputs (Zero-Copy)
 //
-// Execution Steps:
+// For each input tensor:
+//   - inputs[0] (image/src): FLOAT32 0~255 → type-dependent conversion
+//   - inputs[1..N-1] (recurrent states): FLOAT32 → type-dependent conversion
 //
-//   Step 1 - Validate input element count (FP16-based validation)
-//   Step 2 - Convert FLOAT32 → FP16 and write into zero-copy buffer
-//   Step 3 - Run inference on NPU
-//   Step 4 - Convert FP16 → FLOAT32 directly from output buffer
-//   Step 5 - Construct TensorData structure
-//
-// Important:
-//   • Model internal precision: FP16
-//   • Frontend provides: FLOAT32
-//   • Conversion happens explicitly in this function
+// Type conversion adapts to the model's compiled precision per tensor:
+//   - INT8:  normalize [0,255]→[-1,1], quantize with scale/zp (image only)
+//            For recurrent states: direct quantize (already in model range)
+//   - FP16:  FLOAT32 → __fp16
+//   - FP32:  direct memcpy
 // ============================================================================
-
-TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
-
+void InferenceEngineRKNNZeroCP::infer(
+    const std::vector<TensorData>& inputs,
+          std::vector<TensorData>& outputs)
+{
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 	auto& file_utils_ = arcforge::utils::FileUtils::GetInstance();
 
-	// ------------------------------------------------------------------------
-	// Step 1 - Validate input size and detect model precision
-	// ------------------------------------------------------------------------
-	// Determine model precision based on input tensor type
-	bool is_int8_model =
-	    (input_attr_.type == RKNN_TENSOR_INT8 || input_attr_.type == RKNN_TENSOR_UINT8);
-	bool is_fp16_model = (input_attr_.type == RKNN_TENSOR_FLOAT16);
+	const uint32_t n_in  = io_num_.n_input;
+	const uint32_t n_out = io_num_.n_output;
 
-	size_t expected_element_count;
-	if (is_int8_model) {
-		// INT8 model: 1 byte per element
-		expected_element_count = input_size_ / sizeof(int8_t);
-	} else if (is_fp16_model) {
-		// FP16 model: 2 bytes per element
-		expected_element_count = input_size_ / sizeof(__fp16);
-	} else {
-		// FP32 model: 4 bytes per element
-		expected_element_count = input_size_ / sizeof(float);
-	}
-
-	if (input.data.size() != expected_element_count) {
-		logger.Error("Input size mismatch! Expected " + std::to_string(expected_element_count) +
-		                 " elements, but Frontend provided " + std::to_string(input.data.size()) +
-		                 " elements.",
-		             kcurrent_module_name);
-		throw std::runtime_error("Input size mismatch with RKNN model.");
+	if (inputs.size() != static_cast<std::size_t>(n_in)) {
+		throw std::runtime_error(
+		    "Input count mismatch: model expects " + std::to_string(n_in) +
+		    " inputs, got " + std::to_string(inputs.size()));
 	}
 
 	auto t0 = std::chrono::high_resolution_clock::now();
 
-	// ------------------------------------------------------------------------
-	// Step 2 - Write data into zero-copy input buffer (adaptive precision)
-	// ------------------------------------------------------------------------
-	if (is_int8_model) {
-		// INT8 quantized model: FLOAT32 → Normalize → INT8
-		//
-		// CRITICAL OPTIMIZATION:
-		// When RKNN config has normalization enabled, the toolkit inserts a normalization
-		// operator at the beginning of the model graph. For INT8 models, this causes:
-		//   INT8 input → dequantize to FP16 → normalize → quantize back to INT8
-		// This adds ~100ms overhead (35% slower than FP16!) due to extra conversions.
-		//
-		// Solution: Normalize BEFORE quantization in C++ code, so the model receives
-		// pre-normalized INT8 data directly, avoiding internal FP16 conversions.
-		//
-		// Normalization formula: normalized = (pixel - 127.5) / 127.5
-		// This converts [0, 255] → [-1, 1]
-		//
-		// Then quantize: value_int8 = (normalized / scale) + zero_point
-		//
-		int8_t* input_int8_ptr = reinterpret_cast<int8_t*>(input_mem_->virt_addr);
-		float scale = input_attr_.scale;
-		float zp = static_cast<float>(input_attr_.zp);
+	// ----------------------------------------------------------------
+	// Step 1 - Write data into zero-copy input buffers
+	// ----------------------------------------------------------------
+	for (uint32_t i = 0; i < n_in; ++i) {
+		const TensorData& td    = inputs[i];
+		const rknn_tensor_attr& attr = input_attrs_[i];
 
-		for (size_t i = 0; i < input.data.size(); ++i) {
-			// Step 1: Normalize [0, 255] → [-1, 1]
-			float normalized = (input.data[i] - 127.5f) / 127.5f;
+		bool is_int8  = (attr.type == RKNN_TENSOR_INT8 || attr.type == RKNN_TENSOR_UINT8);
+		bool is_fp16  = (attr.type == RKNN_TENSOR_FLOAT16);
 
-			// Step 2: Quantize to INT8
-			float quantized = (normalized / scale) + zp;
+		if (is_int8) {
+			// INT8 model: quantize input
+			int8_t* dst = reinterpret_cast<int8_t*>(input_mems_[i]->virt_addr);
+			float scale = attr.scale;
+			float zp    = static_cast<float>(attr.zp);
 
-			// Step 3: Clamp to INT8 range [-128, 127]
-			quantized = std::max(-128.0f, std::min(127.0f, quantized));
-			input_int8_ptr[i] = static_cast<int8_t>(std::round(quantized));
+			if (i == 0) {
+				// Image tensor: normalize [0,255] → [-1,1] then quantize
+				for (size_t j = 0; j < td.data.size(); ++j) {
+					float normalized = (td.data[j] - 127.5f) / 127.5f;
+					float quantized  = (normalized / scale) + zp;
+					quantized = std::max(-128.0f, std::min(127.0f, quantized));
+					dst[j] = static_cast<int8_t>(std::round(quantized));
+				}
+			} else {
+				// Recurrent state: direct quantize (values already in model range)
+				for (size_t j = 0; j < td.data.size(); ++j) {
+					float quantized = (td.data[j] / scale) + zp;
+					quantized = std::max(-128.0f, std::min(127.0f, quantized));
+					dst[j] = static_cast<int8_t>(std::round(quantized));
+				}
+			}
+		} else if (is_fp16) {
+			// FP16 model: FLOAT32 → __fp16
+			__fp16* dst = reinterpret_cast<__fp16*>(input_mems_[i]->virt_addr);
+			for (size_t j = 0; j < td.data.size(); ++j) {
+				dst[j] = static_cast<__fp16>(td.data[j]);
+			}
+		} else {
+			// FP32 model: direct copy
+			float* dst = reinterpret_cast<float*>(input_mems_[i]->virt_addr);
+			std::memcpy(dst, td.data.data(), td.data.size() * sizeof(float));
 		}
-	} else if (is_fp16_model) {
-		// FP16 model: FLOAT32 → FP16
-		__fp16* input_fp16_ptr = reinterpret_cast<__fp16*>(input_mem_->virt_addr);
-		for (size_t i = 0; i < input.data.size(); ++i) {
-			input_fp16_ptr[i] = static_cast<__fp16>(input.data[i]);
-		}
-	} else {
-		// FP32 model: FLOAT32 → FLOAT32 (direct copy)
-		float* input_fp32_ptr = reinterpret_cast<float*>(input_mem_->virt_addr);
-		std::memcpy(input_fp32_ptr, input.data.data(), input.data.size() * sizeof(float));
 	}
 
 	auto t1 = std::chrono::high_resolution_clock::now();
 
-	// ------------------------------------------------------------------------
-	// Step 3 - Execute inference on NPU
-	// ------------------------------------------------------------------------
+	// ----------------------------------------------------------------
+	// Step 2 - Execute inference on NPU
+	// ----------------------------------------------------------------
 	int ret = rknn_run(ctx_, nullptr);
 	if (ret < 0) {
 		throw std::runtime_error("rknn_run failed!");
 	}
 
 	auto t2 = std::chrono::high_resolution_clock::now();
-	// ------------------------------------------------------------------------
-	// Step 4 - Read output directly from zero-copy buffer (adaptive precision)
-	// ------------------------------------------------------------------------
-	bool is_int8_output =
-	    (output_attr_.type == RKNN_TENSOR_INT8 || output_attr_.type == RKNN_TENSOR_UINT8);
-	bool is_fp16_output = (output_attr_.type == RKNN_TENSOR_FLOAT16);
 
-	size_t output_element_count;
-	if (is_int8_output) {
-		output_element_count = output_size_ / sizeof(int8_t);
-	} else if (is_fp16_output) {
-		output_element_count = output_size_ / sizeof(__fp16);
-	} else {
-		output_element_count = output_size_ / sizeof(float);
-	}
+	// ----------------------------------------------------------------
+	// Step 3 - Read outputs from zero-copy buffers
+	// ----------------------------------------------------------------
+	outputs.clear();
+	outputs.reserve(n_out);
 
-	std::vector<float> output_vector(output_element_count);
+	for (uint32_t i = 0; i < n_out; ++i) {
+		const rknn_tensor_attr& attr = output_attrs_[i];
 
-	if (is_int8_output) {
-		// INT8 output: dequantize INT8 → FLOAT32
-		// value_float32 = (value_int8 - zero_point) * scale
-		int8_t* output_int8_ptr = reinterpret_cast<int8_t*>(output_mem_->virt_addr);
-		float scale = output_attr_.scale;
-		float zp = static_cast<float>(output_attr_.zp);
+		bool is_int8_out = (attr.type == RKNN_TENSOR_INT8 || attr.type == RKNN_TENSOR_UINT8);
+		bool is_fp16_out = (attr.type == RKNN_TENSOR_FLOAT16);
 
-		for (size_t i = 0; i < output_element_count; ++i) {
-			output_vector[i] = (static_cast<float>(output_int8_ptr[i]) - zp) * scale;
+		size_t element_count;
+		if (is_int8_out)       element_count = attr.size / sizeof(int8_t);
+		else if (is_fp16_out)  element_count = attr.size / sizeof(__fp16);
+		else                   element_count = attr.size / sizeof(float);
+
+		std::vector<float> out_data(element_count);
+
+		if (is_int8_out) {
+			// INT8 → FLOAT32 dequantization
+			int8_t* src = reinterpret_cast<int8_t*>(output_mems_[i]->virt_addr);
+			float scale = attr.scale;
+			float zp    = static_cast<float>(attr.zp);
+			for (size_t j = 0; j < element_count; ++j) {
+				out_data[j] = (static_cast<float>(src[j]) - zp) * scale;
+			}
+		} else if (is_fp16_out) {
+			// FP16 → FLOAT32
+			__fp16* src = reinterpret_cast<__fp16*>(output_mems_[i]->virt_addr);
+			for (size_t j = 0; j < element_count; ++j) {
+				out_data[j] = static_cast<float>(src[j]);
+			}
+		} else {
+			// FP32 direct copy
+			float* src = reinterpret_cast<float*>(output_mems_[i]->virt_addr);
+			std::memcpy(out_data.data(), src, element_count * sizeof(float));
 		}
-	} else if (is_fp16_output) {
-		// FP16 output: FP16 → FLOAT32
-		__fp16* output_fp16_ptr = reinterpret_cast<__fp16*>(output_mem_->virt_addr);
-		for (size_t i = 0; i < output_element_count; ++i) {
-			output_vector[i] = static_cast<float>(output_fp16_ptr[i]);
+
+		TensorData td;
+		td.name = attr.name;
+		td.data = std::move(out_data);
+
+		// Assemble shape from tensor metadata
+		td.shape.clear();
+		for (uint32_t d = 0; d < attr.n_dims; ++d) {
+			td.shape.push_back(attr.dims[d]);
 		}
-	} else {
-		// FP32 output: direct copy
-		float* output_fp32_ptr = reinterpret_cast<float*>(output_mem_->virt_addr);
-		std::memcpy(output_vector.data(), output_fp32_ptr, output_element_count * sizeof(float));
+
+		// Propagate letterbox metadata from the primary input (src)
+		td.orig_width  = inputs[0].orig_width;
+		td.orig_height = inputs[0].orig_height;
+		td.pad_top     = inputs[0].pad_top;
+		td.pad_bottom  = inputs[0].pad_bottom;
+		td.pad_left    = inputs[0].pad_left;
+		td.pad_right   = inputs[0].pad_right;
+
+		outputs.push_back(std::move(td));
 	}
 
 	auto t3 = std::chrono::high_resolution_clock::now();
 
-	// Dump output for binary-level debugging and verification
-	file_utils_.dumpBinary(output_vector, output_bin_path_ + "cpp_08_inference-Output.bin");
+	// Debug dump for primary output (index 0)
+	if (!output_bin_path_.empty()) {
+		file_utils_.dumpBinary(outputs[0].data,
+		    output_bin_path_ + "cpp_08_inference-Output.bin");
+	}
 
 	auto t4 = std::chrono::high_resolution_clock::now();
-	// --- 打印内部精细耗时 ---
-	std::chrono::duration<double, std::milli> cast_in_time = t1 - t0;
-	std::chrono::duration<double, std::milli> npu_run_time = t2 - t1;
-	std::chrono::duration<double, std::milli> cast_out_time = t3 - t2;
-	std::chrono::duration<double, std::milli> dump_time = t4 - t3;
 
-	std::string precision_str = is_int8_model ? "INT8" : (is_fp16_model ? "FP16" : "FP32");
+	// ----------------------------------------------------------------
+	// Profiling timestamps
+	// ----------------------------------------------------------------
+	std::chrono::duration<double, std::milli> cast_in_time  = t1 - t0;
+	std::chrono::duration<double, std::milli> npu_run_time  = t2 - t1;
+	std::chrono::duration<double, std::milli> cast_out_time = t3 - t2;
+	std::chrono::duration<double, std::milli> dump_time     = t4 - t3;
+
+	bool is_int8_primary = (input_attrs_[0].type == RKNN_TENSOR_INT8 ||
+	                        input_attrs_[0].type == RKNN_TENSOR_UINT8);
+	bool is_fp16_primary = (input_attrs_[0].type == RKNN_TENSOR_FLOAT16);
+	std::string precision_str = is_int8_primary ? "INT8" : (is_fp16_primary ? "FP16" : "FP32");
+
 	logger.Info("   [Profiler] Input conversion (" + precision_str +
 	                ") cost: " + std::to_string(cast_in_time.count()) + " ms.",
 	            kcurrent_module_name);
@@ -384,27 +346,6 @@ TensorData InferenceEngineRKNNZeroCP::infer(const TensorData& input) {
 	logger.Info("   [Profiler] Binary Dump cost:     " + std::to_string(dump_time.count()) + " ms.",
 	            kcurrent_module_name);
 
-	// ------------------------------------------------------------------------
-	// Step 5 - Construct TensorData structure
-	// ------------------------------------------------------------------------
-	TensorData output;
-	output.data = output_vector;
-
-	// Assemble output shape from tensor metadata
-	output.shape.clear();
-	for (uint32_t i = 0; i < output_attr_.n_dims; i++) {
-		output.shape.push_back(output_attr_.dims[i]);
-	}
-
-	// --- ADD THIS BLOCK ---
-	// Inherit metadata from input tensor to output tensor
-	output.orig_width = input.orig_width;
-	output.orig_height = input.orig_height;
-	output.pad_top = input.pad_top;
-	output.pad_bottom = input.pad_bottom;
-	output.pad_left = input.pad_left;
-	output.pad_right = input.pad_right;
-	// ----------------------
-
-	return output;
+	logger.Info("infer() complete: " + std::to_string(n_in) + " in / " +
+	            std::to_string(n_out) + " out", kcurrent_module_name);
 }
