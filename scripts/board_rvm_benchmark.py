@@ -455,6 +455,8 @@ def main():
     parser.add_argument("--warmup", type=int, default=3,   help="Warmup runs (default 3)")
     parser.add_argument("--runs",   type=int, default=10,  help="Timed runs (default 10)")
     parser.add_argument("--frames", type=int, default=5,   help="Frames for Block 2.4 (default 5)")
+    parser.add_argument("--H",      type=int, default=288, help="Primary benchmark height (default 288)")
+    parser.add_argument("--W",      type=int, default=512, help="Primary benchmark width (default 512)")
     parser.add_argument("--skip-multires", action="store_true",
                         help="Skip Block 2.5 multi-resolution benchmark")
     args = parser.parse_args()
@@ -473,10 +475,10 @@ def main():
     print_model_info(rknn)
 
     # Block 2.3: single-frame @ primary resolution
-    block_2_3_single_frame(rknn, H=288, W=512, warmup=args.warmup, runs=args.runs)
+    block_2_3_single_frame(rknn, H=args.H, W=args.W, warmup=args.warmup, runs=args.runs)
 
     # Block 2.4: recursive sequence @ primary resolution
-    block_2_4_recursive_sequence(rknn, H=288, W=512, frames=args.frames)
+    block_2_4_recursive_sequence(rknn, H=args.H, W=args.W, frames=args.frames)
 
     # Block 2.5: multi-resolution
     if not args.skip_multires:
