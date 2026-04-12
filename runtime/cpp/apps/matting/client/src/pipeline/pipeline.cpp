@@ -149,8 +149,10 @@ int Pipeline::runMODNet() {
 // ============================================================================
 // RVM path — multi-frame with recurrent state management
 //
-// inputs  = { src, r1i, r2i, r3i, r4i }  (5 tensors)
-// outputs = { fgr, pha, r1o, r2o, r3o, r4o }  (6 tensors)
+// ONNX path: inputs  = { src, r1i, r2i, r3i, r4i, downsample_ratio } (6 tensors)
+// RKNN path: inputs  = { src, r1i, r2i, r3i, r4i }                   (5 tensors)
+//            (downsample_ratio is folded into a constant by ArcFoundry)
+// outputs = { fgr, pha, r1o, r2o, r3o, r4o }                         (6 tensors)
 //
 // Currently runs N frames using the same image (single-image loop test).
 // Will be extended to video frame input in Phase-5.
@@ -174,30 +176,40 @@ int Pipeline::runRVM() {
 	size_t model_input_height = engine.getInputHeight();
 	size_t model_input_width  = engine.getInputWidth();
 #else
-	// RVM ONNX models have different default sizes; for now use 288x512
+	// RVM ONNX models have dynamic shapes; use 288x512 as standard
 	size_t model_input_height = 288;
 	size_t model_input_width  = 512;
 #endif
 
 	// 2. Initialize recurrent state manager with RVM state shapes.
-	//    RVM MobileNetV3 @ 288x512 state shapes (from Phase-2 verification):
-	//      r1: [1, 16, 144, 256]  (1/2 resolution)
-	//      r2: [1, 20,  72, 128]  (1/4 resolution)
-	//      r3: [1, 40,  36,  64]  (1/8 resolution)
-	//      r4: [1, 64,  18,  32]  (1/16 resolution)
+	//    RVM MobileNetV3 with downsample_ratio=0.25 @ 288x512:
+	//    The internal processing resolution = input * ds_ratio = 72x128.
+	//    Recurrent state shapes are derived from the INTERNAL resolution:
+	//      r1: [1, 16, 36, 64]   (internal_H/2, internal_W/2)
+	//      r2: [1, 20, 18, 32]   (internal_H/4, internal_W/4)
+	//      r3: [1, 40,  9, 16]   (internal_H/8, internal_W/8)
+	//      r4: [1, 64,  5,  8]   (internal_H/16, internal_W/16)
 	//
-	//    Note: These shapes are specific to 288x512 input.
-	//    TODO: Query from model or make configurable.
+	//    These are empirically verified from Phase-2 RKNN and ONNX inference.
+	//    First-frame uses [1,1,1,1] zero states (dynamic shape in ONNX);
+	//    for C++ we pre-allocate the correct shape with zeros.
+	constexpr float kDownsampleRatio = 0.25f;
+	const int64_t internal_h = static_cast<int64_t>(
+	    static_cast<float>(model_input_height) * kDownsampleRatio);
+	const int64_t internal_w = static_cast<int64_t>(
+	    static_cast<float>(model_input_width)  * kDownsampleRatio);
+
+	// Helper lambda for ceil division (RVM decoder uses ceil rounding)
+	auto ceil_div = [](int64_t a, int64_t b) -> int64_t {
+		return (a + b - 1) / b;
+	};
+
 	state_mgr_.init(
 	    {
-	        {1, 16, static_cast<int64_t>(model_input_height / 2),
-	                static_cast<int64_t>(model_input_width / 2)},
-	        {1, 20, static_cast<int64_t>(model_input_height / 4),
-	                static_cast<int64_t>(model_input_width / 4)},
-	        {1, 40, static_cast<int64_t>(model_input_height / 8),
-	                static_cast<int64_t>(model_input_width / 8)},
-	        {1, 64, static_cast<int64_t>(model_input_height / 16),
-	                static_cast<int64_t>(model_input_width / 16)},
+	        {1, 16, ceil_div(internal_h, 2), ceil_div(internal_w, 2)},   // r1: [1, 16, 36, 64]
+	        {1, 20, ceil_div(internal_h, 4), ceil_div(internal_w, 4)},   // r2: [1, 20, 18, 32]
+	        {1, 40, ceil_div(internal_h, 8), ceil_div(internal_w, 8)},   // r3: [1, 40,  9, 16]
+	        {1, 64, ceil_div(internal_h, 16), ceil_div(internal_w, 16)}, // r4: [1, 64,  5,  8]
 	    },
 	    {"r1i", "r2i", "r3i", "r4i"}
 	);
@@ -221,6 +233,16 @@ int Pipeline::runRVM() {
 		// Build input vector: src + r1i~r4i
 		std::vector<TensorData> inputs = { src };
 		state_mgr_.inject(inputs);  // appends r1i, r2i, r3i, r4i
+
+#ifndef ENABLE_RKNN_BACKEND
+		// ONNX path: append downsample_ratio as the 6th input tensor.
+		// (RKNN path: downsample_ratio is folded into a constant by ArcFoundry)
+		TensorData dsr;
+		dsr.name  = "downsample_ratio";
+		dsr.shape = {1};
+		dsr.data  = {kDownsampleRatio};
+		inputs.push_back(std::move(dsr));
+#endif
 
 		// Run inference
 		std::vector<TensorData> outputs;
