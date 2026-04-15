@@ -19,7 +19,9 @@
 // SOFTWARE.
 
 #include "pipeline/pipeline.h"
+#include <atomic>
 #include <chrono>
+#include <opencv2/videoio.hpp>
 #include "common-define.h"
 #include "pipeline/backend/backend.h"
 #include "pipeline/backend/post-processor/guided-filter-post-processor.h"
@@ -31,6 +33,9 @@
 #else
 #include "pipeline/inference-engine/onnx/onnx.h"
 #endif
+
+// Reference the global stop signal from main-client.cpp (set by SIGINT handler)
+extern std::atomic<bool> g_stop_signal_received;
 
 Pipeline& Pipeline::GetInstance() {
 	static Pipeline instance;
@@ -353,15 +358,55 @@ int Pipeline::runRVM() {
 	// GF requires a high-res guide image (foreground_image_path_), which doesn't exist
 	// in video mode — each frame IS the foreground. GF is designed for single-image
 	// refinement and would hurt throughput for Phase-5.3 (30fps target).
-	// If background compositing is requested, set it up:
+
+	// --- Block 5.1.5: Video composition output ---
+	// Set up VideoWriter to produce a composited MP4 output.
+	// Alpha compositing: composite = fg * alpha + bg * (1 - alpha)
+	// Default background: solid green (chroma key style).
+	const int src_width = input_source_->width();
+	const int src_height = input_source_->height();
+	const double src_fps = input_source_->fps();
+	const double output_fps = (src_fps > 0) ? src_fps : 30.0;
+
+	const std::string output_video_path = output_bin_path_ + "/output_composited.mp4";
+	cv::VideoWriter video_writer;
+	video_writer.open(output_video_path,
+	                  cv::VideoWriter::fourcc('m', 'p', '4', 'v'),
+	                  output_fps,
+	                  cv::Size(src_width, src_height));
+
+	if (!video_writer.isOpened()) {
+		logger.Warning("Failed to open VideoWriter: " + output_video_path +
+		               ". Composited video will NOT be saved.", kcurrent_module_name);
+	} else {
+		logger.Info("VideoWriter opened: " + output_video_path +
+		            " (" + std::to_string(src_width) + "x" + std::to_string(src_height) +
+		            " @ " + std::to_string(output_fps) + " fps)", kcurrent_module_name);
+	}
+
+	// Load or create background image for compositing
+	cv::Mat bg_bgr;
 	if (!background_path_.empty()) {
-		backend.setForegroundImagePath("");  // no file-based guide in video mode
+		bg_bgr = cv::imread(background_path_, cv::IMREAD_COLOR);
+		if (!bg_bgr.empty()) {
+			cv::resize(bg_bgr, bg_bgr, cv::Size(src_width, src_height));
+		}
+	}
+	if (bg_bgr.empty()) {
+		// Default: solid blue background (easier to verify than green on green-bg videos)
+		bg_bgr = cv::Mat(src_height, src_width, CV_8UC3, cv::Scalar(255, 100, 0));
 	}
 
 	cv::Mat frame;
 	int frame_count = 0;
 
 	while (input_source_->read(frame)) {
+		// Check for Ctrl+C / SIGINT
+		if (g_stop_signal_received.load()) {
+			logger.Info("Stop signal received. Finishing video at frame " +
+			            std::to_string(frame_count) + ".", kcurrent_module_name);
+			break;
+		}
 
 		logger.Info("=== RVM Frame " + std::to_string(frame_count + 1) + " ===",
 		            kcurrent_module_name);
@@ -397,11 +442,56 @@ int Pipeline::runRVM() {
 		// 4. Update recurrent states: r1o~r4o → r1i~r4i for next frame
 		state_mgr_.update(outputs);  // outputs[2..5] = r1o~r4o
 
-		// 5. Post-process (only last frame saves result, or all frames for debugging)
-		backend.postprocess(outputs);
+		// 5. Post-process: get alpha matte (CV_8UC1, original resolution)
+		cv::Mat alpha_8u = backend.postprocess(outputs);
+
+		// 6. Alpha compositing: composite = fg * alpha + (1 - alpha) * bg
+		if (video_writer.isOpened() && !alpha_8u.empty()) {
+			// Ensure alpha is single channel
+			cv::Mat alpha_1ch;
+			if (alpha_8u.channels() == 1) {
+				alpha_1ch = alpha_8u;
+			} else {
+				cv::cvtColor(alpha_8u, alpha_1ch, cv::COLOR_BGR2GRAY);
+			}
+
+			// Resize alpha to match original frame if needed
+			if (alpha_1ch.size() != frame.size()) {
+				cv::resize(alpha_1ch, alpha_1ch, frame.size(), 0, 0, cv::INTER_LINEAR);
+			}
+
+			// Convert to float for blending
+			cv::Mat alpha_f32;
+			alpha_1ch.convertTo(alpha_f32, CV_32FC1, 1.0 / 255.0);
+
+			// Broadcast alpha to 3 channels
+			cv::Mat alpha_3ch;
+			cv::cvtColor(alpha_f32, alpha_3ch, cv::COLOR_GRAY2BGR);
+
+			// Blend: composite = alpha * fg + (1 - alpha) * bg
+			cv::Mat fg_f32, bg_f32, composed_f32, composed_8u;
+			frame.convertTo(fg_f32, CV_32FC3, 1.0 / 255.0);
+			bg_bgr.convertTo(bg_f32, CV_32FC3, 1.0 / 255.0);
+
+			composed_f32 = alpha_3ch.mul(fg_f32) +
+			               (cv::Scalar(1.0, 1.0, 1.0) - alpha_3ch).mul(bg_f32);
+			composed_f32.convertTo(composed_8u, CV_8UC3, 255.0);
+
+			video_writer.write(composed_8u);
+		}
 
 		frame_count++;
 	}
+
+	// Release VideoWriter (flush and finalize MP4)
+	if (video_writer.isOpened()) {
+		video_writer.release();
+		logger.Info("Video compositing complete: " + std::to_string(frame_count) +
+		            " frames written to " + output_video_path, kcurrent_module_name);
+	}
+
+	logger.Info("RVM video pipeline finished. Total frames: " + std::to_string(frame_count),
+	            kcurrent_module_name);
 
 	return 0;
 }
