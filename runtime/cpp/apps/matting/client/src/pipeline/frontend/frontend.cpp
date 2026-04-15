@@ -65,46 +65,14 @@ void ImageFrontend::setOutputBinPath(const std::string& path) {
 	outputBinPath_ = path;
 }
 
-// ============================================================================
-// Preprocess Function
-//
-// Complete Image → Tensor Pipeline
-//
-// Major Phases:
-//
-//   Phase 1 - Image Loading & Basic Format Conversion
-//   Phase 2 - Data Type Conversion
-//   Phase 3 - Resize to Model Reference Size
-//   Phase 4 - Memory Layout Preparation
-//   Phase 5 - Construct TensorData (data + shape)
-//
-// This function guarantees:
-//   • Bit-level debug capability via dumpBinary()
-//   • Controlled numeric range (0~255 float32)
-//   • Layout compatibility with RKNN inference
-//
-// Parameters:
-//   image_path: Path to input image
-//   target_size: Target size for model input (default 512, dynamically set from model)
-// ============================================================================
-TensorData ImageFrontend::preprocess(const std::string& image_path, size_t model_width,
-                                     size_t model_height) {
+TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_t model_height) {
+	TensorData tensor_data;
 
 	auto& logger_ = arcforge::embedded::utils::Logger::GetInstance();
 	auto& file_utils_ = arcforge::utils::FileUtils::GetInstance();
 	// auto& math_utils_ = arcforge::utils::MathUtils::GetInstance();
 	// auto& runtime_ = arcforge::runtime::RuntimeONNX::GetInstance();
 	auto cvkit_obj = std::make_unique<arcforge::cvkit::Base>();
-
-	TensorData tensor_data;
-
-	// =========================================================================
-	// Phase 1 - Image Loading & Color Handling
-	// =========================================================================
-
-	// Step 1.1 - Load image from disk (OpenCV default: BGR format)
-	cv::Mat img = cvkit_obj->loadImage(image_path);
-	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_01_loadimage.bin");
 
 	// Step 1.2 - Convert BGR to RGB
 	// Reason:
@@ -306,4 +274,47 @@ TensorData ImageFrontend::preprocess(const std::string& image_path, size_t model
 	// ----------------------
 
 	return tensor_data;
+}
+
+// ============================================================================
+// Preprocess Function
+//
+// Complete Image → Tensor Pipeline
+//
+// Major Phases:
+//
+//   Phase 1 - Image Loading & Basic Format Conversion
+//   Phase 2 - Data Type Conversion
+//   Phase 3 - Resize to Model Reference Size
+//   Phase 4 - Memory Layout Preparation
+//   Phase 5 - Construct TensorData (data + shape)
+//
+// This function guarantees:
+//   • Bit-level debug capability via dumpBinary()
+//   • Controlled numeric range (0~255 float32)
+//   • Layout compatibility with RKNN inference
+//
+// Parameters:
+//   image_path: Path to input image
+//   target_size: Target size for model input (default 512, dynamically set from model)
+// ============================================================================
+TensorData ImageFrontend::preprocess(const std::string& image_path, size_t model_width,
+                                     size_t model_height) {
+
+	auto cvkit_obj = std::make_unique<arcforge::cvkit::Base>();
+
+	// =========================================================================
+	// Phase 1 - Image Loading & Color Handling
+	// =========================================================================
+
+	// Step 1.1 - Load image from disk (OpenCV default: BGR format)
+	cv::Mat img = cvkit_obj->loadImage(image_path);
+	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_01_loadimage.bin");
+
+	return _preprocessCore(img, model_width, model_height);
+}
+
+TensorData ImageFrontend::preprocess(const cv::Mat& bgr_frame, size_t model_width,
+                                     size_t model_height) {
+	return _preprocessCore(bgr_frame.clone(), model_width, model_height);
 }

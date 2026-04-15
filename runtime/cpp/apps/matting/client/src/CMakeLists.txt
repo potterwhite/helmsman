@@ -28,6 +28,7 @@ set(PIPELINE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/backend/post-processor/guided-filter-post-processor.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/frontend/frontend.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/core/recurrent-state-manager.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/input/mp4-input-source.cpp"
 )
 
 set(INFER_ENGINE_SOURCES

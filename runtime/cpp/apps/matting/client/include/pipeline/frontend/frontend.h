@@ -37,12 +37,16 @@ class ImageFrontend {
 	// static ImageFrontend& GetInstance();
 	TensorData preprocess(const std::string& image_path, size_t model_width = 1024,
 	                      size_t model_height = 576);
+	TensorData preprocess(const cv::Mat& bgr_frame, size_t model_width = 1024,
+	                      size_t model_height = 576);
 
 	// getter and setter
 	void setOutputBinPath(const std::string& path);
 
    private:
 	// member functions
+	TensorData _preprocessCore(cv::Mat img, size_t model_width, size_t model_height);
+
    private:
 	// member variables
 	std::string outputBinPath_ = "";

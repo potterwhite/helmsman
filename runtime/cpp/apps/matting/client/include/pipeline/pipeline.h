@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <memory>
 #include "CVKit/base/base.h"
 #include "Runtime/onnx/onnx.h"
 #include "Utils/file/file-utils.h"
@@ -30,6 +31,7 @@
 #include "Utils/logger/worker/filesink.h"
 #include "Utils/math/math-utils.h"
 #include "pipeline/core/recurrent-state-manager.h"
+#include "pipeline/input/input-source.h"
 
 // ---------------------------------------------------------------------------
 // ModelType — explicit model type selection
@@ -49,6 +51,11 @@ enum class ModelType {
 class Pipeline {
    public:
 	static Pipeline& GetInstance();
+	void init(std::unique_ptr<InputSource> input_source, const std::string& model_path,
+	          const std::string& output_bin_path, const std::string& background_path = "",
+	          ModelType model_type = ModelType::kRVM);
+
+	// single picture init
 	void init(const std::string& image_path, const std::string& model_path,
 	          const std::string& output_bin_path, const std::string& background_path = "",
 	          ModelType model_type = ModelType::kMODNet);
@@ -67,12 +74,15 @@ class Pipeline {
 	// RVM path: multi-frame inference with recurrent state management
 	int runRVM();
 
+	int runRVM_CV_SinglePicture();
+
    private:
-	std::string image_path_;
+	std::string input_image_path_;
+	std::unique_ptr<InputSource> input_source_;
 	std::string model_path_;
 	std::string output_bin_path_;
 	std::string background_path_;
-	ModelType   model_type_ = ModelType::kMODNet;
+	ModelType model_type_ = ModelType::kMODNet;
 
 	RecurrentStateManager state_mgr_;
 };

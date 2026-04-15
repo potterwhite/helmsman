@@ -87,6 +87,7 @@ find_package(OpenCV
         imgproc
         imgcodecs
         video
+        videoio
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -96,6 +97,7 @@ target_link_libraries(${PROJECT_NAME}
         opencv_imgproc
         opencv_imgcodecs
         opencv_video
+        opencv_videoio
         ${PROJECT_NAMESPACE}::ThirdParty::ONNXRuntime
 )
 
