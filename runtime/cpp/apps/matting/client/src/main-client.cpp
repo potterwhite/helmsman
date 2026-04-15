@@ -47,7 +47,7 @@ using namespace arcforge::embedded;
 const std::string ksocket_path = "/tmp/soCket.paTh";
 
 // --- kill signal capture ---
-static std::atomic<bool> g_stop_signal_received(false);
+std::atomic<bool> g_stop_signal_received(false);
 
 auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 auto& file_utils = arcforge::utils::FileUtils::GetInstance();
