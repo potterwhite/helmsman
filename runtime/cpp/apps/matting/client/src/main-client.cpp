@@ -39,6 +39,7 @@
 #include <utility>
 #include <vector>
 #include "common-define.h"
+#include "pipeline/input/mp4-input-source.h"
 #include "pipeline/pipeline.h"
 
 using namespace arcforge::embedded;
@@ -71,13 +72,22 @@ bool isRelease() {
 	return build_type == "Release";
 }
 
+// Detect video files by extension
+static bool isVideoFile(const std::string& path) {
+	auto dot = path.rfind('.');
+	if (dot == std::string::npos) return false;
+	std::string ext = path.substr(dot);
+	std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+	return (ext == ".mp4" || ext == ".avi" || ext == ".mkv" || ext == ".mov" || ext == ".webm");
+}
+
 // ============================================================================
 // CLI Usage:
 //
-//   Helmsman_Matting_Client <image> <model> <output_dir> [background] [--rvm]
+//   Helmsman_Matting_Client <input> <model> <output_dir> [background] [--rvm]
 //
 // Positional arguments:
-//   image        Path to input image
+//   input        Path to input image OR video file (.mp4/.avi/.mkv/.mov/.webm)
 //   model        Path to ONNX or RKNN model file
 //   output_dir   Directory for output files and debug dumps
 //   background   (optional) Path to background image for compositing
@@ -85,16 +95,20 @@ bool isRelease() {
 // Flags:
 //   --rvm        Use RVM (Robust Video Matting) mode with recurrent states.
 //                Default is MODNet (single-frame matting).
+//                Auto-selected when input is a video file.
 //
 // Examples:
-//   # MODNet (default):
+//   # MODNet single image (default):
 //   Helmsman_Matting_Client photo.png modnet.onnx ./output/
 //
-//   # RVM:
+//   # RVM single image test:
 //   Helmsman_Matting_Client photo.png rvm.rknn ./output/ --rvm
 //
-//   # RVM with background compositing:
-//   Helmsman_Matting_Client photo.png rvm.rknn ./output/ bg.jpg --rvm
+//   # RVM video (auto-detected):
+//   Helmsman_Matting_Client video.mp4 rvm.rknn ./output/
+//
+//   # RVM video with background compositing:
+//   Helmsman_Matting_Client video.mp4 rvm.rknn ./output/ bg.jpg
 // ============================================================================
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
@@ -140,17 +154,24 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		return 1;
 	}
 
-	const std::string image_path      = positional_args[0];
+	const std::string input_path      = positional_args[0];
 	const std::string model_path      = positional_args[1];
 	const std::string output_bin_path = positional_args[2];
 	const std::string background_path = (positional_args.size() == 4) ? positional_args[3] : "";
+
+	// Auto-detect video input → force RVM mode
+	const bool is_video = isVideoFile(input_path);
+	if (is_video && model_type == ModelType::kMODNet) {
+		logger.Info("Video input detected, auto-switching to RVM mode.", kcurrent_module_name);
+		model_type = ModelType::kRVM;
+	}
 
 	// -----------------------------------------------
 	// 3. Log configuration
 	// -----------------------------------------------
 	std::string mode_str = (model_type == ModelType::kRVM) ? "RVM" : "MODNet";
 	logger.Info("Model type: " + mode_str, kcurrent_module_name);
-	logger.Info("Image:      " + image_path, kcurrent_module_name);
+	logger.Info("Input:      " + input_path + (is_video ? " (video)" : " (image)"), kcurrent_module_name);
 	logger.Info("Model:      " + model_path, kcurrent_module_name);
 	logger.Info("Output:     " + output_bin_path, kcurrent_module_name);
 	if (!background_path.empty()) {
@@ -160,7 +181,25 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	// -----------------------------------------------
 	// 4. Run pipeline
 	// -----------------------------------------------
-	pipeline.init(image_path, model_path, output_bin_path, background_path, model_type);
+	if (is_video) {
+		// Video mode: create Mp4InputSource, pass ownership to Pipeline
+		auto source = std::make_unique<Mp4InputSource>();
+		if (!source->open(input_path)) {
+			logger.Warning("Failed to open video: " + input_path, kcurrent_module_name);
+			return 1;
+		}
+		logger.Info("Video source: " + std::to_string(source->width()) + "x" +
+		            std::to_string(source->height()) + " @ " +
+		            std::to_string(source->fps()) + " fps", kcurrent_module_name);
+
+		pipeline.init(std::move(source), model_path, output_bin_path,
+		              background_path, model_type);
+	} else {
+		// Single image mode (existing path)
+		pipeline.init(input_path, model_path, output_bin_path,
+		              background_path, model_type);
+	}
+
 	pipeline.run();
 
 	std::cout << "hello " << kcurrent_module_name << std::endl;
