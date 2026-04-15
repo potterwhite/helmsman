@@ -6,7 +6,7 @@
 >
 > **维护规则：** 任何修改本文件中所列文件的 AI Agent，必须在同一 commit/会话中更新本文档的对应章节。
 >
-> 最后更新：2026-04-11（Phase-3 C++ 集成：InferenceEngine N→M tensor、RecurrentStateManager、Pipeline RVM 路径）
+> 最后更新：2026-04-15（Phase-5 Block 5.1：InputSource 抽象、Mp4InputSource、视频循环、Frontend 拆分、FFmpeg 配置）
 >
 > **English →** [../../en/1-for-ai/codebase_map.md](../../en/1-for-ai/codebase_map.md)
 
@@ -200,7 +200,7 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 |---|---|
 | `CMakeLists.txt` 🔒 | 项目根；通过 `arc_extract_version_from_changelog()` 提取版本；包含 third_party → libs → apps |
 | `CMakePresets.json` | 12 个构建预设，含依赖 URL 和 SHA 哈希 |
-| `conanfile.txt` | Conan 包清单（用于 native 构建） |
+| `conanfile.txt` | Conan 包清单（用于 native 构建）；opencv with_ffmpeg=True + ffmpeg 精准关闭 xcb/xlib/vaapi/vdpau/pulse/alsa |
 | `.env` (gitignored) 🔒 | `ARC_RK3588S_SDK_ROOT` 和 `ARC_RV1126BP_SDK_ROOT`；交叉编译前必须存在 |
 
 ### `cmake/ArcFunctions.cmake`
@@ -279,31 +279,45 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 ## `apps/matting/client/` ★ — 主应用程序
 
 **二进制**：`Helmsman_Matting_Client`
-**用法**：`Helmsman_Matting_Client <image> <model> <output_dir> [background] [--rvm]`
+**用法**：`Helmsman_Matting_Client <image_or_video> <model> <output_dir> [background] [--rvm]`
 **安装路径**：`runtime/cpp/install/<platform>/release/bin/`
 
 **CLI 标志**：
-- `--rvm` — 使用 RVM 模式（递归状态 + 5 帧循环）
+- `--rvm` — 使用 RVM 模式（递归状态 + 视频逐帧循环）
 - `--modnet` — 使用 MODNet 模式（默认，单帧 + 10× benchmark）
+- 自动检测：输入为 .mp4/.avi/.mkv/.mov/.webm 时自动切换 RVM 模式
 
 ### 抠图流水线（C++ 数据流）
 
 ```
-[输入：图片路径 + RKNN/ONNX 模型路径]
+[输入：图片路径 / MP4 视频路径 + RKNN/ONNX 模型路径]
         |
         ▼
+┌─────────────────────────┐
+│  InputSource（抽象）     │  → pipeline/input/input-source.h
+│                         │  ★ Phase-5 新增：视频输入抽象
+│  Mp4InputSource         │  → pipeline/input/mp4-input-source.h/cpp
+│  └─ cv::VideoCapture    │  FFmpeg 后端，逐帧 read(cv::Mat&)
+│     + FFmpeg backend    │
+│                         │  Legacy 路径: 直接使用图片路径字符串
+└────────┬────────────────┘
+         │ cv::Mat (BGR) 或 图片路径
+         ▼
 ┌─────────────────┐
 │  ImageFrontend  │  → pipeline/frontend/frontend.cpp
-│  ::preprocess() │
-│                 │  1. cv::imread (BGR)
-│                 │  2. BGR → RGB
-│                 │  3. 确保 3 通道
-│                 │  4. convertTo CV_32FC3（保持 0–255 范围，不归一化）
-│                 │  5. Letterbox 缩放至 model_W × model_H
-│                 │     - 保持宽高比缩放
-│                 │     - cv::copyMakeBorder（黑色填充）
-│                 │  6. 将 HWC float32 内存复制到 tensor_data.data
-│                 │  7. 填充 TensorData 元数据（orig_w/h, pad_*）
+│  ::preprocess() │  ★ Phase-5 拆分为双重载：
+│  (string path)  │  ├─ preprocess(string path, w, h) — imread → preprocessCore
+│  (cv::Mat frame)│  └─ preprocess(cv::Mat, w, h) — clone → preprocessCore
+│                 │
+│ preprocessCore():│
+│  1. BGR → RGB    │
+│  2. 确保 3 通道  │
+│  3. convertTo CV_32FC3（保持 0–255 范围，不归一化）
+│  4. Letterbox 缩放至 model_W × model_H
+│     - 保持宽高比缩放
+│     - cv::copyMakeBorder（黑色填充）
+│  5. 将 HWC float32 内存复制到 tensor_data.data
+│  6. 填充 TensorData 元数据（orig_w/h, pad_*）
 └────────┬────────┘
          │ vector<TensorData>:
          │   MODNet: [src]
@@ -356,15 +370,18 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 
 | 文件 | 用途 |
 |---|---|
-| `src/main-client.cpp` | 入口点；配置 logger、信号处理，调用 `Pipeline::init()` + `run()` |
+| `src/main-client.cpp` | 入口点；配置 logger、信号处理，自动检测视频/图片，调用 `Pipeline::init()` + `run()` |
 | `include/common-define.h` | `kcurrent_module_name = "main-client"` |
-| `include/pipeline/pipeline.h` | `Pipeline` 单例：`init()`, `run()`, `runMODNet()`, `runRVM()` + `ModelType` 枚举 |
-| `src/pipeline/pipeline.cpp` 🔒 | 编排：MODNet 路径（1→1 + 10× 基准）/ RVM 路径（5→6 + 递归状态 + 5 帧循环）|
+| `include/pipeline/input/input-source.h` ★ | `InputSource` 抽象接口：`open()`, `read()`, `width()`, `height()`, `fps()`, `close()` |
+| `include/pipeline/input/mp4-input-source.h` ★ | `Mp4InputSource`：cv::VideoCapture + FFmpeg 后端 |
+| `src/pipeline/input/mp4-input-source.cpp` ★ | Mp4InputSource 实现 |
+| `include/pipeline/pipeline.h` | `Pipeline` 单例：双 `init()` 重载（unique_ptr<InputSource> / 图片路径），`run()`, `runMODNet()`, `runRVM()`, `runRVM_CV_SinglePicture()` + `ModelType` 枚举 |
+| `src/pipeline/pipeline.cpp` 🔒 | 编排：MODNet 路径（1→1 + 10× 基准）/ RVM 路径（5→6 + 递归状态 + 视频逐帧循环）/ RVM_CV_SinglePicture（legacy 单图5帧测试）|
 | `include/pipeline/core/data_structure.h` 🔒 | `TensorData` 结构体（name, data, shape, orig_w/h, pad_*） |
 | `include/pipeline/core/recurrent-state-manager.h` ★ | `RecurrentStateManager`：RVM 递归状态持久化（init/reset/inject/update） |
 | `src/pipeline/core/recurrent-state-manager.cpp` ★ | RecurrentStateManager 实现 |
-| `include/pipeline/frontend/frontend.h` | `ImageFrontend`: `preprocess(image_path, model_w, model_h)` |
-| `src/pipeline/frontend/frontend.cpp` 🔒 | BGR→RGB→float32→letterbox→HWC 张量（0–255 范围） |
+| `include/pipeline/frontend/frontend.h` | `ImageFrontend`: `preprocess(image_path, w, h)` + `preprocess(cv::Mat, w, h)` 双重载 |
+| `src/pipeline/frontend/frontend.cpp` 🔒 | preprocessCore()：BGR→RGB→float32→letterbox→HWC 张量（0–255 范围）；两个公共重载调用 |
 | `include/pipeline/inference-engine/base/inference-engine.h` 🔒 | `InferenceEngine` 抽象基类：`load()`, `infer(vector<in>, vector<out>)` — N→M 泛化接口 |
 | `include/pipeline/inference-engine/rknn/rknn-zero-copy.h` | `InferenceEngineRKNNZeroCP` — 多组 zero-copy buffer |
 | `src/pipeline/inference-engine/rknn/rknn-zero-copy.cpp` | N 输入 × M 输出 zero-copy：遍历 input_mems_/output_mems_，自适应 INT8/FP16/FP32 |
@@ -526,3 +543,4 @@ Helmsman_ASR_Server
 5. **MODNet 符号链接注入**：自定义 Python 脚本位于 `third-party/scripts/modnet/`，由 `func_3_0_setup_modnet_softlinks()` 符号链接到只读子模块中。
 6. **编译期后端选择**：RKNN 与 ONNX 由 `ENABLE_RKNN_BACKEND` CMake 定义决定——无运行时分支。
 7. **RKNN 反融合**：将 InstanceNorm 替换为算术原语 `Var(x) = E[x²] − (E[x])²`，防止 RKNN 编译器重构 `InstanceNormalization` 导致 CPU 回退。
+8. **InputSource 抽象**：视频/图片/IPC 输入通过 `InputSource` 接口统一，`std::unique_ptr` 所有权转移（禁用 shared_ptr/raw pointer），为 Phase-6 V4L2/IPC 预留扩展点。
