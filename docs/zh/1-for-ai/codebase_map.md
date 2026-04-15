@@ -6,7 +6,7 @@
 >
 > **维护规则：** 任何修改本文件中所列文件的 AI Agent，必须在同一 commit/会话中更新本文档的对应章节。
 >
-> 最后更新：2026-04-15（Phase-5 Block 5.1：InputSource 抽象、Mp4InputSource、视频循环、Frontend 拆分、FFmpeg 配置）
+> 最后更新：2026-04-15（Phase-5 Block 5.1 + 5.1.5：InputSource 抽象、Mp4InputSource、视频循环、Frontend 拆分、FFmpeg 配置、VideoWriter alpha compositing、SIGINT 优雅退出）
 >
 > **English →** [../../en/1-for-ai/codebase_map.md](../../en/1-for-ai/codebase_map.md)
 
@@ -370,13 +370,13 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 
 | 文件 | 用途 |
 |---|---|
-| `src/main-client.cpp` | 入口点；配置 logger、信号处理，自动检测视频/图片，调用 `Pipeline::init()` + `run()` |
+| `src/main-client.cpp` | 入口点；配置 logger、SIGINT 信号处理（全局 `g_stop_signal_received`），自动检测视频/图片，调用 `Pipeline::init()` + `run()` |
 | `include/common-define.h` | `kcurrent_module_name = "main-client"` |
 | `include/pipeline/input/input-source.h` ★ | `InputSource` 抽象接口：`open()`, `read()`, `width()`, `height()`, `fps()`, `close()` |
 | `include/pipeline/input/mp4-input-source.h` ★ | `Mp4InputSource`：cv::VideoCapture + FFmpeg 后端 |
 | `src/pipeline/input/mp4-input-source.cpp` ★ | Mp4InputSource 实现 |
-| `include/pipeline/pipeline.h` | `Pipeline` 单例：双 `init()` 重载（unique_ptr<InputSource> / 图片路径），`run()`, `runMODNet()`, `runRVM()`, `runRVM_CV_SinglePicture()` + `ModelType` 枚举 |
-| `src/pipeline/pipeline.cpp` 🔒 | 编排：MODNet 路径（1→1 + 10× 基准）/ RVM 路径（5→6 + 递归状态 + 视频逐帧循环）/ RVM_CV_SinglePicture（legacy 单图5帧测试）|
+| `include/pipeline/pipeline.h` | `Pipeline` 单例：双 `init()` 重载（unique_ptr<InputSource> / 图片路径），`run()`, `runMODNet()`, `runRVM()`（含 VideoWriter 合成输出）, `runRVM_CV_SinglePicture()` + `ModelType` 枚举 |
+| `src/pipeline/pipeline.cpp` 🔒 | 编排：MODNet 路径（1→1 + 10× 基准）/ RVM 路径（5→6 + 递归状态 + 视频逐帧循环 + VideoWriter alpha compositing + SIGINT 优雅退出）/ RVM_CV_SinglePicture（legacy 单图5帧测试）|
 | `include/pipeline/core/data_structure.h` 🔒 | `TensorData` 结构体（name, data, shape, orig_w/h, pad_*） |
 | `include/pipeline/core/recurrent-state-manager.h` ★ | `RecurrentStateManager`：RVM 递归状态持久化（init/reset/inject/update） |
 | `src/pipeline/core/recurrent-state-manager.cpp` ★ | RecurrentStateManager 实现 |
