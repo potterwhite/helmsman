@@ -208,8 +208,8 @@ python3 tools/MODNet/verify_golden_tensor.py
 python3 tools/MODNet/reconstruct_from_bin.py
 
 # C++ 二进制用法（安装后）
-# runtime/cpp/install/<platform>/release/bin/Helmsman_Matting_Client
-Helmsman_Matting_Client <image_path> <model_path> <output_dir> [background_path] [--rvm]
+# runtime/cpp/install/<platform>/release/bin/Helmsman_Matting_Server
+Helmsman_Matting_Server <image_path> <model_path> <output_dir> [background_path] [--rvm]
 ```
 
 ---

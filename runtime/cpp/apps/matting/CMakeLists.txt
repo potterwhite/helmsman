@@ -20,5 +20,5 @@
 
 # apps/matting/CMakeLists.txt
 
-add_subdirectory(client)
+add_subdirectory(server)
 

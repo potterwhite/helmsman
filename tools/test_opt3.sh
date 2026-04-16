@@ -51,7 +51,7 @@ log_benchmark "=========================================="
 log_benchmark "Testing INT8 optimization_level=3"
 log_benchmark "=========================================="
 
-sshpass -p "${REMOTE_PASSWORD}" ssh "${REMOTE_HOST}" "cd ${REMOTE_TEST_DIR} && Helmsman_Matting_Client ${TEST_IMAGE} ${INT8_OPT3_MODEL} ${TEST_OUTPUT_DIR}" 2>&1 | tee /tmp/int8_opt3_test.log
+sshpass -p "${REMOTE_PASSWORD}" ssh "${REMOTE_HOST}" "cd ${REMOTE_TEST_DIR} && Helmsman_Matting_Server ${TEST_IMAGE} ${INT8_OPT3_MODEL} ${TEST_OUTPUT_DIR}" 2>&1 | tee /tmp/int8_opt3_test.log
 
 OPT3_EXIT_CODE=${PIPESTATUS[0]}
 

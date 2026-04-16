@@ -96,9 +96,9 @@ log_step "Executing inference on ${REMOTE_HOST}..."
 sshpass -p "${REMOTE_PASSWORD}" ssh "${REMOTE_HOST}" "mkdir -p ${TEST_OUTPUT_DIR}"
 
 # Run inference and capture output
-log_info "Running: Helmsman_Matting_Client ${TEST_IMAGE} ${TEST_MODEL} ${TEST_OUTPUT_DIR}"
+log_info "Running: Helmsman_Matting_Server ${TEST_IMAGE} ${TEST_MODEL} ${TEST_OUTPUT_DIR}"
 
-sshpass -p "${REMOTE_PASSWORD}" ssh "${REMOTE_HOST}" "cd ${REMOTE_TEST_DIR} && Helmsman_Matting_Client ${TEST_IMAGE} ${TEST_MODEL} ${TEST_OUTPUT_DIR}" 2>&1 | tee /tmp/remote_inference.log
+sshpass -p "${REMOTE_PASSWORD}" ssh "${REMOTE_HOST}" "cd ${REMOTE_TEST_DIR} && Helmsman_Matting_Server ${TEST_IMAGE} ${TEST_MODEL} ${TEST_OUTPUT_DIR}" 2>&1 | tee /tmp/remote_inference.log
 
 INFERENCE_EXIT_CODE=${PIPESTATUS[0]}
 

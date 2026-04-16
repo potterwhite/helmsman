@@ -35,7 +35,7 @@
 #include "pipeline/inference-engine/onnx/onnx.h"
 #endif
 
-// Reference the global stop signal from main-client.cpp (set by SIGINT handler)
+// Reference the global stop signal from main-server.cpp (set by SIGINT handler)
 extern std::atomic<bool> g_stop_signal_received;
 
 Pipeline& Pipeline::GetInstance() {

@@ -24,7 +24,7 @@
 
 #include <string_view>
 
-constexpr std::string_view kcurrent_module_name = "main-client";
+constexpr std::string_view kcurrent_module_name = "main-server";
 
 // namespace arcforge {
 // namespace runtime {

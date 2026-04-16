@@ -139,9 +139,9 @@ if [ "$TEST_FP16" = true ]; then
     log_benchmark "Testing FP16 Model Performance"
     log_benchmark "=========================================="
 
-    log_info "Running: Helmsman_Matting_Client ${TEST_IMAGE} ${FP16_MODEL} ${TEST_OUTPUT_DIR}"
+    log_info "Running: Helmsman_Matting_Server ${TEST_IMAGE} ${FP16_MODEL} ${TEST_OUTPUT_DIR}"
 
-    sshpass -p "${REMOTE_PASSWORD}" ssh "${REMOTE_HOST}" "cd ${REMOTE_TEST_DIR} && Helmsman_Matting_Client ${TEST_IMAGE} ${FP16_MODEL} ${TEST_OUTPUT_DIR}" 2>&1 | tee /tmp/fp16_inference.log
+    sshpass -p "${REMOTE_PASSWORD}" ssh "${REMOTE_HOST}" "cd ${REMOTE_TEST_DIR} && Helmsman_Matting_Server ${TEST_IMAGE} ${FP16_MODEL} ${TEST_OUTPUT_DIR}" 2>&1 | tee /tmp/fp16_inference.log
 
     FP16_EXIT_CODE=${PIPESTATUS[0]}
 
@@ -165,9 +165,9 @@ log_benchmark "=========================================="
 log_benchmark "Testing INT8 Model Performance"
 log_benchmark "=========================================="
 
-log_info "Running: Helmsman_Matting_Client ${TEST_IMAGE} ${INT8_MODEL} ${TEST_OUTPUT_DIR}"
+log_info "Running: Helmsman_Matting_Server ${TEST_IMAGE} ${INT8_MODEL} ${TEST_OUTPUT_DIR}"
 
-sshpass -p "${REMOTE_PASSWORD}" ssh "${REMOTE_HOST}" "cd ${REMOTE_TEST_DIR} && Helmsman_Matting_Client ${TEST_IMAGE} ${INT8_MODEL} ${TEST_OUTPUT_DIR}" 2>&1 | tee /tmp/int8_inference.log
+sshpass -p "${REMOTE_PASSWORD}" ssh "${REMOTE_HOST}" "cd ${REMOTE_TEST_DIR} && Helmsman_Matting_Server ${TEST_IMAGE} ${INT8_MODEL} ${TEST_OUTPUT_DIR}" 2>&1 | tee /tmp/int8_inference.log
 
 INT8_EXIT_CODE=${PIPESTATUS[0]}
 
