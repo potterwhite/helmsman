@@ -40,21 +40,18 @@ helmsman.git/
 │   ├── CMakePresets.json       ← 12 个构建预设（native/rk3588s/rv1126bp × debug/release × static/shared）
 │   ├── .env (gitignored) 🔒    ← SDK 根路径；交叉编译前必须存在
 │   ├── apps/
-│   │   ├── matting/client/     ← ★ 主程序：Helmsman_Matting_Client 二进制
-│   │   └── asr/                ← 次程序：ASR 服务端/客户端（Sherpa-ONNX）
+│   │   └── matting/client/     ← ★ 主程序：Helmsman_Matting_Client 二进制
 │   ├── libs/
 │   │   ├── cvkit/              ← OpenCV 封装（加载、颜色转换、缩放、二进制转储）
 │   │   ├── utils/              ← Logger、FileUtils、MathUtils、OtherUtils
 │   │   ├── runtime/            ← ONNX Runtime 会话封装
-│   │   ├── network/            ← TCP socket 客户端/服务端
-│   │   └── asr_engine/         ← Sherpa-ONNX 识别器 + VAD
+│   │   └── network/            ← TCP socket 客户端/服务端
 │   ├── cmake/
 │   │   ├── ArcFunctions.cmake  ← 自定义 CMake 宏（arc_init_*、arc_extract_version_*）
 │   │   └── toolchains/         ← 交叉编译工具链：rk3588s.cmake、rv1126bp.cmake
 │   └── third_party/            ← 各依赖的 FetchContent CMake 脚本
 │       ├── librknnrt/          ← Rockchip NPU 运行时（配置时下载）
 │       ├── onnxruntime/        ← ONNX Runtime（配置时下载）
-│       └── sherpa-onnx/        ← ASR 运行时（配置时下载）
 │
 ├── third-party/
 │   ├── sdk/MODNet.git/ 🔒      ← Git 子模块：ZHKKKe/MODNet。禁止直接修改。
@@ -263,16 +260,6 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 | `include/Network/client/client.h` | `Network::Client` — TCP 客户端 |
 | `include/Network/server/server.h` | `Network::Server` — TCP 服务端 |
 | `include/Network/base/exception.h` | 网络异常 |
-
-### `libs/asr_engine/` — 语音识别引擎
-**CMake 目标**：`Helmsman::Lib::ASREngine`
-
-| 文件 | 关键类 |
-|---|---|
-| `include/ASREngine/recognizer/recognizer.h` | `ASREngine::Recognizer`（Sherpa-ONNX） |
-| `include/ASREngine/recognizer/recognizer-config.h` | `RecognizerConfig` 结构体 |
-| `include/ASREngine/vad/vad.h` | `ASREngine::VAD` — 语音活动检测 |
-| `include/ASREngine/wav-reader/wav-reader.h` | WAV 文件读取器 |
 
 ---
 

@@ -21,6 +21,7 @@
 #include "pipeline/pipeline.h"
 #include <atomic>
 #include <chrono>
+#include <future>
 #include <opencv2/videoio.hpp>
 #include "common-define.h"
 #include "pipeline/backend/backend.h"
@@ -370,18 +371,18 @@ int Pipeline::runRVM() {
 
 	const std::string output_video_path = output_bin_path_ + "/output_composited.mp4";
 	cv::VideoWriter video_writer;
-	video_writer.open(output_video_path,
-	                  cv::VideoWriter::fourcc('m', 'p', '4', 'v'),
-	                  output_fps,
+	video_writer.open(output_video_path, cv::VideoWriter::fourcc('m', 'p', '4', 'v'), output_fps,
 	                  cv::Size(src_width, src_height));
 
 	if (!video_writer.isOpened()) {
 		logger.Warning("Failed to open VideoWriter: " + output_video_path +
-		               ". Composited video will NOT be saved.", kcurrent_module_name);
+		                   ". Composited video will NOT be saved.",
+		               kcurrent_module_name);
 	} else {
-		logger.Info("VideoWriter opened: " + output_video_path +
-		            " (" + std::to_string(src_width) + "x" + std::to_string(src_height) +
-		            " @ " + std::to_string(output_fps) + " fps)", kcurrent_module_name);
+		logger.Info("VideoWriter opened: " + output_video_path + " (" + std::to_string(src_width) +
+		                "x" + std::to_string(src_height) + " @ " + std::to_string(output_fps) +
+		                " fps)",
+		            kcurrent_module_name);
 	}
 
 	// Load or create background image for compositing
@@ -404,7 +405,8 @@ int Pipeline::runRVM() {
 		// Check for Ctrl+C / SIGINT
 		if (g_stop_signal_received.load()) {
 			logger.Info("Stop signal received. Finishing video at frame " +
-			            std::to_string(frame_count) + ".", kcurrent_module_name);
+			                std::to_string(frame_count) + ".",
+			            kcurrent_module_name);
 			break;
 		}
 
@@ -473,8 +475,8 @@ int Pipeline::runRVM() {
 			frame.convertTo(fg_f32, CV_32FC3, 1.0 / 255.0);
 			bg_bgr.convertTo(bg_f32, CV_32FC3, 1.0 / 255.0);
 
-			composed_f32 = alpha_3ch.mul(fg_f32) +
-			               (cv::Scalar(1.0, 1.0, 1.0) - alpha_3ch).mul(bg_f32);
+			composed_f32 =
+			    alpha_3ch.mul(fg_f32) + (cv::Scalar(1.0, 1.0, 1.0) - alpha_3ch).mul(bg_f32);
 			composed_f32.convertTo(composed_8u, CV_8UC3, 255.0);
 
 			video_writer.write(composed_8u);
@@ -487,7 +489,8 @@ int Pipeline::runRVM() {
 	if (video_writer.isOpened()) {
 		video_writer.release();
 		logger.Info("Video compositing complete: " + std::to_string(frame_count) +
-		            " frames written to " + output_video_path, kcurrent_module_name);
+		                " frames written to " + output_video_path,
+		            kcurrent_module_name);
 	}
 
 	logger.Info("RVM video pipeline finished. Total frames: " + std::to_string(frame_count),

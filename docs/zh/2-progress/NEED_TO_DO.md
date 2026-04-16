@@ -42,3 +42,17 @@ commit: 67e7032
 
 - [x] pkb需要更新
 已更新：roadmap Phase-4 Block 表（4.1~4.2 ✅ + 状态/备注）、文档链接从 `⏳ 待创建` → `✅ Block 4.1~4.2 已记录`、progress.md 当前位置更新至 Phase-4、_DASHBOARD.md 时间线 + 索引 + 快速链接同步。
+
+- [ ] 把runtime/cpp/apps/asr 删除，永远不需要它了，把跟它相关的痕迹都抹除
+- [ ] runtime/cpp/apps/matting/client 应该改名为server，请把相关的部分都改掉，后期会逐渐扩展为serverside-bin
+- [ ] "把当前的 while (input_source_->read(frame)) 循环改成预取模式。" --- prefetch怎么做？
+- [ ] 【重构】我要把 runtime/cpp/apps/matting/client/src/pipeline 调整一下，目前的pipeline已经不明显了，这非常影响我阅读代码
+    从原先的front -> engine -> backend ，到现在的backend core frontend input 其实已经分不清流水线的层级结构了。
+    我希望把core（其实就是base的作用，通用的，被其他模块依赖的部分）和input给换一个地方存放。
+    因为这里的存放逻辑是pipeline, 从pipeline角度看，哪里有什么input节点呢？
+    还有，这个时间重构，可能会对之前的phase5.1甚至更早的phases都产生不稳定的影响，都得重新调试，但是我希望代码不是无法梳理的浆糊，所以还是听听你的建议，何时重构最好。尤其你加入了一些你的代码之后，并没有按照我的思路，就让我不满意了。
+    你分析该方案，告诉我怎么做。
+    记得做这一切前，把phase5.2-双buf的计划都写入pkb里，我要详细点，就像你的教练计划里的颗粒度一样细。
+    把代码都写进去，但是还要同时解释这里做了什么，我会先按照你的解释去自己写，最后跟你的代码比对，像学生时代的参考答案一样。
+    记得pkb里插入重构这个计划
+- [ ] 做验证，更新pkb, git commit，最后的push我自己做，归档这个need_to_do.md。
