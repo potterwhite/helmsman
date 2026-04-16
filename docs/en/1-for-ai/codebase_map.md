@@ -321,15 +321,30 @@ Custom CMake macros:
 
 **Key invariant**: Frontend data range is **0–255 float32 in HWC**. RKNN driver handles quantization internally via calibration.
 
+### Common Types
+
+| File | Purpose |
+|---|---|
+| `include/common/common-define.h` | `kcurrent_module_name = "main-server"` |
+| `include/common/data_structure.h` 🔒 | `TensorData` struct (data, shape, orig_w/h, pad_*) |
+
+### Input Sources (external to pipeline)
+
+| File | Purpose |
+|---|---|
+| `include/input/input-source.h` ★ | `InputSource` abstract interface |
+| `include/input/mp4-input-source.h` ★ | `Mp4InputSource`: cv::VideoCapture + FFmpeg backend |
+| `src/input/mp4-input-source.cpp` ★ | Mp4InputSource implementation |
+
 ### Pipeline Files
 
 | File | Purpose |
 |---|---|
-| `src/main-server.cpp` | Entry point; sets up logger, signal handler, calls `Pipeline::init()` + `run()` |
-| `include/common-define.h` | `kcurrent_module_name = "main-server"` |
+| `src/main-server.cpp` | Entry point; logger, SIGINT, auto-detect video/image, `Pipeline::init()` + `run()` |
 | `include/pipeline/pipeline.h` | `Pipeline` singleton: `init()`, `run()` |
 | `src/pipeline/pipeline.cpp` 🔒 | Orchestrates: load model → preprocess → infer (×10 bench) → postprocess |
-| `include/pipeline/core/data_structure.h` 🔒 | `TensorData` struct (data, shape, orig_w/h, pad_*) |
+| `include/pipeline/recurrent-state-manager.h` ★ | `RecurrentStateManager`: RVM recurrent state (init/reset/inject/update) |
+| `src/pipeline/recurrent-state-manager.cpp` ★ | RecurrentStateManager implementation |
 | `include/pipeline/frontend/frontend.h` | `ImageFrontend`: `preprocess(image_path, model_w, model_h)` |
 | `src/pipeline/frontend/frontend.cpp` 🔒 | BGR→RGB→float32→letterbox→HWC tensor (0–255 range) |
 | `include/pipeline/inference-engine/base/inference-engine.h` 🔒 | `InferenceEngine` ABC: `load()`, `infer()`, `setOutputBinPath()`, `getInputHeight()`, `getInputWidth()` |

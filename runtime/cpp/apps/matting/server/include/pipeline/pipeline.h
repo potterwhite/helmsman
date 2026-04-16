@@ -30,8 +30,8 @@
 #include "Utils/logger/worker/consolesink.h"
 #include "Utils/logger/worker/filesink.h"
 #include "Utils/math/math-utils.h"
-#include "pipeline/core/recurrent-state-manager.h"
-#include "pipeline/input/input-source.h"
+#include "pipeline/recurrent-state-manager.h"
+#include "input/input-source.h"
 
 // ---------------------------------------------------------------------------
 // ModelType — explicit model type selection

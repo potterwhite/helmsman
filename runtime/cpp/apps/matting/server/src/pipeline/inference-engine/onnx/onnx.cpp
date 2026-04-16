@@ -38,7 +38,7 @@
 // ============================================================================
 
 #include "pipeline/inference-engine/onnx/onnx.h"
-#include "common-define.h"
+#include "common/common-define.h"
 
 // InferenceEngineONNX& InferenceEngineONNX::GetInstance() {
 // 	static InferenceEngineONNX instance;

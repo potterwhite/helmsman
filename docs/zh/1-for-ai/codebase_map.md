@@ -6,7 +6,7 @@
 >
 > **维护规则：** 任何修改本文件中所列文件的 AI Agent，必须在同一 commit/会话中更新本文档的对应章节。
 >
-> 最后更新：2026-04-15（Phase-5 Block 5.1 + 5.1.5：InputSource 抽象、Mp4InputSource、视频循环、Frontend 拆分、FFmpeg 配置、VideoWriter alpha compositing、SIGINT 优雅退出）
+> 最后更新：2026-04-16（C1~C3 重构：删 ASR、client→server 重命名、pipeline 目录整理——input/ 和 common/ 独立、core/ 消除）
 >
 > **English →** [../../en/1-for-ai/codebase_map.md](../../en/1-for-ai/codebase_map.md)
 
@@ -281,9 +281,9 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
         |
         ▼
 ┌─────────────────────────┐
-│  InputSource（抽象）     │  → pipeline/input/input-source.h
+│  InputSource（抽象）     │  → input/input-source.h
 │                         │  ★ Phase-5 新增：视频输入抽象
-│  Mp4InputSource         │  → pipeline/input/mp4-input-source.h/cpp
+│  Mp4InputSource         │  → input/mp4-input-source.h/cpp
 │  └─ cv::VideoCapture    │  FFmpeg 后端，逐帧 read(cv::Mat&)
 │     + FFmpeg backend    │
 │                         │  Legacy 路径: 直接使用图片路径字符串
@@ -353,20 +353,30 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 
 **关键不变量**：前端数据范围为 **0–255 float32 HWC 格式**。RKNN 驱动通过校准数据在内部处理量化。
 
+### 公共类型
+
+| 文件 | 用途 |
+|---|---|
+| `include/common/common-define.h` | `kcurrent_module_name = "main-server"` |
+| `include/common/data_structure.h` 🔒 | `TensorData` 结构体（name, data, shape, orig_w/h, pad_*） |
+
+### 输入源（pipeline 外部）
+
+| 文件 | 用途 |
+|---|---|
+| `include/input/input-source.h` ★ | `InputSource` 抽象接口：`open()`, `read()`, `width()`, `height()`, `fps()`, `close()` |
+| `include/input/mp4-input-source.h` ★ | `Mp4InputSource`：cv::VideoCapture + FFmpeg 后端 |
+| `src/input/mp4-input-source.cpp` ★ | Mp4InputSource 实现 |
+
 ### 流水线文件
 
 | 文件 | 用途 |
 |---|---|
 | `src/main-server.cpp` | 入口点；配置 logger、SIGINT 信号处理（全局 `g_stop_signal_received`），自动检测视频/图片，调用 `Pipeline::init()` + `run()` |
-| `include/common-define.h` | `kcurrent_module_name = "main-server"` |
-| `include/pipeline/input/input-source.h` ★ | `InputSource` 抽象接口：`open()`, `read()`, `width()`, `height()`, `fps()`, `close()` |
-| `include/pipeline/input/mp4-input-source.h` ★ | `Mp4InputSource`：cv::VideoCapture + FFmpeg 后端 |
-| `src/pipeline/input/mp4-input-source.cpp` ★ | Mp4InputSource 实现 |
 | `include/pipeline/pipeline.h` | `Pipeline` 单例：双 `init()` 重载（unique_ptr<InputSource> / 图片路径），`run()`, `runMODNet()`, `runRVM()`（含 VideoWriter 合成输出）, `runRVM_CV_SinglePicture()` + `ModelType` 枚举 |
 | `src/pipeline/pipeline.cpp` 🔒 | 编排：MODNet 路径（1→1 + 10× 基准）/ RVM 路径（5→6 + 递归状态 + 视频逐帧循环 + VideoWriter alpha compositing + SIGINT 优雅退出）/ RVM_CV_SinglePicture（legacy 单图5帧测试）|
-| `include/pipeline/core/data_structure.h` 🔒 | `TensorData` 结构体（name, data, shape, orig_w/h, pad_*） |
-| `include/pipeline/core/recurrent-state-manager.h` ★ | `RecurrentStateManager`：RVM 递归状态持久化（init/reset/inject/update） |
-| `src/pipeline/core/recurrent-state-manager.cpp` ★ | RecurrentStateManager 实现 |
+| `include/pipeline/recurrent-state-manager.h` ★ | `RecurrentStateManager`：RVM 递归状态持久化（init/reset/inject/update） |
+| `src/pipeline/recurrent-state-manager.cpp` ★ | RecurrentStateManager 实现 |
 | `include/pipeline/frontend/frontend.h` | `ImageFrontend`: `preprocess(image_path, w, h)` + `preprocess(cv::Mat, w, h)` 双重载 |
 | `src/pipeline/frontend/frontend.cpp` 🔒 | preprocessCore()：BGR→RGB→float32→letterbox→HWC 张量（0–255 范围）；两个公共重载调用 |
 | `include/pipeline/inference-engine/base/inference-engine.h` 🔒 | `InferenceEngine` 抽象基类：`load()`, `infer(vector<in>, vector<out>)` — N→M 泛化接口 |

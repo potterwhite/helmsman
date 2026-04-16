@@ -28,7 +28,7 @@
 #include "Utils/logger/worker/consolesink.h"
 #include "Utils/logger/worker/filesink.h"
 #include "Utils/math/math-utils.h"
-#include "pipeline/core/data_structure.h"
+#include "common/data_structure.h"
 
 class ImageFrontend {
    public:

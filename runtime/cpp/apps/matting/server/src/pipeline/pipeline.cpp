@@ -23,7 +23,7 @@
 #include <chrono>
 #include <future>
 #include <opencv2/videoio.hpp>
-#include "common-define.h"
+#include "common/common-define.h"
 #include "pipeline/backend/backend.h"
 #include "pipeline/backend/post-processor/guided-filter-post-processor.h"
 #include "pipeline/frontend/frontend.h"

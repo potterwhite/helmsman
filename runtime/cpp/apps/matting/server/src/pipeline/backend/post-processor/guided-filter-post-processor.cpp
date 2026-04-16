@@ -20,7 +20,7 @@
 
 #include "pipeline/backend/post-processor/guided-filter-post-processor.h"
 #include "Utils/logger/logger.h"
-#include "common-define.h"
+#include "common/common-define.h"
 
 #include <opencv2/imgproc.hpp>
 #include <stdexcept>

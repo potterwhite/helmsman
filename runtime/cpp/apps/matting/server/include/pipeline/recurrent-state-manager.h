@@ -57,7 +57,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include "pipeline/core/data_structure.h"
+#include "common/data_structure.h"
 
 class RecurrentStateManager {
    public:

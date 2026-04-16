@@ -22,33 +22,56 @@
 # apps/matting/server/src/CMakeLists.txt
 #
 
-set(PIPELINE_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/pipeline.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/backend/backend.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/backend/post-processor/guided-filter-post-processor.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/frontend/frontend.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/core/recurrent-state-manager.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/input/mp4-input-source.cpp"
+#################################
+# 1.0 input/
+set(INPUT_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/input/mp4-input-source.cpp"
 )
 
-set(INFER_ENGINE_SOURCES
+#################################
+# 2.0 pipeline/
+
+# 2.1 pipeline/frontend/
+set(PIPELINE_FRONTEND_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/frontend/frontend.cpp"
+)
+
+# 2.2 pipeline/inference-engine/
+set(PIPELINE_INFERENCE_ENGINE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/onnx/onnx.cpp"
 )
 
 if(TARGET ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
-    list(APPEND INFER_ENGINE_SOURCES
+    list(APPEND PIPELINE_INFERENCE_ENGINE_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/rknn/rknn-zero-copy.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/rknn/rknn-non-zero-copy.cpp"
     )
 endif()
 
-set(SERVER_SOURCES
+# 2.3 pipeline/backend
+set(PIPELINE_BACKEND_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/backend/backend.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/backend/post-processor/guided-filter-post-processor.cpp"
+)
+
+# 2.4 pipeline/
+set(PIPELINE_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/pipeline.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/recurrent-state-manager.cpp"
+    ${PIPELINE_FRONTEND_SOURCES}
+    ${PIPELINE_INFERENCE_ENGINE_SOURCES}
+    ${PIPELINE_BACKEND_SOURCES}
+)
+
+#################################
+# 3.0 ./
+set(SERVER_SOURCE
     "${CMAKE_CURRENT_SOURCE_DIR}/main-server.cpp"
 )
 
 target_sources(${PROJECT_NAME}
     PRIVATE
-        ${SERVER_SOURCES}
+        ${INPUT_SOURCES}
         ${PIPELINE_SOURCES}
-        ${INFER_ENGINE_SOURCES}
+        ${SERVER_SOURCE}
 )

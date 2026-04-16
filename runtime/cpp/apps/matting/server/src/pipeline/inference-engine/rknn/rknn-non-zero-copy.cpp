@@ -23,7 +23,7 @@
 #include <fstream>
 #include <stdexcept>
 #include "Runtime/rknn.h/rknn.h"
-#include "common-define.h"
+#include "common/common-define.h"
 
 // ============================================================================
 // InferenceEngineRKNN — N-input / M-output Non-Zero-Copy Mode
