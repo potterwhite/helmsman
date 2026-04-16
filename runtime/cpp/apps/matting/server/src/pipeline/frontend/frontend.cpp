@@ -72,19 +72,18 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_
 	auto& file_utils_ = arcforge::utils::FileUtils::GetInstance();
 	// auto& math_utils_ = arcforge::utils::MathUtils::GetInstance();
 	// auto& runtime_ = arcforge::runtime::RuntimeONNX::GetInstance();
-	auto cvkit_obj = std::make_unique<arcforge::cvkit::Base>();
 
 	// Step 1.2 - Convert BGR to RGB
 	// Reason:
 	//   Most deep learning frameworks expect RGB ordering.
-	img = cvkit_obj->bgrToRgb(img);
-	if (isDumpEnabled()) cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_02_bgrToRgb.bin");
+	img = cvkit_.bgrToRgb(img);
+	if (isDumpEnabled()) cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_02_bgrToRgb.bin");
 
 	// Step 1.3 - Ensure image has exactly 3 channels
 	// Reason:
 	//   Some images may be grayscale or RGBA.
-	img = cvkit_obj->ensure3Channel(img);
-	if (isDumpEnabled()) cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_03_ensure3Channel.bin");
+	img = cvkit_.ensure3Channel(img);
+	if (isDumpEnabled()) cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_03_ensure3Channel.bin");
 
 	// /*
 	//      * NOTE:
@@ -94,10 +93,10 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_
 	//      * Date: Feb03.2026
 	//      * Author: PotterWhite
 	//      *
-	//      * img = cvkit_obj->normalizeToMinusOneToOne(img);
+	//      * img = cvkit_.normalizeToMinusOneToOne(img);
 	//      */
-	// img = cvkit_obj->normalize_exact_numpy(img);
-	// cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_04_normalized.bin");
+	// img = cvkit_.normalize_exact_numpy(img);
+	// cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_04_normalized.bin");
 
 	// =========================================================================
 	// Phase 2 - Convert Data Type (uint8 → float32)
@@ -115,7 +114,7 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_
 	img.convertTo(img, CV_32FC3);
 
 	// 依然可以 dump 出来确认，里面的值应该是 0~255 的浮点数
-	if (isDumpEnabled()) cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_04_converted_float.bin");
+	if (isDumpEnabled()) cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_04_converted_float.bin");
 
 	// =========================================================================
 	// Phase 3 - Resize to Model Reference Size with Letterbox (Padding)
@@ -212,7 +211,7 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_
 	                 ", left=" + std::to_string(pad_left) + ", right=" + std::to_string(pad_right),
 	             kcurrent_module_name);
 
-	if (isDumpEnabled()) cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");
+	if (isDumpEnabled()) cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");
 
 	// =========================================================================
 	// Phase 4 - Prepare Memory Layout for Inference Engine
@@ -228,7 +227,7 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_
 	//
 	// ---------------------------------
 	// 2. convert to NCHW
-	// tensor_data.data = cvkit_obj->hwcToNchw(img, 3);
+	// tensor_data.data = cvkit_.hwcToNchw(img, 3);
 	// file_utils_.dumpBinary(tensor_data.data, outputBinPath_ + "/cpp_06-07_hwcToNchw.bin");
 
 	// 改为：直接拷贝 HWC 格式的连续内存给 inference 引擎
@@ -301,15 +300,13 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_
 TensorData ImageFrontend::preprocess(const std::string& image_path, size_t model_width,
                                      size_t model_height) {
 
-	auto cvkit_obj = std::make_unique<arcforge::cvkit::Base>();
-
 	// =========================================================================
 	// Phase 1 - Image Loading & Color Handling
 	// =========================================================================
 
 	// Step 1.1 - Load image from disk (OpenCV default: BGR format)
-	cv::Mat img = cvkit_obj->loadImage(image_path);
-	if (isDumpEnabled()) cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_01_loadimage.bin");
+	cv::Mat img = cvkit_.loadImage(image_path);
+	if (isDumpEnabled()) cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_01_loadimage.bin");
 
 	return _preprocessCore(img, model_width, model_height);
 }
