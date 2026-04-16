@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 #
-# apps/asr/client/src/CMakeLists.txt
+# apps/matting/server/src/CMakeLists.txt
 #
 
 set(PIPELINE_SOURCES
@@ -42,13 +42,13 @@ if(TARGET ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
     )
 endif()
 
-set(CLIENT_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/main-client.cpp"
+set(SERVER_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/main-server.cpp"
 )
 
 target_sources(${PROJECT_NAME}
     PRIVATE
-        ${CLIENT_SOURCES}
+        ${SERVER_SOURCES}
         ${PIPELINE_SOURCES}
         ${INFER_ENGINE_SOURCES}
 )

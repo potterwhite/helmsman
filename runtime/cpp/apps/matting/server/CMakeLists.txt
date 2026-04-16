@@ -29,7 +29,7 @@ endif()
 # ---------------------------------
 # II. project name
 # ---------------------------------
-set(PROJECT_NAME "Matting_Client")
+set(PROJECT_NAME "Matting_Server")
 project(${PROJECT_NAME}
     VERSION
         ${GLOBAL_VERSION_STRING}

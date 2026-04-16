@@ -84,7 +84,7 @@ static bool isVideoFile(const std::string& path) {
 // ============================================================================
 // CLI Usage:
 //
-//   Helmsman_Matting_Client <input> <model> <output_dir> [background] [--rvm]
+//   Helmsman_Matting_Server <input> <model> <output_dir> [background] [--rvm]
 //
 // Positional arguments:
 //   input        Path to input image OR video file (.mp4/.avi/.mkv/.mov/.webm)
@@ -99,16 +99,16 @@ static bool isVideoFile(const std::string& path) {
 //
 // Examples:
 //   # MODNet single image (default):
-//   Helmsman_Matting_Client photo.png modnet.onnx ./output/
+//   Helmsman_Matting_Server photo.png modnet.onnx ./output/
 //
 //   # RVM single image test:
-//   Helmsman_Matting_Client photo.png rvm.rknn ./output/ --rvm
+//   Helmsman_Matting_Server photo.png rvm.rknn ./output/ --rvm
 //
 //   # RVM video (auto-detected):
-//   Helmsman_Matting_Client video.mp4 rvm.rknn ./output/
+//   Helmsman_Matting_Server video.mp4 rvm.rknn ./output/
 //
 //   # RVM video with background compositing:
-//   Helmsman_Matting_Client video.mp4 rvm.rknn ./output/ bg.jpg
+//   Helmsman_Matting_Server video.mp4 rvm.rknn ./output/ bg.jpg
 // ============================================================================
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 

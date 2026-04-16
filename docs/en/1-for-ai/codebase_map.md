@@ -41,7 +41,7 @@ helmsman.git/
 │   ├── CMakePresets.json       ← 12 build presets (native/rk3588s/rv1126bp × debug/release × static/shared)
 │   ├── .env (gitignored) 🔒    ← SDK root paths; REQUIRED before any cross-compile
 │   ├── apps/
-│   │   └── matting/client/     ← ★ PRIMARY APP: Helmsman_Matting_Client binary
+│   │   └── matting/server/     ← ★ PRIMARY APP: Helmsman_Matting_Server binary
 │   ├── libs/
 │   │   ├── cvkit/              ← OpenCV wrappers (load, color-convert, resize, dumpBinary)
 │   │   ├── utils/              ← Logger, FileUtils, MathUtils, OtherUtils
@@ -263,10 +263,10 @@ Custom CMake macros:
 
 ---
 
-## `apps/matting/client/` ★ — Primary Application
+## `apps/matting/server/` ★ — Primary Application
 
-**Binary**: `Helmsman_Matting_Client`
-**Usage**: `Helmsman_Matting_Client <image> <model> <output_dir> [background]`
+**Binary**: `Helmsman_Matting_Server`
+**Usage**: `Helmsman_Matting_Server <image> <model> <output_dir> [background]`
 **Install path**: `runtime/cpp/install/<platform>/release/bin/`
 
 ### Matting Pipeline (C++ Data Flow)
@@ -325,8 +325,8 @@ Custom CMake macros:
 
 | File | Purpose |
 |---|---|
-| `src/main-client.cpp` | Entry point; sets up logger, signal handler, calls `Pipeline::init()` + `run()` |
-| `include/common-define.h` | `kcurrent_module_name = "main-client"` |
+| `src/main-server.cpp` | Entry point; sets up logger, signal handler, calls `Pipeline::init()` + `run()` |
+| `include/common-define.h` | `kcurrent_module_name = "main-server"` |
 | `include/pipeline/pipeline.h` | `Pipeline` singleton: `init()`, `run()` |
 | `src/pipeline/pipeline.cpp` 🔒 | Orchestrates: load model → preprocess → infer (×10 bench) → postprocess |
 | `include/pipeline/core/data_structure.h` 🔒 | `TensorData` struct (data, shape, orig_w/h, pad_*) |
@@ -381,7 +381,7 @@ logger.Warning("message", kcurrent_module_name);
 logger.Debug("message", kcurrent_module_name);  // only shown in Debug builds
 
 // kcurrent_module_name defined in include/common-define.h per app
-constexpr std::string_view kcurrent_module_name = "main-client";
+constexpr std::string_view kcurrent_module_name = "main-server";
 ```
 
 ---
@@ -462,7 +462,7 @@ INPUT_SIZE   = 512
 ## Dependency Graph (C++ CMake)
 
 ```
-Helmsman_Matting_Client
+Helmsman_Matting_Server
 ├── Helmsman::Lib::CVKit        (OpenCV wrappers)
 │   └── OpenCV
 ├── Helmsman::Lib::Utils        (Logger, Math, File)

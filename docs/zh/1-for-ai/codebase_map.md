@@ -40,7 +40,7 @@ helmsman.git/
 │   ├── CMakePresets.json       ← 12 个构建预设（native/rk3588s/rv1126bp × debug/release × static/shared）
 │   ├── .env (gitignored) 🔒    ← SDK 根路径；交叉编译前必须存在
 │   ├── apps/
-│   │   └── matting/client/     ← ★ 主程序：Helmsman_Matting_Client 二进制
+│   │   └── matting/server/     ← ★ 主程序：Helmsman_Matting_Server 二进制
 │   ├── libs/
 │   │   ├── cvkit/              ← OpenCV 封装（加载、颜色转换、缩放、二进制转储）
 │   │   ├── utils/              ← Logger、FileUtils、MathUtils、OtherUtils
@@ -263,10 +263,10 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 
 ---
 
-## `apps/matting/client/` ★ — 主应用程序
+## `apps/matting/server/` ★ — 主应用程序
 
-**二进制**：`Helmsman_Matting_Client`
-**用法**：`Helmsman_Matting_Client <image_or_video> <model> <output_dir> [background] [--rvm]`
+**二进制**：`Helmsman_Matting_Server`
+**用法**：`Helmsman_Matting_Server <image_or_video> <model> <output_dir> [background] [--rvm]`
 **安装路径**：`runtime/cpp/install/<platform>/release/bin/`
 
 **CLI 标志**：
@@ -357,8 +357,8 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 
 | 文件 | 用途 |
 |---|---|
-| `src/main-client.cpp` | 入口点；配置 logger、SIGINT 信号处理（全局 `g_stop_signal_received`），自动检测视频/图片，调用 `Pipeline::init()` + `run()` |
-| `include/common-define.h` | `kcurrent_module_name = "main-client"` |
+| `src/main-server.cpp` | 入口点；配置 logger、SIGINT 信号处理（全局 `g_stop_signal_received`），自动检测视频/图片，调用 `Pipeline::init()` + `run()` |
+| `include/common-define.h` | `kcurrent_module_name = "main-server"` |
 | `include/pipeline/input/input-source.h` ★ | `InputSource` 抽象接口：`open()`, `read()`, `width()`, `height()`, `fps()`, `close()` |
 | `include/pipeline/input/mp4-input-source.h` ★ | `Mp4InputSource`：cv::VideoCapture + FFmpeg 后端 |
 | `src/pipeline/input/mp4-input-source.cpp` ★ | Mp4InputSource 实现 |
@@ -420,7 +420,7 @@ logger.Warning("message", kcurrent_module_name);
 logger.Debug("message", kcurrent_module_name);  // 仅在 Debug 构建中显示
 
 // kcurrent_module_name 在每个 app 的 include/common-define.h 中定义
-constexpr std::string_view kcurrent_module_name = "main-client";
+constexpr std::string_view kcurrent_module_name = "main-server";
 ```
 
 ---
@@ -502,7 +502,7 @@ INPUT_SIZE   = 512
 ## 依赖图（C++ CMake）
 
 ```
-Helmsman_Matting_Client
+Helmsman_Matting_Server
 ├── Helmsman::Lib::CVKit        （OpenCV 封装）
 │   └── OpenCV
 ├── Helmsman::Lib::Utils        （Logger, Math, File）

@@ -105,7 +105,7 @@ Output: `third-party/sdk/MODNet.git/checkpoints/modnet_bn_best.ckpt`
 4. Verify in Netron: confirm no `InstanceNormalization` nodes
 5. Generate golden files: `./helmsman golden` (select `modnet_bn_best.onnx` + test image)
 6. Build C++ native: `./helmsman build cpp cb`
-7. Run C++ inference: `Helmsman_Matting_Client <img> checkpoints/modnet_bn_best.onnx <output_dir>`
+7. Run C++ inference: `Helmsman_Matting_Server <img> checkpoints/modnet_bn_best.onnx <output_dir>`
 8. Compare: `python3 tools/MODNet/verify_golden_tensor.py`
 
 **Success criteria**:

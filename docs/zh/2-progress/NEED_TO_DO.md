@@ -25,7 +25,7 @@
 > ssh evboard
 > 密码：123
 > 主要工作目录： /root/
-> 命令举例：Helmsman_Matting_Client /root/media/green-fall-girl-point-to_padded_1920x1080.png /root/modnet_pureBN_fp16.rknn /root/debug/cpp/
+> 命令举例：Helmsman_Matting_Server /root/media/green-fall-girl-point-to_padded_1920x1080.png /root/modnet_pureBN_fp16.rknn /root/debug/cpp/
 
 ---
 
