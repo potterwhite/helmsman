@@ -24,7 +24,7 @@
 #include <cstddef>
 #include <string>
 #include <vector>
-#include "pipeline/core/data_structure.h"
+#include "common/data_structure.h"
 
 // ---------------------------------------------------------------------------
 // InferenceEngine — abstract inference interface

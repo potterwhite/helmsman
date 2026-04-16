@@ -26,7 +26,7 @@
 
 #include "Utils/file/file-utils.h"
 #include "Utils/logger/logger.h"
-#include "pipeline/core/data_structure.h"
+#include "common/data_structure.h"
 #include "pipeline/inference-engine/base/inference-engine.h"
 
 #include <vector>

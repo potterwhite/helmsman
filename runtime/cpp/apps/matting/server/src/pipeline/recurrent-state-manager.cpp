@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "pipeline/core/recurrent-state-manager.h"
+#include "pipeline/recurrent-state-manager.h"
 #include <numeric>
 #include <stdexcept>
 

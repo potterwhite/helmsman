@@ -12,7 +12,7 @@
 // ============================================================================
 
 #include "pipeline/frontend/frontend.h"
-#include "common-define.h"
+#include "common/common-define.h"
 
 // ============================================================================
 // ImageFrontend Class

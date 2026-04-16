@@ -1,4 +1,4 @@
-#include "pipeline/input/mp4-input-source.h"
+#include "input/mp4-input-source.h"
 
 bool Mp4InputSource::open(const std::string& uri) {
 	return cap_.open(uri);

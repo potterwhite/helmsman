@@ -38,8 +38,8 @@
 #include <thread>
 #include <utility>
 #include <vector>
-#include "common-define.h"
-#include "pipeline/input/mp4-input-source.h"
+#include "common/common-define.h"
+#include "input/mp4-input-source.h"
 #include "pipeline/pipeline.h"
 
 using namespace arcforge::embedded;
