@@ -41,21 +41,18 @@ helmsman.git/
 │   ├── CMakePresets.json       ← 12 build presets (native/rk3588s/rv1126bp × debug/release × static/shared)
 │   ├── .env (gitignored) 🔒    ← SDK root paths; REQUIRED before any cross-compile
 │   ├── apps/
-│   │   ├── matting/client/     ← ★ PRIMARY APP: Helmsman_Matting_Client binary
-│   │   └── asr/                ← Secondary: ASR server/client (Sherpa-ONNX)
+│   │   └── matting/client/     ← ★ PRIMARY APP: Helmsman_Matting_Client binary
 │   ├── libs/
 │   │   ├── cvkit/              ← OpenCV wrappers (load, color-convert, resize, dumpBinary)
 │   │   ├── utils/              ← Logger, FileUtils, MathUtils, OtherUtils
 │   │   ├── runtime/            ← ONNX Runtime session wrapper
-│   │   ├── network/            ← TCP socket client/server
-│   │   └── asr_engine/         ← Sherpa-ONNX recognizer + VAD
+│   │   └── network/            ← TCP socket client/server
 │   ├── cmake/
 │   │   ├── ArcFunctions.cmake  ← Custom CMake macros (arc_init_*, arc_extract_version_*)
 │   │   └── toolchains/         ← Cross-compile toolchains: rk3588s.cmake, rv1126bp.cmake
 │   └── third_party/            ← FetchContent CMake scripts for deps
 │       ├── librknnrt/          ← Rockchip NPU runtime (downloaded at configure time)
-│       ├── onnxruntime/        ← ONNX Runtime (downloaded at configure time)
-│       └── sherpa-onnx/        ← ASR runtime (downloaded at configure time)
+│       └── onnxruntime/        ← ONNX Runtime (downloaded at configure time)
 │
 ├── third-party/
 │   ├── sdk/MODNet.git/ 🔒      ← Git submodule: ZHKKKe/MODNet. DO NOT EDIT DIRECTLY.
@@ -263,16 +260,6 @@ Custom CMake macros:
 | `include/Network/client/client.h` | `Network::Client` — TCP client |
 | `include/Network/server/server.h` | `Network::Server` — TCP server |
 | `include/Network/base/exception.h` | Network exceptions |
-
-### `libs/asr_engine/` — Speech Recognition Engine
-**CMake target**: `Helmsman::Lib::ASREngine`
-
-| File | Key Classes |
-|---|---|
-| `include/ASREngine/recognizer/recognizer.h` | `ASREngine::Recognizer` (Sherpa-ONNX) |
-| `include/ASREngine/recognizer/recognizer-config.h` | `RecognizerConfig` struct |
-| `include/ASREngine/vad/vad.h` | `ASREngine::VAD` — Voice Activity Detection |
-| `include/ASREngine/wav-reader/wav-reader.h` | WAV file reader |
 
 ---
 
