@@ -22,9 +22,21 @@
 
 #pragma once
 
+#include <cstdlib>
 #include <string_view>
 
 constexpr std::string_view kcurrent_module_name = "main-server";
+
+// ---------------------------------------------------------------------------
+// Runtime debug dump switch — controlled by environment variable.
+//
+// Usage:   HELMSMAN_DUMP=1 ./Helmsman_Matting_Server ...
+// Default: OFF (no binary dumps, zero I/O overhead)
+// ---------------------------------------------------------------------------
+inline bool isDumpEnabled() {
+	static const bool enabled = (std::getenv("HELMSMAN_DUMP") != nullptr);
+	return enabled;
+}
 
 // namespace arcforge {
 // namespace runtime {

@@ -212,7 +212,7 @@ void InferenceEngineRKNN::infer(
 	}
 
 	// Debug dump for primary output
-	if (!output_bin_path_.empty()) {
+	if (isDumpEnabled() && !output_bin_path_.empty()) {
 		file_utils_.dumpBinary(outputs[0].data,
 		    output_bin_path_ + "cpp_08_inference-Output-RKNN.bin");
 	}

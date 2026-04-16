@@ -22,6 +22,7 @@
 #include <cmath>
 #include <cstring>
 #include <fstream>
+#include "common/common-define.h"
 #include "Runtime/rknn.h/rknn.h"
 #include "Utils/file/file-utils.h"
 #include "Utils/logger/logger.h"
@@ -314,7 +315,7 @@ void InferenceEngineRKNNZeroCP::infer(
 	auto t3 = std::chrono::high_resolution_clock::now();
 
 	// Debug dump for primary output (index 0)
-	if (!output_bin_path_.empty()) {
+	if (isDumpEnabled() && !output_bin_path_.empty()) {
 		file_utils_.dumpBinary(outputs[0].data,
 		    output_bin_path_ + "cpp_08_inference-Output.bin");
 	}
