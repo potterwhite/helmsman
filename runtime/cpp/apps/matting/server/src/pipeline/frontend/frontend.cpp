@@ -78,13 +78,13 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_
 	// Reason:
 	//   Most deep learning frameworks expect RGB ordering.
 	img = cvkit_obj->bgrToRgb(img);
-	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_02_bgrToRgb.bin");
+	if (isDumpEnabled()) cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_02_bgrToRgb.bin");
 
 	// Step 1.3 - Ensure image has exactly 3 channels
 	// Reason:
 	//   Some images may be grayscale or RGBA.
 	img = cvkit_obj->ensure3Channel(img);
-	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_03_ensure3Channel.bin");
+	if (isDumpEnabled()) cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_03_ensure3Channel.bin");
 
 	// /*
 	//      * NOTE:
@@ -115,7 +115,7 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_
 	img.convertTo(img, CV_32FC3);
 
 	// 依然可以 dump 出来确认，里面的值应该是 0~255 的浮点数
-	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_04_converted_float.bin");
+	if (isDumpEnabled()) cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_04_converted_float.bin");
 
 	// =========================================================================
 	// Phase 3 - Resize to Model Reference Size with Letterbox (Padding)
@@ -212,7 +212,7 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_
 	                 ", left=" + std::to_string(pad_left) + ", right=" + std::to_string(pad_right),
 	             kcurrent_module_name);
 
-	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");
+	if (isDumpEnabled()) cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");
 
 	// =========================================================================
 	// Phase 4 - Prepare Memory Layout for Inference Engine
@@ -247,7 +247,7 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_
 
 	tensor_data.data.assign(ptr, ptr + total);
 
-	file_utils_.dumpBinary(tensor_data.data, outputBinPath_ + "/cpp_06-07_hwc_direct.bin");
+	if (isDumpEnabled()) file_utils_.dumpBinary(tensor_data.data, outputBinPath_ + "/cpp_06-07_hwc_direct.bin");
 
 	// =========================================================================
 	// Phase 5 - Construct Tensor Shape
@@ -309,7 +309,7 @@ TensorData ImageFrontend::preprocess(const std::string& image_path, size_t model
 
 	// Step 1.1 - Load image from disk (OpenCV default: BGR format)
 	cv::Mat img = cvkit_obj->loadImage(image_path);
-	cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_01_loadimage.bin");
+	if (isDumpEnabled()) cvkit_obj->dumpBinary(img, outputBinPath_ + "/cpp_01_loadimage.bin");
 
 	return _preprocessCore(img, model_width, model_height);
 }

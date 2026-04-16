@@ -97,6 +97,9 @@ static bool isVideoFile(const std::string& path) {
 //                Default is MODNet (single-frame matting).
 //                Auto-selected when input is a video file.
 //
+// Environment variables:
+//   HELMSMAN_DUMP=1   Enable debug binary dumps (off by default)
+//
 // Examples:
 //   # MODNet single image (default):
 //   Helmsman_Matting_Server photo.png modnet.onnx ./output/
@@ -126,6 +129,12 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
 	// Setup signal handler
 	signal(SIGINT, SignalHandler);
+
+	// Log dump status
+	if (isDumpEnabled()) {
+		logger.Info("[DEBUG] Binary dump ENABLED (HELMSMAN_DUMP is set). "
+		            "Unset to disable for production runs.", kcurrent_module_name);
+	}
 
 	// -----------------------------------------------
 	// 2. Parse arguments

@@ -100,7 +100,9 @@ cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs) {
 
 	// -------------------------
 	// dump raw output for debug
-	file_utils.dumpBinary(output.data, output_path_ + "/cpp_09_backend_input.bin");
+	if (isDumpEnabled()) {
+		file_utils.dumpBinary(output.data, output_path_ + "/cpp_09_backend_input.bin");
+	}
 
 	// -----------------------------------
 	// Safe cast for OpenCV (explicit!)
@@ -177,8 +179,10 @@ cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs) {
 
 	const size_t total = HW * static_cast<size_t>(C);
 
-	file_utils.dumpBinary(std::vector<float>((float*)clamped.data, (float*)clamped.data + total),
-	                      output_path_ + "/cpp_10_clamped.bin");
+	if (isDumpEnabled()) {
+		file_utils.dumpBinary(std::vector<float>((float*)clamped.data, (float*)clamped.data + total),
+		                      output_path_ + "/cpp_10_clamped.bin");
+	}
 
 	// -------------------------
 	// 3. convert to 8bit image
