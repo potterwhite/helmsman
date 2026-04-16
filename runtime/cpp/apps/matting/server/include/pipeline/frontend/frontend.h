@@ -50,4 +50,5 @@ class ImageFrontend {
    private:
 	// member variables
 	std::string outputBinPath_ = "";
+	arcforge::cvkit::Base cvkit_;  // Reused across frames (stateless utility)
 };
