@@ -114,35 +114,30 @@ cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs) {
 		throw std::runtime_error("Invalid output shape");
 	}
 
-	// -------------------------
-	// 1. convert NCHW -> HWC
-	cv::Mat result(H_int, W_int, (C_int == 1 ? CV_32FC1 : CV_32FC3));
-
 	const std::vector<float>& data = output.data;
 
-	const size_t HW = static_cast<size_t>(H) * static_cast<size_t>(W);
+	// -------------------------
+	// 1. Convert NCHW float32 → HWC cv::Mat
+	//
+	// For C==1 (alpha matte): NCHW is already a contiguous H×W float array.
+	//   → single memcpy, no loop needed.
+	// For C==3 (fgr): merge three planar float channels into interleaved HWC.
+	//   → cv::merge() is SIMD-optimised; much faster than at<>() indexing.
+	cv::Mat result;
 
-	for (int c = 0; c < C; ++c) {
-		for (int h = 0; h < H; ++h) {
-			for (int w = 0; w < W; ++w) {
-
-				// size_t nchw_index = c * H * W + h * W + w;
-				const size_t nchw_index = static_cast<size_t>(c) * HW +
-				                          static_cast<size_t>(h) * static_cast<size_t>(W) +
-				                          static_cast<size_t>(w);
-
-				float value = data[nchw_index];
-
-				if (C == 1) {
-					// result.at<float>(h, w) = value;
-					result.at<float>(static_cast<int>(h), static_cast<int>(w)) = value;
-				} else {
-					// result.at<cv::Vec3f>(h, w)[c] = value;
-					result.at<cv::Vec3f>(static_cast<int>(h),
-					                     static_cast<int>(w))[static_cast<int>(c)] = value;
-				}
-			}
+	if (C_int == 1) {
+		// Alpha matte: plane 0 IS the H×W float array → wrap without copy
+		result = cv::Mat(H_int, W_int, CV_32FC1,
+		                 const_cast<float*>(data.data())).clone();
+	} else {
+		// Multi-channel: split planes and merge
+		std::vector<cv::Mat> planes(static_cast<size_t>(C_int));
+		const size_t plane_size = static_cast<size_t>(H_int) * static_cast<size_t>(W_int);
+		for (size_t c = 0; c < static_cast<size_t>(C_int); ++c) {
+			planes[c] = cv::Mat(H_int, W_int, CV_32FC1,
+			                    const_cast<float*>(data.data() + c * plane_size));
 		}
+		cv::merge(planes, result);
 	}
 
 	// -------------------------
@@ -177,9 +172,8 @@ cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs) {
 		}
 	}
 
-	const size_t total = HW * static_cast<size_t>(C);
-
 	if (isDumpEnabled()) {
+		const size_t total = static_cast<size_t>(H) * static_cast<size_t>(W) * static_cast<size_t>(C);
 		file_utils.dumpBinary(std::vector<float>((float*)clamped.data, (float*)clamped.data + total),
 		                      output_path_ + "/cpp_10_clamped.bin");
 	}
@@ -190,7 +184,9 @@ cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs) {
 	// clamped.convertTo(output_8u, (C_int == 1 ? CV_8UC1 : CV_8UC3), 255.0);
 	restored_mat.convertTo(output_8u, (C_int == 1 ? CV_8UC1 : CV_8UC3), 255.0);
 
-	cv::imwrite(output_path_ + "/cpp_11_result.png", output_8u);
+	if (isDumpEnabled()) {
+		cv::imwrite(output_path_ + "/cpp_11_result.png", output_8u);
+	}
 
 	// -------------------------
 	// 4. Composite foreground over background (cpp_12_composed.jpg)
