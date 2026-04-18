@@ -57,4 +57,5 @@ commit: 67e7032
     记得pkb里插入重构这个计划
 - [x] 做验证，更新pkb, git commit，最后的push我自己做，归档这个need_to_do.md。
 commit: d055593 (dual-buffer) + 521e0ac (three-way backend) + 1c3c4f9 (CLI --key=value)
-已归档至 PKB: [[log-MR2-P5-video-pipeline]] Block 5.2 + Block 5.2-ext
+      + fa51163 (CPU hot-path optimizations) + a9b42f1 (persistent prefetch worker)
+已归档至 PKB: [[log-MR2-P5-video-pipeline]] Block 5.2 / 5.3 / 5.4
