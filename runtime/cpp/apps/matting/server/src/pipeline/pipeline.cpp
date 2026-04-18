@@ -21,7 +21,10 @@
 #include "pipeline/pipeline.h"
 #include <atomic>
 #include <chrono>
-#include <future>
+#include <condition_variable>
+#include <mutex>
+#include <optional>
+#include <thread>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/videoio.hpp>
@@ -44,6 +47,68 @@
 
 // Reference the global stop signal from main-server.cpp (set by SIGINT handler)
 extern std::atomic<bool> g_stop_signal_received;
+
+// ============================================================================
+// SingleSlotChannel<T>
+//
+// A minimal blocking single-slot channel for producer/consumer synchronisation.
+// Capacity = 1: producer blocks until consumer has picked up the previous item.
+//
+// Usage in prefetch pipeline:
+//   Main thread  → push(raw_frame)    // blocks if slot full (consumer busy)
+//   Worker thread→ pop()              // blocks until slot filled; nullopt = EOF
+//   Worker thread→ push(tensor)
+//   Main thread  → pop()              // blocks until tensor ready
+//
+// Design constraints:
+//   - Header-only, no external dependencies
+//   - Movable T only (cv::Mat / TensorData both qualify)
+//   - close() signals EOF: pop() returns std::nullopt
+// ============================================================================
+template <typename T>
+class SingleSlotChannel {
+   public:
+    // Push an item. Blocks if the slot is already occupied.
+    // Returns false if the channel has been closed.
+    bool push(T item) {
+        std::unique_lock<std::mutex> lk(mtx_);
+        cv_empty_.wait(lk, [this] { return !has_item_ || closed_; });
+        if (closed_) return false;
+        item_     = std::move(item);
+        has_item_ = true;
+        cv_full_.notify_one();
+        return true;
+    }
+
+    // Pop an item. Blocks until one is available.
+    // Returns std::nullopt if the channel is closed and empty.
+    std::optional<T> pop() {
+        std::unique_lock<std::mutex> lk(mtx_);
+        cv_full_.wait(lk, [this] { return has_item_ || closed_; });
+        if (!has_item_) return std::nullopt;
+        T out      = std::move(*item_);
+        item_      = std::nullopt;
+        has_item_  = false;
+        cv_empty_.notify_one();
+        return out;
+    }
+
+    // Signal EOF. Any blocked pop() will return nullopt after the last item.
+    void close() {
+        std::unique_lock<std::mutex> lk(mtx_);
+        closed_ = true;
+        cv_full_.notify_all();
+        cv_empty_.notify_all();
+    }
+
+   private:
+    std::mutex              mtx_;
+    std::condition_variable cv_empty_;   // signalled when slot becomes empty
+    std::condition_variable cv_full_;    // signalled when slot becomes full
+    std::optional<T>        item_;
+    bool                    has_item_ = false;
+    bool                    closed_   = false;
+};
 
 // ============================================================================
 // Factory — the single location that knows which concrete engine to build.
@@ -347,56 +412,80 @@ int Pipeline::runRVM() {
 
 	cv::Mat bg_bgr = loadOrCreateBackground(src_width, src_height);
 
-	// 6. Bootstrap: read and preprocess first frame synchronously
-	cv::Mat first_frame;
-	if (!input_source_->read(first_frame)) {
+	// -----------------------------------------------------------------------
+	// 6. Persistent prefetch worker
+	//
+	// Two channels connect main thread ↔ worker:
+	//   raw_ch:    main → worker   (cv::Mat frames, one at a time)
+	//   tensor_ch: worker → main   (preprocessed TensorData)
+	//
+	// Main thread reads the next raw frame, pushes it to raw_ch, then
+	// calls infer() on the *current* tensor while the worker preprocesses
+	// the next frame concurrently.  No per-frame thread creation overhead.
+	// -----------------------------------------------------------------------
+	SingleSlotChannel<cv::Mat>    raw_ch;
+	SingleSlotChannel<TensorData> tensor_ch;
+
+	std::thread prefetch_worker([this, model_input_width, model_input_height,
+	                             &raw_ch, &tensor_ch]() {
+		while (true) {
+			auto frame_opt = raw_ch.pop();
+			if (!frame_opt) break;                          // EOF sentinel
+			tensor_ch.push(
+			    prefetch_frontend_.preprocess(*frame_opt, model_input_width, model_input_height));
+		}
+		tensor_ch.close();
+	});
+
+	// Bootstrap: push first frame so worker starts immediately
+	cv::Mat current_frame;
+	if (!input_source_->read(current_frame)) {
 		logger.Info("No frames to process.", kcurrent_module_name);
+		raw_ch.close();
+		prefetch_worker.join();
 		return 0;
 	}
-	TensorData current_src   = frontend_.preprocess(first_frame, model_input_width, model_input_height);
-	cv::Mat    current_frame = first_frame.clone();
+	raw_ch.push(current_frame);
 
-	// 7. Dual-buffer prefetch loop
 	int frame_count = 0;
+
+	// 7. Main loop
 	while (true) {
 		if (g_stop_signal_received.load()) {
 			logger.Info("Stop signal received. Finishing video at frame " +
 			                std::to_string(frame_count) + ".",
 			            kcurrent_module_name);
+			raw_ch.close();
 			break;
 		}
+
+		// STEP A: collect the preprocessed tensor for the current frame
+		auto tensor_opt = tensor_ch.pop();
+		if (!tensor_opt) break;                             // worker finished
 
 		logger.Info("=== RVM Frame " + std::to_string(frame_count + 1) + " ===",
 		            kcurrent_module_name);
 
-		// STEP A: read next frame on main thread, kick off async preprocess
+		// STEP B: read next raw frame and kick off prefetch in worker
+		//         (worker preprocesses next frame concurrently with infer below)
 		cv::Mat next_frame;
 		bool    has_next = input_source_->read(next_frame);
-
-		std::future<TensorData> prefetch_future;
-		cv::Mat                 next_frame_copy;
 		if (has_next) {
-			next_frame_copy  = next_frame.clone();
-			prefetch_future = std::async(
-			    std::launch::async,
-			    [this, next_frame, model_input_width, model_input_height]() {
-				    return prefetch_frontend_.preprocess(next_frame, model_input_width,
-				                                        model_input_height);
-			    });
+			raw_ch.push(next_frame);
+		} else {
+			raw_ch.close();
 		}
 
-		// STEP B: infer current frame + composite
-		cv::Mat alpha_8u = inferOneFrame(current_src);
+		// STEP C: infer current tensor + composite (overlaps with worker's preprocess)
+		cv::Mat alpha_8u = inferOneFrame(*tensor_opt);
 		compositeAndWrite(video_writer, current_frame, alpha_8u, bg_bgr);
+		current_frame = std::move(next_frame);              // advance frame pointer
 		frame_count++;
 
-		// STEP C: swap in prefetched result
-		if (!has_next) {
-			break;
-		}
-		current_src   = prefetch_future.get();
-		current_frame = std::move(next_frame_copy);
+		if (!has_next) break;
 	}
+
+	prefetch_worker.join();
 
 	// 8. Finalise
 	if (video_writer.isOpened()) {
