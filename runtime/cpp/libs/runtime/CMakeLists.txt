@@ -87,17 +87,50 @@ target_link_libraries(${PROJECT_NAME}
         ${PROJECT_NAMESPACE}::ThirdParty::ONNXRuntime
 )
 
-# Only link if RKNNRT enabled
-if(TARGET ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
-    target_link_libraries(${PROJECT_NAME}
-        PUBLIC
-            ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT
-    )
+# ---------------------------------------------------------------------------
+# Inference backend selection via INFERENCE_BACKEND cmake variable.
+#
+# Valid values (set in CMakePresets.json via backend-* mixin):
+#   onnx               → ONNX Runtime only (x86 dev / CI)
+#   rknn-zerocopy      → RKNN zero-copy    (production on RK/RV devices)
+#   rknn-non-zerocopy  → RKNN non-zero-copy (on-device debug / profiling)
+#
+# Default: if INFERENCE_BACKEND is not set and LibRKNNRT is available,
+# fall back to rknn-zerocopy for backward compatibility.
+# ---------------------------------------------------------------------------
+if(NOT DEFINED INFERENCE_BACKEND OR INFERENCE_BACKEND STREQUAL "")
+    if(TARGET ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
+        set(INFERENCE_BACKEND "rknn-zerocopy")
+        message(STATUS "[Runtime] INFERENCE_BACKEND not set; defaulting to rknn-zerocopy")
+    else()
+        set(INFERENCE_BACKEND "onnx")
+        message(STATUS "[Runtime] INFERENCE_BACKEND not set; defaulting to onnx")
+    endif()
+endif()
 
-    target_compile_definitions(${PROJECT_NAME}
-        PUBLIC
-            ENABLE_RKNN_BACKEND
-    )
+message(STATUS "[Runtime] INFERENCE_BACKEND = ${INFERENCE_BACKEND}")
+
+if(INFERENCE_BACKEND STREQUAL "rknn-zerocopy")
+    if(NOT TARGET ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
+        message(FATAL_ERROR "[Runtime] INFERENCE_BACKEND=rknn-zerocopy but LibRKNNRT target not found.")
+    endif()
+    target_link_libraries(${PROJECT_NAME} PUBLIC ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC INFERENCE_BACKEND_RKNN_ZEROCOPY)
+
+elseif(INFERENCE_BACKEND STREQUAL "rknn-non-zerocopy")
+    if(NOT TARGET ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
+        message(FATAL_ERROR "[Runtime] INFERENCE_BACKEND=rknn-non-zerocopy but LibRKNNRT target not found.")
+    endif()
+    target_link_libraries(${PROJECT_NAME} PUBLIC ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC INFERENCE_BACKEND_RKNN_NON_ZEROCOPY)
+
+elseif(INFERENCE_BACKEND STREQUAL "onnx")
+    # ONNXRuntime is always linked (already above); nothing extra needed.
+    target_compile_definitions(${PROJECT_NAME} PUBLIC INFERENCE_BACKEND_ONNX)
+
+else()
+    message(FATAL_ERROR "[Runtime] Unknown INFERENCE_BACKEND value: '${INFERENCE_BACKEND}'. "
+                        "Valid values: onnx | rknn-zerocopy | rknn-non-zerocopy")
 endif()
 
 # ---------------------------------

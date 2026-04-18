@@ -23,14 +23,13 @@
 #pragma once
 
 #include <memory>
-#include "CVKit/base/base.h"
-#include "Runtime/onnx/onnx.h"
-#include "Utils/file/file-utils.h"
+#include <string>
+#include <opencv2/core.hpp>
 #include "Utils/logger/logger.h"
-#include "Utils/logger/worker/consolesink.h"
-#include "Utils/logger/worker/filesink.h"
-#include "Utils/math/math-utils.h"
+#include "pipeline/inference-engine/base/inference-engine.h"
+#include "pipeline/backend/backend.h"
 #include "pipeline/recurrent-state-manager.h"
+#include "pipeline/frontend/frontend.h"
 #include "input/input-source.h"
 
 // ---------------------------------------------------------------------------
@@ -68,13 +67,27 @@ class Pipeline {
 
 	void verify_parameters_necessary();
 
+	// Factory: constructs the correct InferenceEngine based on compile-time backend selection.
+	// The #ifdef lives here (in the .cpp implementation) and nowhere else.
+	static std::unique_ptr<InferenceEngine> make_engine();
+
 	// MODNet path: single-frame inference with benchmarking
 	int runMODNet();
 
-	// RVM path: multi-frame inference with recurrent state management
+	// RVM path: video inference with recurrent state + dual-buffer prefetch
 	int runRVM();
 
+	// RVM path: single-picture loop test (development / integration test only)
 	int runRVM_CV_SinglePicture();
+
+	// RVM helpers — each covers one distinct responsibility in the video loop
+	void initRVMRecurrentStates(size_t model_input_height, size_t model_input_width);
+	bool openVideoWriter(cv::VideoWriter& writer, const std::string& path,
+	                     int width, int height, double fps);
+	cv::Mat loadOrCreateBackground(int width, int height);
+	cv::Mat inferOneFrame(const TensorData& src);
+	void compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
+	                       const cv::Mat& alpha_8u, const cv::Mat& bg_bgr);
 
    private:
 	std::string input_image_path_;
@@ -84,5 +97,9 @@ class Pipeline {
 	std::string background_path_;
 	ModelType model_type_ = ModelType::kMODNet;
 
+	std::unique_ptr<InferenceEngine> engine_;   // created by make_engine() in init()
+	ImageFrontend frontend_;
+	ImageFrontend prefetch_frontend_;           // separate instance for async prefetch
+	MattingBackend backend_;                    // video-mode backend (no GuidedFilter)
 	RecurrentStateManager state_mgr_;
 };
