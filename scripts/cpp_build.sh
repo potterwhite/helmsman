@@ -121,40 +121,47 @@ func_6_1_cpp_check_preset_existence() {
 }
 
 func_6_3_cpp_helper_print() {
-    echo -e "\n\033[1;33mUsage: $0 build cpp <command> [options...]\033[0m"
+    echo -e "\n\033[1;33mUsage: ./helmsman build cpp [--job=<job>] [--platform=<platform>] [--backend=<backend>] [--type=<type>] [--lib=<lib>]\033[0m"
     echo ""
-    echo -e "\033[1mCommands:\033[0m"
-    echo "  build                - Configure and Compile (Incremental build)"
-    echo "  cb                   - Clean, Build AND Install (Fresh build)"
-    echo "  clean                - Remove build directory for current preset"
-    # echo "  cleanall             - Remove ALL build and install directories"
-    echo "  install              - Install the built targets"
-    echo "  test                 - Run tests"
-    echo "  list                 - List all available CMake Presets"
+    echo -e "\033[1mOptions (all optional, order does not matter):\033[0m"
+    echo "  --job=<job>          build | cb | clean | install | test | list  (Default: build)"
+    echo "  --platform=<plat>    native | rk3588s | rv1126bp                 (Default: native)"
+    echo "  --backend=<backend>  onnx | rknn-zerocopy | rknn-non-zerocopy   (Default: from preset)"
+    echo "                         onnx              → x86 / CI dev build"
+    echo "                         rknn-zerocopy     → production on RK/RV devices"
+    echo "                         rknn-non-zerocopy → on-device debug / profiling"
+    echo "  --type=<type>        release | debug                             (Default: release)"
+    echo "  --lib=<lib>          shared | static                             (Default: shared)"
     echo ""
-    echo -e "\033[1mOptions (Order does not matter):\033[0m"
-    echo "  <platform>           - native | rv1126bp  (Default: native)"
-    echo "  debug / release      - Build Type         (Default: release)"
-    echo "  static / shared      - Library Type       (Default: shared)"
+    echo -e "\033[1mJobs:\033[0m"
+    echo "  build    Configure + incremental compile"
+    echo "  cb       Clean + configure + build + install (fresh build)"
+    echo "  clean    Remove build directory for current preset"
+    echo "  install  Install already-built targets"
+    echo "  test     Configure + build + run CTest"
+    echo "  list     List all available CMake presets"
     echo ""
     echo -e "\033[1mExamples:\033[0m"
-    echo "  # 1. Default Build (Host PC, Release, Shared Libs)"
-    echo "     $0 build cpp build"
+    echo "  # 1. Incremental build on host PC (defaults)"
+    echo "     ./helmsman build cpp"
     echo ""
-    echo "  # 2. Cross-compile for RV1126 (Release, Shared)"
-    echo "     $0 build cpp build rv1126bp"
+    echo "  # 2. Fresh build for RK3588 (production, zero-copy RKNN)"
+    echo "     ./helmsman build cpp --job=cb --platform=rk3588s"
     echo ""
-    echo "  # 3. Build Debug version for Host PC"
-    echo "     $0 build cpp build debug"
+    echo "  # 3. On-device debug build with non-zero-copy engine"
+    echo "     ./helmsman build cpp --job=cb --platform=rk3588s --backend=rknn-non-zerocopy --type=debug"
     echo ""
-    echo "  # 4. Build Static Libraries (Host PC)"
-    echo "     $0 build cpp build static"
+    echo "  # 4. Cross-compile for RV1126, static libs, debug"
+    echo "     ./helmsman build cpp --job=cb --platform=rv1126bp --type=debug --lib=static"
     echo ""
-    echo "  # 5. Full Rebuild & Install for RV1126 (Debug mode, Static Libs)"
-    echo "     $0 build cpp cb rv1126bp debug static"
+    echo "  # 5. Force ONNX backend on rk3588s (e.g. for comparison testing)"
+    echo "     ./helmsman build cpp --job=build --platform=rk3588s --backend=onnx"
     echo ""
-    echo "  # 6. Just Clean the RV1126 build files"
-    echo "     $0 build cpp clean rv1126bp"
+    echo "  # 6. Clean rk3588s build"
+    echo "     ./helmsman build cpp --job=clean --platform=rk3588s"
+    echo ""
+    echo "  # 7. List all available presets"
+    echo "     ./helmsman build cpp --job=list"
     echo ""
 }
 
@@ -199,11 +206,13 @@ func_7_2_cpp_core_configure() {
 
     func_1_1_log ">> [Configure] Using Preset: ${CPP_PRESET_NAME}" "blue"
 
-    # We rely purely on the Preset now.
-    # The Toolchain, CMAKE_BUILD_TYPE, and BUILD_SHARED_LIBS are all in the JSON.
+    # Inject --backend override if requested (overrides the preset's mixin default)
+    if [ -n "${CPP_BACKEND_CMAKE_ARG}" ]; then
+        func_1_1_log ">> [Configure] Backend override: ${CPP_BACKEND_CMAKE_ARG}" "blue"
+        extra_args="${CPP_BACKEND_CMAKE_ARG} ${extra_args}"
+    fi
 
     cmake --preset "${CPP_PRESET_NAME}" \
-        #   -DARC_INSTALL_SHERPA_TOOLS="${ARC_INSTALL_SHERPA_TOOLS}" \
           ${extra_args}
 }
 
@@ -422,66 +431,97 @@ func_8_3_cpp_validate_platform_env() {
 }
 
 func_8_2_cpp_arguments_parsing() {
-    # If verbose, print inputs
-    if [ x"${DEBUG_MODE}" == x"1" ];then func_6_4_cpp_print_every_param "$@"; fi
+    if [ x"${DEBUG_MODE}" == x"1" ]; then func_6_4_cpp_print_every_param "$@"; fi
 
-    CPP_ACTION=$1
-    shift || true
-
-    # Defaults matching your CMakePresets "base" logic or common sense
-    # You might want to default to empty if you want to force user input,
-    # but here are reasonable defaults based on your script history.
+    # ------------------------------------------------------------------
+    # Defaults
+    # ------------------------------------------------------------------
+    CPP_ACTION="build"
+    CPP_PLATFORM="native"
     CPP_BUILD_TYPE="release"
     CPP_LIB_TYPE="shared"
-    CPP_PLATFORM="native"
+    CPP_BACKEND=""          # empty = use preset default (no override injected)
 
-    # --- Loop through arguments ---
+    # ------------------------------------------------------------------
+    # Parse arguments.
+    # Supports two styles (can be mixed):
+    #   New:  --job=cb --platform=rk3588s --backend=rknn-zerocopy --type=debug --lib=static
+    #   Old:  cb rk3588s debug static          (positional, for backward compat)
+    # ------------------------------------------------------------------
     while [ "$#" -gt 0 ]; do
         case "$1" in
+            --job=*)
+                CPP_ACTION="${1#*=}" ;;
+            --platform=*)
+                CPP_PLATFORM="${1#*=}" ;;
+            --backend=*)
+                CPP_BACKEND="${1#*=}" ;;
+            --type=*)
+                CPP_BUILD_TYPE="${1#*=}" ;;
+            --lib=*)
+                CPP_LIB_TYPE="${1#*=}" ;;
+            # ---------- legacy positional style (backward compat) ----------
+            "build"|"cb"|"clean"|"install"|"test"|"list")
+                CPP_ACTION="$1" ;;
             "debug"|"Debug"|"DEBUG")
-                CPP_BUILD_TYPE="debug"
-                ;;
+                CPP_BUILD_TYPE="debug" ;;
             "release"|"Release"|"RELEASE")
-                CPP_BUILD_TYPE="release"
-                ;;
+                CPP_BUILD_TYPE="release" ;;
             "static"|"Static"|"STATIC")
-                CPP_LIB_TYPE="static"
-                ;;
+                CPP_LIB_TYPE="static" ;;
             "shared"|"Shared"|"SHARED")
-                CPP_LIB_TYPE="shared"
-                ;;
+                CPP_LIB_TYPE="shared" ;;
+            "onnx"|"rknn-zerocopy"|"rknn-non-zerocopy")
+                CPP_BACKEND="$1" ;;
+            --help|-h)
+                func_6_3_cpp_helper_print; exit 0 ;;
             *)
-                # Assuming anything else is the platform (e.g., rv1126bp, rk3588s)
-                CPP_PLATFORM=$1
-                ;;
+                # Anything else is treated as platform (legacy positional)
+                CPP_PLATFORM="$1" ;;
         esac
         shift
     done
 
-    # -----------------------------------------------------------
-    # [CORE CHANGE] Construct the Preset Name
-    # Mapping logic: <platform>-<build_type>[-static]
-    # Examples based on your JSON:
-    #   native-release
-    #   rv1126bp-debug-static
-    #   rk3588s-release
-    # -----------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Validate --backend value if explicitly provided
+    # ------------------------------------------------------------------
+    if [ -n "${CPP_BACKEND}" ]; then
+        case "${CPP_BACKEND}" in
+            onnx|rknn-zerocopy|rknn-non-zerocopy) ;;
+            *)
+                func_1_2_err "Unknown --backend value '${CPP_BACKEND}'. Valid: onnx | rknn-zerocopy | rknn-non-zerocopy"
+                exit 1 ;;
+        esac
+    fi
 
+    # ------------------------------------------------------------------
+    # Construct CMake preset name:  <platform>-<type>[-static]
+    # ------------------------------------------------------------------
     CPP_PRESET_NAME="${CPP_PLATFORM}-${CPP_BUILD_TYPE}"
-
-    if [ "$CPP_LIB_TYPE" == "static" ]; then
+    if [ "${CPP_LIB_TYPE}" == "static" ]; then
         CPP_PRESET_NAME="${CPP_PRESET_NAME}-static"
     fi
 
-    # -----------------------------------------------------------
-    # [SYNC] Align Bash Build Dir with JSON "binaryDir"
-    # JSON Line 68: "binaryDir": "${sourceDir}/build/${presetName}"
-    # -----------------------------------------------------------
+    # ------------------------------------------------------------------
+    # If --backend is given, override INFERENCE_BACKEND at configure time.
+    # This lets you deviate from the preset's default backend mixin without
+    # editing CMakePresets.json (e.g. test onnx on rk3588s, or switch to
+    # rknn-non-zerocopy for a single debug session).
+    # ------------------------------------------------------------------
+    CPP_BACKEND_CMAKE_ARG=""
+    if [ -n "${CPP_BACKEND}" ]; then
+        CPP_BACKEND_CMAKE_ARG="-DINFERENCE_BACKEND=${CPP_BACKEND}"
+    fi
+
+    # ------------------------------------------------------------------
+    # Align Bash build dir with JSON "binaryDir": ${sourceDir}/build/${presetName}
+    # ------------------------------------------------------------------
     CPP_BUILD_WITH_PLATFORM_DIR="${CPP_TOP_DIR}/build/${CPP_PRESET_NAME}"
 
-    if [ x"${DEBUG_MODE}" == x"1" ];then
-        func_1_1_log ">> [Preset Logic] Calculated Preset: ${CPP_PRESET_NAME}" "blue"
-        func_1_1_log ">> [Preset Logic] Binary Dir: ${CPP_BUILD_WITH_PLATFORM_DIR}" "blue"
+    if [ x"${DEBUG_MODE}" == x"1" ]; then
+        func_1_1_log ">> [Preset]   ${CPP_PRESET_NAME}" "blue"
+        func_1_1_log ">> [BinaryDir] ${CPP_BUILD_WITH_PLATFORM_DIR}" "blue"
+        func_1_1_log ">> [Backend]  ${CPP_BACKEND:-<preset default>}" "blue"
     fi
 }
 
@@ -511,12 +551,11 @@ func_8_1_cpp_build_dispatch() {
     case "$target" in
         cpp)
             if [ -z "$CPP_ACTION" ]; then
-                func_1_2_err \
-                    "Usage: ./helmsman build cpp <clean|build|cb|install|test|list> [platform]"
+                func_6_3_cpp_helper_print; exit 1
             fi
 
             func_1_1_log \
-                "🛠️  CPP Build: cmd=${CPP_ACTION}, platform=${CPP_PLATFORM}, build_type=${CPP_BUILD_TYPE}, lib_type=${CPP_LIB_TYPE}" \
+                "🛠️  CPP Build: job=${CPP_ACTION}, platform=${CPP_PLATFORM}, type=${CPP_BUILD_TYPE}, lib=${CPP_LIB_TYPE}, backend=${CPP_BACKEND:-<preset default>}" \
                 "blue"
 
             # func_8_4_cpp_dispatch "$CPP_ACTION" "$CPP_PLATFORM"
