@@ -398,10 +398,26 @@ int Pipeline::runRVM() {
 		bg_bgr = cv::Mat(src_height, src_width, CV_8UC3, cv::Scalar(255, 100, 0));
 	}
 
+	// --- Block 5.2: Dual-buffer prefetch pipeline ---
+	// Overlap next frame's decode+preprocess with current frame's inference.
+	// VideoCapture::read() stays on main thread (not thread-safe).
+	// Preprocess runs on a std::async worker thread using a separate frontend
+	// instance (no debug dump path → no file I/O race).
+	ImageFrontend prefetch_frontend;
+	// No setOutputBinPath — prefetch frontend skips debug dump
+
+	// Read and preprocess first frame synchronously
 	cv::Mat frame;
+	if (!input_source_->read(frame)) {
+		logger.Info("No frames to process.", kcurrent_module_name);
+		return 0;
+	}
+	TensorData current_src = frontend.preprocess(frame, model_input_width, model_input_height);
+	cv::Mat current_frame = frame.clone();  // keep for compositing
+
 	int frame_count = 0;
 
-	while (input_source_->read(frame)) {
+	while (true) {
 		// Check for Ctrl+C / SIGINT
 		if (g_stop_signal_received.load()) {
 			logger.Info("Stop signal received. Finishing video at frame " +
@@ -413,11 +429,24 @@ int Pipeline::runRVM() {
 		logger.Info("=== RVM Frame " + std::to_string(frame_count + 1) + " ===",
 		            kcurrent_module_name);
 
-		// 1. Frontend: cv::Mat → TensorData
-		TensorData src = frontend.preprocess(frame, model_input_width, model_input_height);
+		// STEP A: Read next frame on main thread, then kick off async preprocess
+		cv::Mat next_frame;
+		bool has_next = input_source_->read(next_frame);
 
-		// 2. Build input vector: src + r1i~r4i
-		std::vector<TensorData> inputs = {src};
+		std::future<TensorData> prefetch_future;
+		cv::Mat next_frame_for_composite;
+		if (has_next) {
+			next_frame_for_composite = next_frame.clone();
+			prefetch_future = std::async(std::launch::async,
+			    [&prefetch_frontend, next_frame, model_input_width, model_input_height]() {
+				    return prefetch_frontend.preprocess(
+				        next_frame, model_input_width, model_input_height);
+			    });
+		}
+
+		// STEP B: Process CURRENT frame (inference + post-process + compositing)
+		// 1. Build input vector: src + r1i~r4i
+		std::vector<TensorData> inputs = {current_src};
 		state_mgr_.inject(inputs);  // appends r1i, r2i, r3i, r4i
 
 #ifndef ENABLE_RKNN_BACKEND
@@ -430,7 +459,7 @@ int Pipeline::runRVM() {
 		inputs.push_back(std::move(dsr));
 #endif
 
-		// 3. Run inference
+		// 2. Run inference
 		std::vector<TensorData> outputs;
 		auto start = std::chrono::high_resolution_clock::now();
 		engine.infer(inputs, outputs);
@@ -441,13 +470,13 @@ int Pipeline::runRVM() {
 		                "] infer() cost: " + std::to_string(dur.count()) + " ms.",
 		            kcurrent_module_name);
 
-		// 4. Update recurrent states: r1o~r4o → r1i~r4i for next frame
+		// 3. Update recurrent states: r1o~r4o → r1i~r4i for next frame
 		state_mgr_.update(outputs);  // outputs[2..5] = r1o~r4o
 
-		// 5. Post-process: get alpha matte (CV_8UC1, original resolution)
+		// 4. Post-process: get alpha matte (CV_8UC1, original resolution)
 		cv::Mat alpha_8u = backend.postprocess(outputs);
 
-		// 6. Alpha compositing: composite = fg * alpha + (1 - alpha) * bg
+		// 5. Alpha compositing: composite = fg * alpha + (1 - alpha) * bg
 		if (video_writer.isOpened() && !alpha_8u.empty()) {
 			// Ensure alpha is single channel
 			cv::Mat alpha_1ch;
@@ -458,8 +487,8 @@ int Pipeline::runRVM() {
 			}
 
 			// Resize alpha to match original frame if needed
-			if (alpha_1ch.size() != frame.size()) {
-				cv::resize(alpha_1ch, alpha_1ch, frame.size(), 0, 0, cv::INTER_LINEAR);
+			if (alpha_1ch.size() != current_frame.size()) {
+				cv::resize(alpha_1ch, alpha_1ch, current_frame.size(), 0, 0, cv::INTER_LINEAR);
 			}
 
 			// Convert to float for blending
@@ -472,7 +501,7 @@ int Pipeline::runRVM() {
 
 			// Blend: composite = alpha * fg + (1 - alpha) * bg
 			cv::Mat fg_f32, bg_f32, composed_f32, composed_8u;
-			frame.convertTo(fg_f32, CV_32FC3, 1.0 / 255.0);
+			current_frame.convertTo(fg_f32, CV_32FC3, 1.0 / 255.0);
 			bg_bgr.convertTo(bg_f32, CV_32FC3, 1.0 / 255.0);
 
 			composed_f32 =
@@ -483,6 +512,13 @@ int Pipeline::runRVM() {
 		}
 
 		frame_count++;
+
+		// STEP C: Swap in prefetched result for next iteration
+		if (!has_next) {
+			break;  // no more frames
+		}
+		current_src = prefetch_future.get();  // blocks until preprocess is done
+		current_frame = next_frame_for_composite;
 	}
 
 	// Release VideoWriter (flush and finalize MP4)
