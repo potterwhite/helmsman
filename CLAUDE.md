@@ -32,9 +32,10 @@ Do **not** scan `runtime/cpp/`, `third-party/`, or `scripts/` before reading the
 ./helmsman convert              # .ckpt → .onnx (interactive)
 ./helmsman inference            # Python ONNX inference on an image
 ./helmsman golden               # Generate golden reference binary files
-./helmsman build cpp build      # Incremental C++ build (native, release)
-./helmsman build cpp cb rk3588s # Clean + build + install for RK3588
-./helmsman build cpp list       # List all CMake presets
+./helmsman build cpp --job=build                        # Incremental C++ build (native, release)
+./helmsman build cpp --job=cb --platform=rk3588s        # Clean + build + install for RK3588
+./helmsman build cpp --job=list                         # List all CMake presets
+./helmsman build cpp --job=cb --platform=rk3588s --backend=rknn-non-zerocopy --type=debug
 ./helmsman clean                # Clean build artifacts
 ./helmsman cleanall             # Clean everything including .venv and models
 ```
