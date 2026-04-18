@@ -86,6 +86,30 @@
       "description": "Base configuration for all presets"
     },
     {
+      "name": "backend-onnx",
+      "hidden": true,
+      "description": "Select ONNX Runtime as inference backend (x86 dev / cross-compile debug)",
+      "cacheVariables": {
+        "INFERENCE_BACKEND": "onnx"
+      }
+    },
+    {
+      "name": "backend-rknn-zerocopy",
+      "hidden": true,
+      "description": "Select RKNN zero-copy inference backend (production path for RK3588/RV1126)",
+      "cacheVariables": {
+        "INFERENCE_BACKEND": "rknn-zerocopy"
+      }
+    },
+    {
+      "name": "backend-rknn-non-zerocopy",
+      "hidden": true,
+      "description": "Select RKNN non-zero-copy inference backend (debug / profiling on-device)",
+      "cacheVariables": {
+        "INFERENCE_BACKEND": "rknn-non-zerocopy"
+      }
+    },
+    {
       "name": "cfg-debug",
       "hidden": true,
       "cacheVariables": {
@@ -152,6 +176,7 @@
         "plat-native",
         "cfg-release",
         "cfg-shared",
+        "backend-onnx",
         "mixin-deps-onnxruntime-1.16.3-linux-x86_64"
       ],
       "installDir": "${sourceDir}/install/native/release",
@@ -167,6 +192,7 @@
         "plat-native",
         "cfg-debug",
         "cfg-shared",
+        "backend-onnx",
         "mixin-deps-onnxruntime-1.16.3-linux-x86_64"
       ],
       "installDir": "${sourceDir}/install/native/debug",
@@ -181,6 +207,7 @@
         "plat-native",
         "cfg-release",
         "cfg-static",
+        "backend-onnx",
         "mixin-deps-onnxruntime-1.16.3-linux-x86_64"
       ],
       "installDir": "${sourceDir}/install/native/release-static",
@@ -195,6 +222,7 @@
         "plat-native",
         "cfg-debug",
         "cfg-static",
+        "backend-onnx",
         "mixin-deps-onnxruntime-1.16.3-linux-x86_64"
       ],
       "installDir": "${sourceDir}/install/native/debug-static",
@@ -209,6 +237,7 @@
         "plat-rv1126bp",
         "cfg-release",
         "cfg-shared",
+        "backend-rknn-zerocopy",
         "mixin-deps-sherpa-linux-aarch64-gcc13_3_0",
         "mixin-deps-librknnrt-2.3.2-linux-aarch64"
       ],
@@ -224,6 +253,7 @@
         "plat-rv1126bp",
         "cfg-debug",
         "cfg-shared",
+        "backend-rknn-zerocopy",
         "mixin-deps-sherpa-linux-aarch64-gcc13_3_0",
         "mixin-deps-librknnrt-2.3.2-linux-aarch64"
       ],
@@ -239,6 +269,7 @@
         "plat-rv1126bp",
         "cfg-release",
         "cfg-static",
+        "backend-rknn-zerocopy",
         "mixin-deps-sherpa-linux-aarch64-gcc13_3_0",
         "mixin-deps-librknnrt-2.3.2-linux-aarch64"
       ],
@@ -254,6 +285,7 @@
         "plat-rv1126bp",
         "cfg-debug",
         "cfg-static",
+        "backend-rknn-zerocopy",
         "mixin-deps-sherpa-linux-aarch64-gcc13_3_0",
         "mixin-deps-librknnrt-2.3.2-linux-aarch64"
       ],
@@ -269,6 +301,7 @@
         "plat-rk3588s",
         "cfg-release",
         "cfg-shared",
+        "backend-rknn-zerocopy",
         "mixin-deps-librknnrt-2.3.2-linux-aarch64",
         "mixin-deps-onnxruntime-1.16.3-linux-aarch64"
       ],
@@ -284,6 +317,7 @@
         "plat-rk3588s",
         "cfg-debug",
         "cfg-shared",
+        "backend-rknn-zerocopy",
         "mixin-deps-librknnrt-2.3.2-linux-aarch64",
         "mixin-deps-onnxruntime-1.16.3-linux-aarch64"
       ],
@@ -299,6 +333,7 @@
         "plat-rk3588s",
         "cfg-release",
         "cfg-static",
+        "backend-rknn-zerocopy",
         "mixin-deps-librknnrt-2.3.2-linux-aarch64",
         "mixin-deps-onnxruntime-1.16.3-linux-aarch64"
       ],
@@ -314,6 +349,7 @@
         "plat-rk3588s",
         "cfg-debug",
         "cfg-static",
+        "backend-rknn-zerocopy",
         "mixin-deps-librknnrt-2.3.2-linux-aarch64",
         "mixin-deps-onnxruntime-1.16.3-linux-aarch64"
       ],
