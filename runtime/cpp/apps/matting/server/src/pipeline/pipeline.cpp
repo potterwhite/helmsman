@@ -48,6 +48,8 @@
 // Reference the global stop signal from main-server.cpp (set by SIGINT handler)
 extern std::atomic<bool> g_stop_signal_received;
 
+constexpr float kDownsampleRatio = 0.25f;
+
 // ============================================================================
 // SingleSlotChannel<T>
 //
@@ -252,7 +254,7 @@ int Pipeline::runMODNet() {
 //   r4: [1,64, H/16, W/16]
 // ----------------------------------------------------------------------------
 void Pipeline::initRVMRecurrentStates(size_t model_input_height, size_t model_input_width) {
-	constexpr float kDownsampleRatio = 0.25f;
+	// constexpr float kDownsampleRatio = 0.25f;
 	const int64_t internal_h =
 	    static_cast<int64_t>(static_cast<float>(model_input_height) * kDownsampleRatio);
 	const int64_t internal_w =
@@ -306,7 +308,7 @@ cv::Mat Pipeline::loadOrCreateBackground(int width, int height) {
 cv::Mat Pipeline::inferOneFrame(const TensorData& src) {
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 
-	constexpr float kDownsampleRatio = 0.25f;
+	// constexpr float kDownsampleRatio = 0.25f;
 
 	std::vector<TensorData> inputs = {src};
 	state_mgr_.inject(inputs);  // appends r1i, r2i, r3i, r4i
@@ -529,7 +531,7 @@ int Pipeline::runRVM_CV_SinglePicture() {
 		                std::to_string(kNumTestFrames) + " ===",
 		            kcurrent_module_name);
 
-		constexpr float kDownsampleRatio = 0.25f;
+		// constexpr float kDownsampleRatio = 0.25f;
 		std::vector<TensorData> inputs   = {src};
 		state_mgr_.inject(inputs);
 
