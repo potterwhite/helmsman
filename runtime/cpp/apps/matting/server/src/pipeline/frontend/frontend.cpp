@@ -157,7 +157,8 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_
 	// it expects float input in [0,1]. The RKNN runtime only applies mean/std normalization
 	// for RKNN_TENSOR_UINT8 inputs; for RKNN_TENSOR_FLOAT32 the data is passed through as-is.
 	// Therefore we MUST normalize here in C++ before feeding to the engine.
-	padded_u8.convertTo(img, CV_32FC3, 1.0 / 255.0);
+	// padded_u8.convertTo(img, CV_32FC3, 1.0 / 255.0);
+	padded_u8.convertTo(img, CV_32FC3);
 
 	if (isDumpEnabled()) cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");
 
