@@ -51,6 +51,11 @@ void MattingBackend::setPostProcessor(std::shared_ptr<IPostProcessor> processor)
 }
 
 cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs) {
+	return postprocess(outputs, cv::Mat{});
+}
+
+cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs,
+                                    const cv::Mat& guide_bgr_override) {
 
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 	auto& file_utils = arcforge::utils::FileUtils::GetInstance();
@@ -161,14 +166,21 @@ cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs) {
 
 	// Step C: Optional post-processing (e.g. Guided Filter edge refinement).
 	// Attach a processor via setPostProcessor(); leave nullptr to skip.
+	// guide priority: caller-supplied frame (video mode) > imread from path (image mode).
 	if (post_processor_) {
-		cv::Mat guide_bgr = cv::imread(foreground_image_path_, cv::IMREAD_COLOR);
-		if (guide_bgr.empty()) {
+		cv::Mat guide;
+		if (!guide_bgr_override.empty()) {
+			guide = guide_bgr_override;  // video mode: use the decoded frame directly
+		} else {
+			guide = cv::imread(foreground_image_path_, cv::IMREAD_COLOR);  // image mode
+		}
+		if (guide.empty()) {
 			logger.Warning(
-			    "Post-processor skipped: cannot load guide image: " + foreground_image_path_,
+			    "Post-processor skipped: guide image unavailable (path='" +
+			        foreground_image_path_ + "')",
 			    kcurrent_module_name);
 		} else {
-			restored_mat = post_processor_->process(restored_mat, guide_bgr);
+			restored_mat = post_processor_->process(restored_mat, guide);
 		}
 	}
 
