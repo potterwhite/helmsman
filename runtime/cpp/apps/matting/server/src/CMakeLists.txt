@@ -55,9 +55,15 @@ set(PIPELINE_BACKEND_SOURCES
 )
 
 # 2.4 pipeline/
+set(PIPELINE_MODES_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/modes/modnet/modnet.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/modes/rvm/rvm.cpp"
+)
+
 set(PIPELINE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/pipeline.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/recurrent-state-manager.cpp"
+    ${PIPELINE_MODES_SOURCES}
     ${PIPELINE_FRONTEND_SOURCES}
     ${PIPELINE_INFERENCE_ENGINE_SOURCES}
     ${PIPELINE_BACKEND_SOURCES}
