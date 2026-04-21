@@ -190,8 +190,9 @@ cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs) {
 
 	// -------------------------
 	// 4. Composite foreground over background (cpp_12_composed.jpg)
-	//    Only executed when a background image path is provided.
-	if (!background_path_.empty()) {
+	//    Only executed when BOTH foreground and background paths are provided.
+	//    For video mode, compositing is handled by Pipeline::compositeAndWrite().
+	if (!background_path_.empty() && !foreground_image_path_.empty()) {
 		// --- Load original foreground (BGR) ---
 		cv::Mat fg_bgr = cv::imread(foreground_image_path_, cv::IMREAD_COLOR);
 		if (fg_bgr.empty()) {
