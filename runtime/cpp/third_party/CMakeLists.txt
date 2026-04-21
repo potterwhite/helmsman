@@ -19,25 +19,32 @@
 # SOFTWARE.
 
 # third_party/CMakeLists.txt
+#
+# Dynamically include dependencies based on INFERENCE_BACKEND and CMAKE_PLATFORM.
 
-#Expand in the future:
-#    we can use the toolchain variables which be imported from CMakePresets.json
-
-# librknnrt should be verified(downloaded) first due to the latter module (sherpa) depend on it
-#if("rockchip" IN_LIST CMAKE_PLATFORM)
-#    add_subdirectory(librknnrt)
-#endif()
-# Add librknnrt only when RKNN backend is actually requested
-if(NOT DEFINED INFERENCE_BACKEND OR INFERENCE_BACKEND STREQUAL "rknn-zerocopy" OR INFERENCE_BACKEND STREQUAL "rknn-non-zerocopy")
+# Default INFERENCE_BACKEND if not set
+if(NOT DEFINED INFERENCE_BACKEND OR INFERENCE_BACKEND STREQUAL "")
     if("rockchip" IN_LIST CMAKE_PLATFORM)
-        add_subdirectory(librknnrt)
+        set(INFERENCE_BACKEND "rknn-zerocopy")
+    else()
+        set(INFERENCE_BACKEND "onnx")
     endif()
+    message(STATUS "[ThirdParty] Defaulting INFERENCE_BACKEND to '${INFERENCE_BACKEND}'")
 endif()
 
-# disabled asr
-#add_subdirectory(sherpa-onnx)
+message(STATUS "[ThirdParty] INFERENCE_BACKEND = ${INFERENCE_BACKEND}")
 
+# ONNX Runtime: always needed (as fallback or primary)
 add_subdirectory(onnxruntime)
+
+# RKNN: only on rockchip platforms AND when RKNN backend is requested
+if(INFERENCE_BACKEND MATCHES "^rknn")
+    if("rockchip" IN_LIST CMAKE_PLATFORM)
+        add_subdirectory(librknnrt)
+    else()
+        message(FATAL_ERROR "RKNN backend requires rockchip platform (CMAKE_PLATFORM contains 'rockchip')")
+    endif()
+endif()
 
 # ---------------------------------
 #               End
