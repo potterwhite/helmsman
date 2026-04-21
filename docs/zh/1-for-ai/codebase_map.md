@@ -6,7 +6,7 @@
 >
 > **维护规则：** 任何修改本文件中所列文件的 AI Agent，必须在同一 commit/会话中更新本文档的对应章节。
 >
-> 最后更新：2026-04-16（C1~C3 重构：删 ASR、client→server 重命名、pipeline 目录整理——input/ 和 common/ 独立、core/ 消除）
+> 最后更新：2026-04-20（新增 Utils/timing/timer.h；pipeline 全流程计时；--timing=off CLI 标志）
 >
 > **English →** [../../en/1-for-ai/codebase_map.md](../../en/1-for-ai/codebase_map.md)
 
@@ -242,6 +242,7 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 | `include/Utils/logger/worker/filesink.h` | `FileSink` — 文件 sink |
 | `include/Utils/math/math-utils.h` | `MathUtils::GetInstance()`, `getScaleFactor()` → `ScaleFactor` 结构体 |
 | `include/Utils/file/file-utils.h` | `FileUtils::GetInstance()`, `dumpBinary()` |
+| `include/Utils/timing/timer.h` ★ | **header-only** 计时工具（无外部依赖）：`ScopedTimer`（RAII，析构时打日志）、`ManualTimer`（手动 start/stop，返回 ms）、`StageAccumulator`（线程安全，collect+report min/avg/max） |
 
 ### `libs/runtime/` — ONNX Runtime 封装
 **CMake 目标**：`Helmsman::Lib::Runtime`
@@ -272,6 +273,8 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 **CLI 标志**：
 - `--rvm` — 使用 RVM 模式（递归状态 + 视频逐帧循环）
 - `--modnet` — 使用 MODNet 模式（默认，单帧 + 10× benchmark）
+- `--timing=off` — 关闭全流程计时统计（默认开启）
+- `--timing=on` — 显式开启计时统计（默认行为，一般不需要写）
 - 自动检测：输入为 .mp4/.avi/.mkv/.mov/.webm 时自动切换 RVM 模式
 
 ### 抠图流水线（C++ 数据流）

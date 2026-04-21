@@ -139,8 +139,9 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	// -----------------------------------------------
 	// 2. Parse arguments
 	// -----------------------------------------------
-	// Scan for --rvm flag anywhere in argv, then collect positional args.
-	ModelType model_type = ModelType::kMODNet;
+	// Scan for --rvm / --modnet / --timing=off flags, then collect positional args.
+	ModelType model_type    = ModelType::kMODNet;
+	bool      timing_enabled = true;  // default ON; --timing=off disables
 	std::vector<std::string> positional_args;
 
 	for (int i = 1; i < argc; ++i) {
@@ -148,6 +149,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 			model_type = ModelType::kRVM;
 		} else if (std::strcmp(argv[i], "--modnet") == 0) {
 			model_type = ModelType::kMODNet;  // explicit default
+		} else if (std::strcmp(argv[i], "--timing=off") == 0) {
+			timing_enabled = false;
+		} else if (std::strcmp(argv[i], "--timing=on") == 0) {
+			timing_enabled = true;            // explicit enable (no-op: already default)
 		} else {
 			positional_args.push_back(argv[i]);
 		}
@@ -155,11 +160,13 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
 	if (positional_args.size() < 3 || positional_args.size() > 4) {
 		std::cerr << "Usage: " << argv[0]
-		          << " <image_path> <model_path> <output_dir> [background_path] [--rvm]\n"
+		          << " <image_path> <model_path> <output_dir> [background_path] [--rvm] [--timing=off]\n"
 		          << "\n"
 		          << "Flags:\n"
-		          << "  --rvm      Use RVM (Robust Video Matting) with recurrent states\n"
-		          << "  --modnet   Use MODNet single-frame matting (default)\n";
+		          << "  --rvm          Use RVM (Robust Video Matting) with recurrent states\n"
+		          << "  --modnet       Use MODNet single-frame matting (default)\n"
+		          << "  --timing=off   Disable pipeline timing statistics (default: on)\n"
+		          << "  --timing=on    Enable pipeline timing statistics (default)\n";
 		return 1;
 	}
 
@@ -209,6 +216,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		              background_path, model_type);
 	}
 
+	pipeline.setTimingEnabled(timing_enabled);
+	if (!timing_enabled) {
+		logger.Info("Pipeline timing statistics DISABLED (--timing=off).", kcurrent_module_name);
+	}
 	pipeline.run();
 
 	std::cout << "hello " << kcurrent_module_name << std::endl;

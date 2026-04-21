@@ -61,6 +61,11 @@ class Pipeline {
 
 	int run();
 
+	// Timing switch — controlled by the --timing=off CLI flag.
+	// Enabled by default. Call before run().
+	void setTimingEnabled(bool enabled) { timing_enabled_ = enabled; }
+	bool isTimingEnabled() const        { return timing_enabled_; }
+
    private:
 	Pipeline();
 	~Pipeline();
@@ -96,6 +101,8 @@ class Pipeline {
 	std::string output_bin_path_;
 	std::string background_path_;
 	ModelType model_type_ = ModelType::kMODNet;
+
+	bool timing_enabled_ = true;  // disabled by --timing=off CLI flag
 
 	std::unique_ptr<InferenceEngine> engine_;   // created by make_engine() in init()
 	ImageFrontend frontend_;
