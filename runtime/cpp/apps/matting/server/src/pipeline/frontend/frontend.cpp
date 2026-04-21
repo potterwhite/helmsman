@@ -114,11 +114,15 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_
 	    kcurrent_module_name);
 
 	// Step 3.1: Compute scale factors and target size (letterbox)
+	// Use the MINIMUM of the two scale factors to preserve aspect ratio.
+	// Using independent scale_width / scale_height would non-uniformly stretch
+	// the image (e.g. 1920×1080 → 256×256 squashes 16:9 to 1:1, corrupting inference).
 	double scale_width  = static_cast<double>(model_width)  / img.cols;
 	double scale_height = static_cast<double>(model_height) / img.rows;
+	double scale = std::min(scale_width, scale_height);  // preserve aspect ratio
 
-	int new_width  = static_cast<int>(img.cols * scale_width);
-	int new_height = static_cast<int>(img.rows * scale_height);
+	int new_width  = static_cast<int>(img.cols * scale);
+	int new_height = static_cast<int>(img.rows * scale);
 
 	logger_.Info("ScaleOfWidth factor: " + std::to_string(scale_width) +
 	                 ", ScaleOfHeight factor: " + std::to_string(scale_height) +
@@ -148,8 +152,12 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_
 	             kcurrent_module_name);
 
 	// Step 3.4: Convert to float32 AFTER resize (only model-sized image is converted)
-	// RKNN driver expects [0.0, 255.0] range.
-	padded_u8.convertTo(img, CV_32FC3);
+	// Normalize to [0.0, 1.0]: divide by 255.
+	// CRITICAL: The RKNN model was compiled with std_values=[[255,255,255]], which means
+	// it expects float input in [0,1]. The RKNN runtime only applies mean/std normalization
+	// for RKNN_TENSOR_UINT8 inputs; for RKNN_TENSOR_FLOAT32 the data is passed through as-is.
+	// Therefore we MUST normalize here in C++ before feeding to the engine.
+	padded_u8.convertTo(img, CV_32FC3, 1.0 / 255.0);
 
 	if (isDumpEnabled()) cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");
 

@@ -32,6 +32,11 @@
 #include "pipeline/backend/backend.h"
 #include "pipeline/backend/post-processor/guided-filter-post-processor.h"
 #include "pipeline/frontend/frontend.h"
+#include "Utils/timing/timer.h"
+
+using arcforge::utils::timing::ManualTimer;
+using arcforge::utils::timing::ScopedTimer;
+using arcforge::utils::timing::StageAccumulator;
 
 // ---------------------------------------------------------------------------
 // Backend-specific includes — ONLY here, nowhere else in the pipeline.
@@ -180,6 +185,9 @@ int Pipeline::run() {
 
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 
+	// Top-level timer: covers the entire pipeline from model load to final output.
+	ScopedTimer run_timer("Pipeline::run() total", timing_enabled_, logger, kcurrent_module_name);
+
 	switch (model_type_) {
 		case ModelType::kMODNet:
 			logger.Info("Pipeline: running MODNet path (single-frame)", kcurrent_module_name);
@@ -204,37 +212,50 @@ int Pipeline::runMODNet() {
 	MattingBackend backend;
 
 	// 1. Load model
-	engine_->setOutputBinPath(output_bin_path_);
-	engine_->load(model_path_);
+	{
+		ScopedTimer t("runMODNet: model load", timing_enabled_, logger, kcurrent_module_name);
+		engine_->setOutputBinPath(output_bin_path_);
+		engine_->load(model_path_);
+	}
 
 	const size_t model_input_height = engine_->getInputHeight() > 0 ? engine_->getInputHeight() : 512;
 	const size_t model_input_width  = engine_->getInputWidth()  > 0 ? engine_->getInputWidth()  : 512;
 
 	// 2. Frontend: preprocess image
-	frontend_.setOutputBinPath(output_bin_path_);
-	TensorData src = frontend_.preprocess(input_image_path_, model_input_width, model_input_height);
+	TensorData src;
+	{
+		ScopedTimer t("runMODNet: preprocess", timing_enabled_, logger, kcurrent_module_name);
+		frontend_.setOutputBinPath(output_bin_path_);
+		src = frontend_.preprocess(input_image_path_, model_input_width, model_input_height);
+	}
 
 	// 3. Inference: benchmark 10 iterations
 	std::vector<TensorData> inputs = {src};
 	std::vector<TensorData> outputs;
 
-	for (int i = 0; i < 10; ++i) {
-		auto start = std::chrono::high_resolution_clock::now();
-		engine_->infer(inputs, outputs);
-		auto end = std::chrono::high_resolution_clock::now();
+	{
+		ScopedTimer bench_timer("runMODNet: benchmark 10x total", timing_enabled_, logger, kcurrent_module_name);
+		for (int i = 0; i < 10; ++i) {
+			auto start = std::chrono::high_resolution_clock::now();
+			engine_->infer(inputs, outputs);
+			auto end = std::chrono::high_resolution_clock::now();
 
-		std::chrono::duration<double, std::milli> dur = end - start;
-		logger.Info("[Performance Benchmark " + std::to_string(i + 1) +
-		                "] Inference Engine [infer()] cost: " + std::to_string(dur.count()) + " ms.",
-		            kcurrent_module_name);
+			std::chrono::duration<double, std::milli> dur = end - start;
+			logger.Info("[Performance Benchmark " + std::to_string(i + 1) +
+			                "] Inference Engine [infer()] cost: " + std::to_string(dur.count()) + " ms.",
+			            kcurrent_module_name);
+		}
 	}
 
 	// 4. Backend: postprocess
-	backend.setOutputPath(output_bin_path_);
-	backend.setBackgroundPath(background_path_);
-	backend.setForegroundImagePath(input_image_path_);
-	backend.setPostProcessor(std::make_shared<GuidedFilterPostProcessor>(2, 1e-4, 0.2f, 1));
-	backend.postprocess(outputs);
+	{
+		ScopedTimer t("runMODNet: postprocess", timing_enabled_, logger, kcurrent_module_name);
+		backend.setOutputPath(output_bin_path_);
+		backend.setBackgroundPath(background_path_);
+		backend.setForegroundImagePath(input_image_path_);
+		backend.setPostProcessor(std::make_shared<GuidedFilterPostProcessor>(2, 1e-4, 0.2f, 1));
+		backend.postprocess(outputs);
+	}
 
 	return 0;
 }
@@ -385,9 +406,15 @@ void Pipeline::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
 int Pipeline::runRVM() {
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 
+	// Full-pipeline wall-clock timer (covers load → last frame → file release).
+	ScopedTimer run_rvm_timer("runRVM total", timing_enabled_, logger, kcurrent_module_name);
+
 	// 1. Load model and query input dimensions
-	engine_->setOutputBinPath(output_bin_path_);
-	engine_->load(model_path_);
+	{
+		ScopedTimer t("runRVM: model load", timing_enabled_, logger, kcurrent_module_name);
+		engine_->setOutputBinPath(output_bin_path_);
+		engine_->load(model_path_);
+	}
 
 	const size_t model_input_height = engine_->getInputHeight() > 0 ? engine_->getInputHeight() : 288;
 	const size_t model_input_width  = engine_->getInputWidth()  > 0 ? engine_->getInputWidth()  : 512;
@@ -424,17 +451,29 @@ int Pipeline::runRVM() {
 	// Main thread reads the next raw frame, pushes it to raw_ch, then
 	// calls infer() on the *current* tensor while the worker preprocesses
 	// the next frame concurrently.  No per-frame thread creation overhead.
+	//
+	// Timing:
+	//   preprocess_acc  — records each frame's preprocess cost (worker thread)
+	//   infer_acc       — records each frame's infer+composite cost (main thread)
 	// -----------------------------------------------------------------------
 	SingleSlotChannel<cv::Mat>    raw_ch;
 	SingleSlotChannel<TensorData> tensor_ch;
 
+	// Accumulators are declared here so both threads can write to them,
+	// and the main thread can call report() after join().
+	StageAccumulator preprocess_acc("worker::preprocess");
+	StageAccumulator infer_acc("main::infer+composite");
+
 	std::thread prefetch_worker([this, model_input_width, model_input_height,
-	                             &raw_ch, &tensor_ch]() {
+	                             &raw_ch, &tensor_ch, &preprocess_acc]() {
 		while (true) {
 			auto frame_opt = raw_ch.pop();
 			if (!frame_opt) break;                          // EOF sentinel
-			tensor_ch.push(
-			    prefetch_frontend_.preprocess(*frame_opt, model_input_width, model_input_height));
+			ManualTimer t;
+			t.start();
+			auto tensor = prefetch_frontend_.preprocess(*frame_opt, model_input_width, model_input_height);
+			preprocess_acc.record(t.stop());
+			tensor_ch.push(std::move(tensor));
 		}
 		tensor_ch.close();
 	});
@@ -479,8 +518,12 @@ int Pipeline::runRVM() {
 		}
 
 		// STEP C: infer current tensor + composite (overlaps with worker's preprocess)
+		ManualTimer infer_t;
+		infer_t.start();
 		cv::Mat alpha_8u = inferOneFrame(*tensor_opt);
 		compositeAndWrite(video_writer, current_frame, alpha_8u, bg_bgr);
+		infer_acc.record(infer_t.stop());
+
 		current_frame = std::move(next_frame);              // advance frame pointer
 		frame_count++;
 
@@ -489,7 +532,11 @@ int Pipeline::runRVM() {
 
 	prefetch_worker.join();
 
-	// 8. Finalise
+	// 8. Per-stage timing summary (printed after all threads are done)
+	preprocess_acc.report(timing_enabled_, logger, kcurrent_module_name);
+	infer_acc.report(timing_enabled_, logger, kcurrent_module_name);
+
+	// 9. Finalise
 	if (video_writer.isOpened()) {
 		video_writer.release();
 		logger.Info("Video compositing complete: " + std::to_string(frame_count) +
