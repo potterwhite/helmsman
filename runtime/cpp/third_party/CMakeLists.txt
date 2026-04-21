@@ -24,12 +24,17 @@
 #    we can use the toolchain variables which be imported from CMakePresets.json
 
 # librknnrt should be verified(downloaded) first due to the latter module (sherpa) depend on it
-
-if("rockchip" IN_LIST CMAKE_PLATFORM)
-    add_subdirectory(librknnrt)
+#if("rockchip" IN_LIST CMAKE_PLATFORM)
+#    add_subdirectory(librknnrt)
+#endif()
+# Add librknnrt only when RKNN backend is actually requested
+if(NOT DEFINED INFERENCE_BACKEND OR INFERENCE_BACKEND STREQUAL "rknn-zerocopy" OR INFERENCE_BACKEND STREQUAL "rknn-non-zerocopy")
+    if("rockchip" IN_LIST CMAKE_PLATFORM)
+        add_subdirectory(librknnrt)
+    endif()
 endif()
 
-# disabled asr 
+# disabled asr
 #add_subdirectory(sherpa-onnx)
 
 add_subdirectory(onnxruntime)

@@ -301,6 +301,21 @@
         "plat-rk3588s",
         "cfg-release",
         "cfg-shared",
+        "backend-onnx",
+        "mixin-deps-onnxruntime-1.16.3-linux-aarch64"
+      ],
+      "installDir": "${sourceDir}/install/rk3588s/release",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "${sourceDir}/install/rk3588s/release"
+      }
+    },
+    {
+      "name": "rk3588s-release-backup",
+      "inherits": [
+        "base",
+        "plat-rk3588s",
+        "cfg-release",
+        "cfg-shared",
         "backend-rknn-zerocopy",
         "mixin-deps-librknnrt-2.3.2-linux-aarch64",
         "mixin-deps-onnxruntime-1.16.3-linux-aarch64"
