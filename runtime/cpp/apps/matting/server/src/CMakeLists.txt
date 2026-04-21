@@ -31,27 +31,27 @@ set(INPUT_SOURCES
 #################################
 # 2.0 pipeline/
 
-# 2.1 pipeline/frontend/
+# 2.1 pipeline/stages/frontend/
 set(PIPELINE_FRONTEND_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/frontend/frontend.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/stages/frontend/frontend.cpp"
 )
 
-# 2.2 pipeline/inference-engine/
+# 2.2 pipeline/stages/inference-engine/
 set(PIPELINE_INFERENCE_ENGINE_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/onnx/onnx.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/stages/inference-engine/onnx/onnx.cpp"
 )
 
 if(TARGET ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
     list(APPEND PIPELINE_INFERENCE_ENGINE_SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/rknn/rknn-zero-copy.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/inference-engine/rknn/rknn-non-zero-copy.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/stages/inference-engine/rknn/rknn-zero-copy.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/stages/inference-engine/rknn/rknn-non-zero-copy.cpp"
     )
 endif()
 
-# 2.3 pipeline/backend
+# 2.3 pipeline/stages/backend
 set(PIPELINE_BACKEND_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/backend/backend.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/backend/post-processor/guided-filter-post-processor.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/stages/backend/backend.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/stages/backend/post-processor/guided-filter-post-processor.cpp"
 )
 
 # 2.4 pipeline/

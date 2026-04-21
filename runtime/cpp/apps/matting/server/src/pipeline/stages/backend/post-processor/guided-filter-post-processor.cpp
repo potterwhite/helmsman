@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "pipeline/backend/post-processor/guided-filter-post-processor.h"
+#include "pipeline/stages/backend/post-processor/guided-filter-post-processor.h"
 #include "Utils/logger/logger.h"
 #include "common/common-define.h"
 

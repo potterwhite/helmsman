@@ -11,7 +11,7 @@
 //
 // ============================================================================
 
-#include "pipeline/frontend/frontend.h"
+#include "pipeline/stages/frontend.h"
 #include "common/common-define.h"
 
 // ============================================================================

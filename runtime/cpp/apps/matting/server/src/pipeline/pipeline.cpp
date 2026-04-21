@@ -29,9 +29,9 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/videoio.hpp>
 #include "common/common-define.h"
-#include "pipeline/backend/backend.h"
-#include "pipeline/backend/post-processor/guided-filter-post-processor.h"
-#include "pipeline/frontend/frontend.h"
+#include "pipeline/stages/backend/backend.h"
+#include "pipeline/stages/backend/post-processor/guided-filter-post-processor.h"
+#include "pipeline/stages/frontend.h"
 #include "Utils/timing/timer.h"
 
 using arcforge::utils::timing::ManualTimer;
@@ -43,11 +43,11 @@ using arcforge::utils::timing::StageAccumulator;
 // Controlled by INFERENCE_BACKEND_* macros set by CMake (libs/runtime).
 // ---------------------------------------------------------------------------
 #if defined(INFERENCE_BACKEND_RKNN_ZEROCOPY)
-#include "pipeline/inference-engine/rknn/rknn-zero-copy.h"
+#include "pipeline/stages/inference-engine/rknn/rknn-zero-copy.h"
 #elif defined(INFERENCE_BACKEND_RKNN_NON_ZEROCOPY)
-#include "pipeline/inference-engine/rknn/rknn-non-zero-copy.h"
+#include "pipeline/stages/inference-engine/rknn/rknn-non-zero-copy.h"
 #else
-#include "pipeline/inference-engine/onnx/onnx.h"
+#include "pipeline/stages/inference-engine/onnx/onnx.h"
 #endif
 
 // Reference the global stop signal from main-server.cpp (set by SIGINT handler)

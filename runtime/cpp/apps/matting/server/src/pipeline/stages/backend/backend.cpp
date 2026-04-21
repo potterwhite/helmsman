@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "pipeline/backend/backend.h"
+#include "pipeline/stages/backend/backend.h"
 #include "common/common-define.h"
 
 // #include <algorithm>

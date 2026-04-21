@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "pipeline/inference-engine/rknn/rknn-non-zero-copy.h"
+#include "pipeline/stages/inference-engine/rknn/rknn-non-zero-copy.h"
 #include <cstring>
 #include <fstream>
 #include <stdexcept>
