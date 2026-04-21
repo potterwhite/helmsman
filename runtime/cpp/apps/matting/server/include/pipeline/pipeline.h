@@ -26,10 +26,10 @@
 #include <string>
 #include <opencv2/core.hpp>
 #include "Utils/logger/logger.h"
-#include "pipeline/inference-engine/base/inference-engine.h"
-#include "pipeline/backend/backend.h"
+#include "pipeline/stages/inference-engine/base/inference-engine.h"
+#include "pipeline/stages/backend/backend.h"
 #include "pipeline/recurrent-state-manager.h"
-#include "pipeline/frontend/frontend.h"
+#include "pipeline/stages/frontend.h"
 #include "input/input-source.h"
 
 // ---------------------------------------------------------------------------

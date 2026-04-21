@@ -37,7 +37,7 @@
 //   • This engine performs layout translation + normalization recovery
 // ============================================================================
 
-#include "pipeline/inference-engine/onnx/onnx.h"
+#include "pipeline/stages/inference-engine/onnx/onnx.h"
 #include "common/common-define.h"
 
 // InferenceEngineONNX& InferenceEngineONNX::GetInstance() {
