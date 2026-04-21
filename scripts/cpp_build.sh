@@ -503,14 +503,49 @@ func_8_2_cpp_arguments_parsing() {
     fi
 
     # ------------------------------------------------------------------
-    # If --backend is given, override INFERENCE_BACKEND at configure time.
-    # This lets you deviate from the preset's default backend mixin without
-    # editing CMakePresets.json (e.g. test onnx on rk3588s, or switch to
-    # rknn-non-zerocopy for a single debug session).
+    # Dynamic dependency injection based on --backend and --platform.
+    # This eliminates the need for separate presets per backend combination.
+    # Format: -D<DEP_VAR>=<URL> -D<DEP_HASH_VAR>=<HASH>
     # ------------------------------------------------------------------
     CPP_BACKEND_CMAKE_ARG=""
     if [ -n "${CPP_BACKEND}" ]; then
         CPP_BACKEND_CMAKE_ARG="-DINFERENCE_BACKEND=${CPP_BACKEND}"
+
+        # Determine platform suffix for dependency selection
+        local dep_platform_suffix=""
+        if [ "${CPP_PLATFORM}" == "native" ]; then
+            dep_platform_suffix="x86_64"
+        elif [[ "${CPP_PLATFORM}" == "rk3588s" || "${CPP_PLATFORM}" == "rv1126bp" ]]; then
+            dep_platform_suffix="linux-aarch64"
+        fi
+
+        # Inject appropriate dependency URLs/HASHes based on backend
+        case "${CPP_BACKEND}" in
+            onnx)
+                if [ -n "${dep_platform_suffix}" ]; then
+                    local onnx_url onnx_hash
+                    if [ "${dep_platform_suffix}" == "linux-aarch64" ]; then
+                        onnx_url="https://github.com/microsoft/onnxruntime/releases/download/v1.16.3/onnxruntime-linux-aarch64-1.16.3.tgz"
+                        onnx_hash="SHA256=784dbef93b40196aa668d29d78294a81c0d21361d36530b817bb24d87e8730e8"
+                    else
+                        onnx_url="https://github.com/microsoft/onnxruntime/releases/download/v1.16.3/onnxruntime-linux-x64-1.16.3.tgz"
+                        onnx_hash="SHA256=b072f989d6315ac0e22dcb4771b083c5156d974a3496ac3504c77f4062eb248e"
+                    fi
+                    CPP_BACKEND_CMAKE_ARG="${CPP_BACKEND_CMAKE_ARG} -DORT_URL=${onnx_url} -DORT_HASH=${onnx_hash}"
+                fi
+                ;;
+            rknn-zerocopy|rknn-non-zerocopy)
+                if [ "${dep_platform_suffix}" == "linux-aarch64" ]; then
+                    local rknn_url="https://github.com/potterwhite/Artifacts_Public/releases/download/librknnrt-official/librknnrt-v2.3.2-linux-aarch64-shared-official.tar.xz"
+                    local rknn_hash="SHA256=babe94c29119af232d989831181f3e556409c58a61cf5e5ebce1d4af118ed7e8"
+                    local onnx_url="https://github.com/microsoft/onnxruntime/releases/download/v1.16.3/onnxruntime-linux-aarch64-1.16.3.tgz"
+                    local onnx_hash="SHA256=784dbef93b40196aa668d29d78294a81c0d21361d36530b817bb24d87e8730e8"
+                    CPP_BACKEND_CMAKE_ARG="${CPP_BACKEND_CMAKE_ARG} -DLIBRKNNRT_URL=${rknn_url} -DLIBRKNNRT_HASH=${rknn_hash} -DORT_URL=${onnx_url} -DORT_HASH=${onnx_hash}"
+                else
+                    func_1_1_log "⚠️  RKNN backend only supported on aarch64 platforms" "yellow"
+                fi
+                ;;
+        esac
     fi
 
     # ------------------------------------------------------------------

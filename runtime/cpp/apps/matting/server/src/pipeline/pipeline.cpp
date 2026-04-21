@@ -123,11 +123,11 @@ class SingleSlotChannel {
 // ============================================================================
 std::unique_ptr<InferenceEngine> Pipeline::make_engine() {
 #if defined(INFERENCE_BACKEND_RKNN_ZEROCOPY)
-	return std::make_unique<InferenceEngineRKNNZeroCP>();
+ 	return std::make_unique<InferenceEngineRKNNZeroCP>();
 #elif defined(INFERENCE_BACKEND_RKNN_NON_ZEROCOPY)
-	return std::make_unique<InferenceEngineRKNNNonZeroCP>();
+ 	return std::make_unique<InferenceEngineRKNN>();
 #else
-	return std::make_unique<InferenceEngineONNX>();
+ 	return std::make_unique<InferenceEngineONNX>();
 #endif
 }
 

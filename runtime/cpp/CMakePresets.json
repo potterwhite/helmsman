@@ -175,9 +175,7 @@
         "base",
         "plat-native",
         "cfg-release",
-        "cfg-shared",
-        "backend-onnx",
-        "mixin-deps-onnxruntime-1.16.3-linux-x86_64"
+        "cfg-shared"
       ],
       "installDir": "${sourceDir}/install/native/release",
       "toolchainFile": "${sourceDir}/build/native-release/conan_toolchain.cmake",
@@ -191,9 +189,7 @@
         "base",
         "plat-native",
         "cfg-debug",
-        "cfg-shared",
-        "backend-onnx",
-        "mixin-deps-onnxruntime-1.16.3-linux-x86_64"
+        "cfg-shared"
       ],
       "installDir": "${sourceDir}/install/native/debug",
       "cacheVariables": {
@@ -206,9 +202,7 @@
         "base",
         "plat-native",
         "cfg-release",
-        "cfg-static",
-        "backend-onnx",
-        "mixin-deps-onnxruntime-1.16.3-linux-x86_64"
+        "cfg-static"
       ],
       "installDir": "${sourceDir}/install/native/release-static",
       "cacheVariables": {
@@ -221,9 +215,7 @@
         "base",
         "plat-native",
         "cfg-debug",
-        "cfg-static",
-        "backend-onnx",
-        "mixin-deps-onnxruntime-1.16.3-linux-x86_64"
+        "cfg-static"
       ],
       "installDir": "${sourceDir}/install/native/debug-static",
       "cacheVariables": {
@@ -236,10 +228,7 @@
         "base",
         "plat-rv1126bp",
         "cfg-release",
-        "cfg-shared",
-        "backend-rknn-zerocopy",
-        "mixin-deps-sherpa-linux-aarch64-gcc13_3_0",
-        "mixin-deps-librknnrt-2.3.2-linux-aarch64"
+        "cfg-shared"
       ],
       "installDir": "${sourceDir}/install/rv1126bp/release",
       "cacheVariables": {
@@ -252,10 +241,7 @@
         "base",
         "plat-rv1126bp",
         "cfg-debug",
-        "cfg-shared",
-        "backend-rknn-zerocopy",
-        "mixin-deps-sherpa-linux-aarch64-gcc13_3_0",
-        "mixin-deps-librknnrt-2.3.2-linux-aarch64"
+        "cfg-shared"
       ],
       "installDir": "${sourceDir}/install/rv1126bp/debug",
       "cacheVariables": {
@@ -268,10 +254,7 @@
         "base",
         "plat-rv1126bp",
         "cfg-release",
-        "cfg-static",
-        "backend-rknn-zerocopy",
-        "mixin-deps-sherpa-linux-aarch64-gcc13_3_0",
-        "mixin-deps-librknnrt-2.3.2-linux-aarch64"
+        "cfg-static"
       ],
       "installDir": "${sourceDir}/install/rv1126bp/release-static",
       "cacheVariables": {
@@ -284,10 +267,7 @@
         "base",
         "plat-rv1126bp",
         "cfg-debug",
-        "cfg-static",
-        "backend-rknn-zerocopy",
-        "mixin-deps-sherpa-linux-aarch64-gcc13_3_0",
-        "mixin-deps-librknnrt-2.3.2-linux-aarch64"
+        "cfg-static"
       ],
       "installDir": "${sourceDir}/install/rv1126bp/debug-static",
       "cacheVariables": {
@@ -300,25 +280,7 @@
         "base",
         "plat-rk3588s",
         "cfg-release",
-        "cfg-shared",
-        "backend-onnx",
-        "mixin-deps-onnxruntime-1.16.3-linux-aarch64"
-      ],
-      "installDir": "${sourceDir}/install/rk3588s/release",
-      "cacheVariables": {
-        "CMAKE_PREFIX_PATH": "${sourceDir}/install/rk3588s/release"
-      }
-    },
-    {
-      "name": "rk3588s-release-backup",
-      "inherits": [
-        "base",
-        "plat-rk3588s",
-        "cfg-release",
-        "cfg-shared",
-        "backend-rknn-zerocopy",
-        "mixin-deps-librknnrt-2.3.2-linux-aarch64",
-        "mixin-deps-onnxruntime-1.16.3-linux-aarch64"
+        "cfg-shared"
       ],
       "installDir": "${sourceDir}/install/rk3588s/release",
       "cacheVariables": {
@@ -331,10 +293,7 @@
         "base",
         "plat-rk3588s",
         "cfg-debug",
-        "cfg-shared",
-        "backend-rknn-zerocopy",
-        "mixin-deps-librknnrt-2.3.2-linux-aarch64",
-        "mixin-deps-onnxruntime-1.16.3-linux-aarch64"
+        "cfg-shared"
       ],
       "installDir": "${sourceDir}/install/rk3588s/debug",
       "cacheVariables": {
@@ -347,10 +306,7 @@
         "base",
         "plat-rk3588s",
         "cfg-release",
-        "cfg-static",
-        "backend-rknn-zerocopy",
-        "mixin-deps-librknnrt-2.3.2-linux-aarch64",
-        "mixin-deps-onnxruntime-1.16.3-linux-aarch64"
+        "cfg-static"
       ],
       "installDir": "${sourceDir}/install/rk3588s/release-static",
       "cacheVariables": {
@@ -363,10 +319,7 @@
         "base",
         "plat-rk3588s",
         "cfg-debug",
-        "cfg-static",
-        "backend-rknn-zerocopy",
-        "mixin-deps-librknnrt-2.3.2-linux-aarch64",
-        "mixin-deps-onnxruntime-1.16.3-linux-aarch64"
+        "cfg-static"
       ],
       "installDir": "${sourceDir}/install/rk3588s/debug-static",
       "cacheVariables": {
