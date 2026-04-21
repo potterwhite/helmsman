@@ -53,6 +53,13 @@ class MattingBackend {
 	//   - RVM:    outputs[1] = pha (outputs[0] = fgr)
 	cv::Mat postprocess(const std::vector<TensorData>& outputs);
 
+	/**
+	 * Video-mode overload: caller supplies the original BGR frame directly
+	 * so the post-processor can use it as a guide without a filesystem round-trip.
+	 * When guide_bgr is non-empty it takes priority over foreground_image_path_.
+	 */
+	cv::Mat postprocess(const std::vector<TensorData>& outputs, const cv::Mat& guide_bgr);
+
    private:
 	std::string output_path_;
 	std::string background_path_;

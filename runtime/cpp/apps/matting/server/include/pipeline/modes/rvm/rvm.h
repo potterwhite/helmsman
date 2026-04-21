@@ -65,7 +65,8 @@ private:
     bool openVideoWriter(cv::VideoWriter& writer, const std::string& path,
                          int width, int height, double fps);
     cv::Mat loadOrCreateBackground(int width, int height);
-    cv::Mat inferOneFrame(InferenceEngine* engine, const TensorData& src);
+    cv::Mat inferOneFrame(InferenceEngine* engine, const TensorData& src,
+                          const cv::Mat& guide_bgr);
     void compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
                            const cv::Mat& alpha_8u, const cv::Mat& bg_bgr);
 

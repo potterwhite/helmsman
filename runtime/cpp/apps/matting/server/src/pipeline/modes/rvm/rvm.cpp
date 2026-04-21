@@ -28,6 +28,7 @@
 #include "Utils/timing/timer.h"
 #include "common/common-define.h"
 #include "pipeline/single-slot-channel.h"
+#include "pipeline/stages/backend/post-processor/guided-filter-post-processor.h"
 
 using arcforge::utils::timing::ManualTimer;
 using arcforge::utils::timing::ScopedTimer;
@@ -86,7 +87,8 @@ cv::Mat RVMMode::loadOrCreateBackground(int width, int height) {
 	return cv::Mat(height, width, CV_8UC3, cv::Scalar(255, 100, 0));
 }
 
-cv::Mat RVMMode::inferOneFrame(InferenceEngine* engine, const TensorData& src) {
+cv::Mat RVMMode::inferOneFrame(InferenceEngine* engine, const TensorData& src,
+                               const cv::Mat& guide_bgr) {
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 
 	std::vector<TensorData> inputs = {src};
@@ -109,7 +111,7 @@ cv::Mat RVMMode::inferOneFrame(InferenceEngine* engine, const TensorData& src) {
 	logger.Info("infer() cost: " + std::to_string(dur.count()) + " ms.", kRvmModuleName);
 
 	state_mgr_.update(outputs);
-	return backend_.postprocess(outputs);
+	return backend_.postprocess(outputs, guide_bgr);
 }
 
 void RVMMode::runPrefetchWorker(size_t model_w, size_t model_h,
@@ -191,6 +193,13 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& mode
 
 	backend_.setOutputPath(output_bin_path);
 	backend_.setBackgroundPath(background_path);
+	// Attach Guided Filter post-processor.
+	// Tuning: radius=8 (wide snap range for 1080p upscaled from 512px),
+	//         epsilon=1e-4, threshold=0.4 (harden soft alpha before GF),
+	//         erode_iters=2 (compensate AI mask's ~3-5px outward bias),
+	//         src_blur_ksize=5 (smooth binary edge before GF snaps).
+	backend_.setPostProcessor(
+	    std::make_shared<GuidedFilterPostProcessor>(8, 1e-4, 0.4f, 2, 5));
 
 	return setup;
 }
@@ -322,7 +331,7 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 		// and composite + write the output frame to the video file.
 		ManualTimer infer_t;
 		infer_t.start();
-		cv::Mat alpha_8u = inferOneFrame(engine, *tensor_opt);
+		cv::Mat alpha_8u = inferOneFrame(engine, *tensor_opt, current_frame);
 		compositeAndWrite(video_writer, current_frame, alpha_8u, bg_bgr);
 		infer_acc.record(infer_t.stop());
 
