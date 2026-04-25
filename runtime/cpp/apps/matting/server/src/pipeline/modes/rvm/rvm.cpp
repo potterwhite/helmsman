@@ -190,6 +190,7 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& mode
 	initRecurrentStates(setup.model_input_height, setup.model_input_width);
 
 	frontend_.setOutputBinPath(output_bin_path);
+	prefetch_frontend_.setOutputBinPath(output_bin_path);
 
 	backend_.setOutputPath(output_bin_path);
 	backend_.setBackgroundPath(background_path);
