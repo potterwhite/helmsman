@@ -36,28 +36,32 @@ using arcforge::utils::timing::StageAccumulator;
 
 extern std::atomic<bool> g_stop_signal_received;
 
-constexpr float kDownsampleRatio = 0.25f;
+// constexpr float kDownsampleRatio = 0.25f;
 inline constexpr std::string_view kRvmModuleName = "RVMMode";
 
-void RVMMode::initRecurrentStates(size_t model_input_height, size_t model_input_width) {
-	const int64_t internal_h =
-	    static_cast<int64_t>(static_cast<float>(model_input_height) * kDownsampleRatio);
-	const int64_t internal_w =
-	    static_cast<int64_t>(static_cast<float>(model_input_width) * kDownsampleRatio);
-
-	auto ceil_div = [](int64_t a, int64_t b) -> int64_t {
-		return (a + b - 1) / b;
-	};
-
-	state_mgr_.init(
-	    {
-	        {1, 16, ceil_div(internal_h, 2), ceil_div(internal_w, 2)},
-	        {1, 20, ceil_div(internal_h, 4), ceil_div(internal_w, 4)},
-	        {1, 40, ceil_div(internal_h, 8), ceil_div(internal_w, 8)},
-	        {1, 64, ceil_div(internal_h, 16), ceil_div(internal_w, 16)},
-	    },
-	    {"r1i", "r2i", "r3i", "r4i"});
+void RVMMode::initRecurrentStates(size_t /*model_input_height*/, size_t /*model_input_width*/) {
+	state_mgr_.init({{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
+	                {"r1i", "r2i", "r3i", "r4i"});
 }
+// void RVMMode::initRecurrentStates(size_t model_input_height, size_t model_input_width) {
+// 	const int64_t internal_h =
+// 	    static_cast<int64_t>(static_cast<float>(model_input_height) * kDownsampleRatio);
+// 	const int64_t internal_w =
+// 	    static_cast<int64_t>(static_cast<float>(model_input_width) * kDownsampleRatio);
+
+// 	auto ceil_div = [](int64_t a, int64_t b) -> int64_t {
+// 		return (a + b - 1) / b;
+// 	};
+
+// 	state_mgr_.init(
+// 	    {
+// 	        {1, 16, ceil_div(internal_h, 2), ceil_div(internal_w, 2)},
+// 	        {1, 20, ceil_div(internal_h, 4), ceil_div(internal_w, 4)},
+// 	        {1, 40, ceil_div(internal_h, 8), ceil_div(internal_w, 8)},
+// 	        {1, 64, ceil_div(internal_h, 16), ceil_div(internal_w, 16)},
+// 	    },
+// 	    {"r1i", "r2i", "r3i", "r4i"});
+// }
 
 bool RVMMode::openVideoWriter(cv::VideoWriter& writer, const std::string& path, int width,
                               int height, double fps) {
@@ -98,7 +102,8 @@ cv::Mat RVMMode::inferOneFrame(InferenceEngine* engine, const TensorData& src,
 	TensorData dsr;
 	dsr.name = "downsample_ratio";
 	dsr.shape = {1};
-	dsr.data = {kDownsampleRatio};
+	// dsr.data = {kDownsampleRatio};
+	dsr.data = {dsr_};  // 原来是 {kDownsampleRatio}
 	inputs.push_back(std::move(dsr));
 #endif
 
@@ -114,8 +119,7 @@ cv::Mat RVMMode::inferOneFrame(InferenceEngine* engine, const TensorData& src,
 	return backend_.postprocess(outputs, guide_bgr);
 }
 
-void RVMMode::runPrefetchWorker(size_t model_w, size_t model_h,
-                                SingleSlotChannel<cv::Mat>& raw_ch,
+void RVMMode::runPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChannel<cv::Mat>& raw_ch,
                                 SingleSlotChannel<TensorData>& tensor_ch,
                                 StageAccumulator& preprocess_acc) {
 	while (true) {
@@ -137,7 +141,6 @@ void RVMMode::runPrefetchWorker(size_t model_w, size_t model_h,
 	// Signal EOF downstream: tensor_ch.pop() in the main loop returns nullopt.
 	tensor_ch.close();
 }
-
 
 void RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
                                 const cv::Mat& alpha_8u, const cv::Mat& bg_bgr) {
@@ -185,7 +188,7 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& mode
 
 	RvmRunSetup setup;
 	setup.model_input_height = engine->getInputHeight() > 0 ? engine->getInputHeight() : 288;
-	setup.model_input_width  = engine->getInputWidth()  > 0 ? engine->getInputWidth()  : 512;
+	setup.model_input_width = engine->getInputWidth() > 0 ? engine->getInputWidth() : 512;
 
 	initRecurrentStates(setup.model_input_height, setup.model_input_width);
 
@@ -199,8 +202,7 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& mode
 	//         epsilon=1e-4, threshold=0.4 (harden soft alpha before GF),
 	//         erode_iters=2 (compensate AI mask's ~3-5px outward bias),
 	//         src_blur_ksize=5 (smooth binary edge before GF snaps).
-	backend_.setPostProcessor(
-	    std::make_shared<GuidedFilterPostProcessor>(8, 1e-4, 0.4f, 2, 5));
+	backend_.setPostProcessor(std::make_shared<GuidedFilterPostProcessor>(8, 1e-4, 0.4f, 2, 5));
 
 	return setup;
 }
@@ -225,9 +227,10 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	//    - initialise the four RNN hidden-state tensors (r1i–r4i) to zero
 	//    - wire output / background paths into frontend and backend members
 	// -------------------------------------------------------------------------
-	const RvmRunSetup setup = prepareRun(engine, model_path, output_bin_path, background_path, timing_enabled);
+	const RvmRunSetup setup =
+	    prepareRun(engine, model_path, output_bin_path, background_path, timing_enabled);
 	const size_t model_input_height = setup.model_input_height;
-	const size_t model_input_width  = setup.model_input_width;
+	const size_t model_input_width = setup.model_input_width;
 
 	// -------------------------------------------------------------------------
 	// 2nd — Video I/O setup
@@ -236,9 +239,11 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	//    - open the VideoWriter; if it fails, compositeAndWrite() is a no-op
 	//    - load or synthesise a solid-colour background for alpha compositing
 	// -------------------------------------------------------------------------
-	const int src_width    = input_source->width();
-	const int src_height   = input_source->height();
-	const double src_fps   = input_source->fps();
+	const int src_width = input_source->width();
+	const int src_height = input_source->height();
+	dsr_ = 512.0f / static_cast<float>(std::max(src_width, src_height));
+	// dance.mp4 1920×1080 → dsr_ = 512/1920 ≈ 0.2667
+	const double src_fps = input_source->fps();
 	const double output_fps = (src_fps > 0) ? src_fps : 30.0;
 	const std::string output_video_path = output_bin_path + "/output_composited.mp4";
 
@@ -263,22 +268,21 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	//
 	//    Timing is accumulated in preprocess_acc and reported after the loop.
 	// -------------------------------------------------------------------------
-	SingleSlotChannel<cv::Mat>    raw_ch;
+	SingleSlotChannel<cv::Mat> raw_ch;
 	SingleSlotChannel<TensorData> tensor_ch;
 
 	StageAccumulator preprocess_acc("worker::preprocess");
 	StageAccumulator infer_acc("main::infer+composite");
 
-	std::thread prefetch_worker(&RVMMode::runPrefetchWorker, this,
-	                             model_input_width, model_input_height,
-	                             std::ref(raw_ch), std::ref(tensor_ch),
-	                             std::ref(preprocess_acc));
+	std::thread prefetch_worker(&RVMMode::runPrefetchWorker, this, model_input_width,
+	                            model_input_height, std::ref(raw_ch), std::ref(tensor_ch),
+	                            std::ref(preprocess_acc));
 
 	// Seed the pipeline with the very first frame before entering the main loop.
 	cv::Mat current_frame;
 	if (!input_source->read(current_frame)) {
 		logger.Info("No frames to process.", kRvmModuleName);
-		raw_ch.close();         // unblock worker so it can exit cleanly
+		raw_ch.close();  // unblock worker so it can exit cleanly
 		prefetch_worker.join();
 		return 0;
 	}
@@ -359,4 +363,3 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	            kRvmModuleName);
 	return 0;
 }
-
