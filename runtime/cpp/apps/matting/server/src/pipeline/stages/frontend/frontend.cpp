@@ -116,15 +116,13 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, [[maybe_unused]] size_t m
 	    "Original size: Width=" + std::to_string(img.cols) + ", Height=" + std::to_string(img.rows),
 	    kcurrent_module_name);
 
-	// ── 修改后（替换第 116-161 行的 Phase 2 部分）──
-	// Step 3.1: Replicate-pad to 32-multiple (no resize — RVM uses downsample_ratio
-	//           to control internal feature resolution; input must stay at source resolution)
+	// Step 3.1: Replicate-pad to 32-multiple (no resize).
+	// RVM uses downsample_ratio to control internal feature resolution;
+	// input must stay at source resolution so the model sees the full detail.
 	int pad_top = 0;
 	int pad_bottom = (32 - (img.rows % 32)) % 32;
 	int pad_left = 0;
 	int pad_right = (32 - (img.cols % 32)) % 32;
-	// int new_width = img.cols;  // 保留（供 tensor metadata 使用）
-	// int new_height = img.rows;
 	cv::Mat padded_u8;
 	cv::copyMakeBorder(img, padded_u8, pad_top, pad_bottom, pad_left, pad_right,
 	                   cv::BORDER_REPLICATE);

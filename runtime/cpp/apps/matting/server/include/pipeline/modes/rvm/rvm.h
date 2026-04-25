@@ -75,7 +75,7 @@ class RVMMode {
 
    private:
 	// Member variables
-    float dsr_ = 0.25f;   // 动态计算的 downsample_ratio，在 run() 里赋值
+	float dsr_ = 0.25f;  ///< downsample_ratio, computed in run() as 512/max(src_w, src_h)
 	ImageFrontend frontend_;
 	ImageFrontend prefetch_frontend_;
 	MattingBackend backend_;
