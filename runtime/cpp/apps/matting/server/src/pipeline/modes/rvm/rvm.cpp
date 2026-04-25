@@ -36,32 +36,14 @@ using arcforge::utils::timing::StageAccumulator;
 
 extern std::atomic<bool> g_stop_signal_received;
 
-// constexpr float kDownsampleRatio = 0.25f;
 inline constexpr std::string_view kRvmModuleName = "RVMMode";
 
 void RVMMode::initRecurrentStates(size_t /*model_input_height*/, size_t /*model_input_width*/) {
+	// Initialise all four recurrent states to [1,1,1,1] zeros.
+	// ONNX Runtime broadcasts these to the correct shape at the first inference call.
 	state_mgr_.init({{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
 	                {"r1i", "r2i", "r3i", "r4i"});
 }
-// void RVMMode::initRecurrentStates(size_t model_input_height, size_t model_input_width) {
-// 	const int64_t internal_h =
-// 	    static_cast<int64_t>(static_cast<float>(model_input_height) * kDownsampleRatio);
-// 	const int64_t internal_w =
-// 	    static_cast<int64_t>(static_cast<float>(model_input_width) * kDownsampleRatio);
-
-// 	auto ceil_div = [](int64_t a, int64_t b) -> int64_t {
-// 		return (a + b - 1) / b;
-// 	};
-
-// 	state_mgr_.init(
-// 	    {
-// 	        {1, 16, ceil_div(internal_h, 2), ceil_div(internal_w, 2)},
-// 	        {1, 20, ceil_div(internal_h, 4), ceil_div(internal_w, 4)},
-// 	        {1, 40, ceil_div(internal_h, 8), ceil_div(internal_w, 8)},
-// 	        {1, 64, ceil_div(internal_h, 16), ceil_div(internal_w, 16)},
-// 	    },
-// 	    {"r1i", "r2i", "r3i", "r4i"});
-// }
 
 bool RVMMode::openVideoWriter(cv::VideoWriter& writer, const std::string& path, int width,
                               int height, double fps) {
@@ -102,8 +84,7 @@ cv::Mat RVMMode::inferOneFrame(InferenceEngine* engine, const TensorData& src,
 	TensorData dsr;
 	dsr.name = "downsample_ratio";
 	dsr.shape = {1};
-	// dsr.data = {kDownsampleRatio};
-	dsr.data = {dsr_};  // 原来是 {kDownsampleRatio}
+	dsr.data = {dsr_};
 	inputs.push_back(std::move(dsr));
 #endif
 
