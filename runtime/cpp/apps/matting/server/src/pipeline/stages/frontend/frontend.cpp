@@ -65,7 +65,8 @@ void ImageFrontend::setOutputBinPath(const std::string& path) {
 	outputBinPath_ = path;
 }
 
-TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_t model_height) {
+TensorData ImageFrontend::_preprocessCore(cv::Mat img, [[maybe_unused]] size_t model_width,
+                                          [[maybe_unused]] size_t model_height) {
 	TensorData tensor_data;
 
 	auto& logger_ = arcforge::embedded::utils::Logger::GetInstance();
@@ -77,13 +78,15 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_
 	// Reason:
 	//   Most deep learning frameworks expect RGB ordering.
 	img = cvkit_.bgrToRgb(img);
-	if (isDumpEnabled()) cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_02_bgrToRgb.bin");
+	if (isDumpEnabled())
+		cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_02_bgrToRgb.bin");
 
 	// Step 1.3 - Ensure image has exactly 3 channels
 	// Reason:
 	//   Some images may be grayscale or RGBA.
 	img = cvkit_.ensure3Channel(img);
-	if (isDumpEnabled()) cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_03_ensure3Channel.bin");
+	if (isDumpEnabled())
+		cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_03_ensure3Channel.bin");
 
 	// /*
 	//      * NOTE:
@@ -113,54 +116,27 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_
 	    "Original size: Width=" + std::to_string(img.cols) + ", Height=" + std::to_string(img.rows),
 	    kcurrent_module_name);
 
-	// Step 3.1: Compute scale factors and target size (letterbox)
-	// Use the MINIMUM of the two scale factors to preserve aspect ratio.
-	// Using independent scale_width / scale_height would non-uniformly stretch
-	// the image (e.g. 1920×1080 → 256×256 squashes 16:9 to 1:1, corrupting inference).
-	double scale_width  = static_cast<double>(model_width)  / img.cols;
-	double scale_height = static_cast<double>(model_height) / img.rows;
-	double scale = std::min(scale_width, scale_height);  // preserve aspect ratio
-
-	int new_width  = static_cast<int>(img.cols * scale);
-	int new_height = static_cast<int>(img.rows * scale);
-
-	logger_.Info("ScaleOfWidth factor: " + std::to_string(scale_width) +
-	                 ", ScaleOfHeight factor: " + std::to_string(scale_height) +
-	                 ", New size before padding: " + std::to_string(new_width) + "x" +
-	                 std::to_string(new_height),
-	             kcurrent_module_name);
-
-	// Step 3.2: Resize while still uint8 (fast path)
-	cv::Mat resized_u8;
-	cv::resize(img, resized_u8, cv::Size(new_width, new_height), 0, 0, cv::INTER_LINEAR);
-
-	// Step 3.3: Letterbox padding (still uint8)
-	int pad_top    = (static_cast<int>(model_height) - new_height) / 2;
-	int pad_bottom = static_cast<int>(model_height) - new_height - pad_top;
-	int pad_left   = (static_cast<int>(model_width)  - new_width)  / 2;
-	int pad_right  = static_cast<int>(model_width)  - new_width  - pad_left;
-
+	// ── 修改后（替换第 116-161 行的 Phase 2 部分）──
+	// Step 3.1: Replicate-pad to 32-multiple (no resize — RVM uses downsample_ratio
+	//           to control internal feature resolution; input must stay at source resolution)
+	int pad_top = 0;
+	int pad_bottom = (32 - (img.rows % 32)) % 32;
+	int pad_left = 0;
+	int pad_right = (32 - (img.cols % 32)) % 32;
+	// int new_width = img.cols;  // 保留（供 tensor metadata 使用）
+	// int new_height = img.rows;
 	cv::Mat padded_u8;
-	cv::copyMakeBorder(resized_u8, padded_u8, pad_top, pad_bottom, pad_left, pad_right,
-	                   cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
-
-	logger_.Info("Final size with letterbox: Width=" + std::to_string(padded_u8.cols) +
-	                 ", Height=" + std::to_string(padded_u8.rows) +
-	                 ", Padding: top=" + std::to_string(pad_top) +
-	                 ", bottom=" + std::to_string(pad_bottom) +
-	                 ", left=" + std::to_string(pad_left) + ", right=" + std::to_string(pad_right),
+	cv::copyMakeBorder(img, padded_u8, pad_top, pad_bottom, pad_left, pad_right,
+	                   cv::BORDER_REPLICATE);
+	logger_.Info("Replicate pad: " + std::to_string(img.cols) + "x" + std::to_string(img.rows) +
+	                 " -> " + std::to_string(padded_u8.cols) + "x" +
+	                 std::to_string(padded_u8.rows) + " (pad_right=" + std::to_string(pad_right) +
+	                 ", pad_bottom=" + std::to_string(pad_bottom) + ")",
 	             kcurrent_module_name);
-
-	// Step 3.4: Convert to float32 AFTER resize (only model-sized image is converted)
-	// Normalize to [0.0, 1.0]: divide by 255.
-	// CRITICAL: The RKNN model was compiled with std_values=[[255,255,255]], which means
-	// it expects float input in [0,1]. The RKNN runtime only applies mean/std normalization
-	// for RKNN_TENSOR_UINT8 inputs; for RKNN_TENSOR_FLOAT32 the data is passed through as-is.
-	// Therefore we MUST normalize here in C++ before feeding to the engine.
-	// padded_u8.convertTo(img, CV_32FC3, 1.0 / 255.0);
 	padded_u8.convertTo(img, CV_32FC3);
 
-	if (isDumpEnabled()) cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");
+	if (isDumpEnabled())
+		cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");
 
 	// =========================================================================
 	// Phase 4 - Prepare Memory Layout for Inference Engine
@@ -195,7 +171,8 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_
 
 	tensor_data.data.assign(ptr, ptr + total);
 
-	if (isDumpEnabled()) file_utils_.dumpBinary(tensor_data.data, outputBinPath_ + "/cpp_06-07_hwc_direct.bin");
+	if (isDumpEnabled())
+		file_utils_.dumpBinary(tensor_data.data, outputBinPath_ + "/cpp_06-07_hwc_direct.bin");
 
 	// =========================================================================
 	// Phase 5 - Construct Tensor Shape
@@ -251,7 +228,8 @@ TensorData ImageFrontend::preprocess(const std::string& image_path, size_t model
 
 	// Step 1.1 - Load image from disk (OpenCV default: BGR format)
 	cv::Mat img = cvkit_.loadImage(image_path);
-	if (isDumpEnabled()) cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_01_loadimage.bin");
+	if (isDumpEnabled())
+		cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_01_loadimage.bin");
 
 	return _preprocessCore(img, model_width, model_height);
 }
