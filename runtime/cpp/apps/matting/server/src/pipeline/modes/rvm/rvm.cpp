@@ -70,7 +70,8 @@ cv::Mat RVMMode::loadOrCreateBackground(int width, int height) {
 			return bg;
 		}
 	}
-	return cv::Mat(height, width, CV_8UC3, cv::Scalar(255, 100, 0));
+	// Default fallback background: BGR(155,255,120) = RGB(120,255,155), matches e.py baseline
+	return cv::Mat(height, width, CV_8UC3, cv::Scalar(155, 255, 120));
 }
 
 cv::Mat RVMMode::inferOneFrame(InferenceEngine* engine, const TensorData& src,
