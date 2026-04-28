@@ -179,12 +179,10 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& mode
 
 	backend_.setOutputPath(output_bin_path);
 	backend_.setBackgroundPath(background_path);
-	// Attach Guided Filter post-processor.
-	// Tuning: radius=8 (wide snap range for 1080p upscaled from 512px),
-	//         epsilon=1e-4, threshold=0.4 (harden soft alpha before GF),
-	//         erode_iters=2 (compensate AI mask's ~3-5px outward bias),
-	//         src_blur_ksize=5 (smooth binary edge before GF snaps).
-	backend_.setPostProcessor(std::make_shared<GuidedFilterPostProcessor>(8, 1e-4, 0.4f, 2, 5));
+	// Post-processor: disabled to match PyTorch baseline (no post-processing).
+	// PyTorch inference: com = fgr * pha + bgr * (1 - pha) — raw model alpha, no GF.
+	// Re-enable after confirming raw alpha quality: setPostProcessor(make_shared<GuidedFilterPostProcessor>(...))
+	// backend_.setPostProcessor(std::make_shared<GuidedFilterPostProcessor>(8, 1e-4, 0.4f, 2, 5));
 
 	return setup;
 }
