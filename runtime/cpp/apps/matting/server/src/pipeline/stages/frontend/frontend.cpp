@@ -65,8 +65,7 @@ void ImageFrontend::setOutputBinPath(const std::string& path) {
 	outputBinPath_ = path;
 }
 
-TensorData ImageFrontend::_preprocessCore(cv::Mat img, [[maybe_unused]] size_t model_width,
-                                          [[maybe_unused]] size_t model_height) {
+TensorData ImageFrontend::_preprocessCore(cv::Mat img, size_t model_width, size_t model_height) {
 	TensorData tensor_data;
 
 	auto& logger_ = arcforge::embedded::utils::Logger::GetInstance();
@@ -116,22 +115,49 @@ TensorData ImageFrontend::_preprocessCore(cv::Mat img, [[maybe_unused]] size_t m
 	    "Original size: Width=" + std::to_string(img.cols) + ", Height=" + std::to_string(img.rows),
 	    kcurrent_module_name);
 
-	// Step 3.1: Replicate-pad to 32-multiple (no resize).
-	// RVM uses downsample_ratio to control internal feature resolution;
-	// input must stay at source resolution so the model sees the full detail.
+	// Step 3.1: Resize strategy depends on inference backend.
+	//
+	// RKNN (model_width > 0): fixed-shape model — resize src to model dims.
+	//   ArcFoundry bakes downsample_ratio=0.25 into the graph; the model
+	//   expects exactly model_height × model_width (e.g. 288×512). No padding.
+	//
+	// ONNX (model_width == 0): dynamic-shape model — replicate-pad to
+	//   32-multiple, keep full source resolution so RVM's internal dsr
+	//   controls feature resolution at runtime.
 	int pad_top = 0;
 	int pad_bottom = (32 - (img.rows % 32)) % 32;
 	int pad_left = 0;
 	int pad_right = (32 - (img.cols % 32)) % 32;
-	cv::Mat padded_u8;
-	cv::copyMakeBorder(img, padded_u8, pad_top, pad_bottom, pad_left, pad_right,
-	                   cv::BORDER_REPLICATE);
-	logger_.Info("Replicate pad: " + std::to_string(img.cols) + "x" + std::to_string(img.rows) +
-	                 " -> " + std::to_string(padded_u8.cols) + "x" +
-	                 std::to_string(padded_u8.rows) + " (pad_right=" + std::to_string(pad_right) +
-	                 ", pad_bottom=" + std::to_string(pad_bottom) + ")",
-	             kcurrent_module_name);
-	padded_u8.convertTo(img, CV_32FC3);
+
+	if (model_width > 0 && model_height > 0) {
+		// RKNN Routine
+
+		cv::resize(img, img,
+		           cv::Size(static_cast<int>(model_width), static_cast<int>(model_height)), 0, 0,
+		           cv::INTER_LINEAR);
+		logger_.Info("RKNN resize: " + std::to_string(original_w) + "x" +
+		                 std::to_string(original_h) + " -> " + std::to_string(model_width) + "x" +
+		                 std::to_string(model_height),
+		             kcurrent_module_name);
+		img.convertTo(img, CV_32FC3);
+
+	} else {
+		// ONNX Routine
+
+		pad_bottom = ((32 - (img.rows % 32)) % 32);
+		pad_right = ((32 - (img.cols % 32)) % 32);
+
+		cv::Mat padded_u8;
+		cv::copyMakeBorder(img, padded_u8, pad_top, pad_bottom, pad_left, pad_right,
+		                   cv::BORDER_REPLICATE);
+		logger_.Info("Replicate pad: " + std::to_string(img.cols) + "x" + std::to_string(img.rows) +
+		                 " -> " + std::to_string(padded_u8.cols) + "x" +
+		                 std::to_string(padded_u8.rows) +
+		                 " (pad_right=" + std::to_string(pad_right) +
+		                 ", pad_bottom=" + std::to_string(pad_bottom) + ")",
+		             kcurrent_module_name);
+		padded_u8.convertTo(img, CV_32FC3);
+	}
 
 	if (isDumpEnabled())
 		cvkit_.dumpBinary(img, outputBinPath_ + "/cpp_05_resized.bin");

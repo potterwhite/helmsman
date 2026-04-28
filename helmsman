@@ -60,6 +60,18 @@ main(){
             ;;
         "g" | "golden")
             func_2_1_check_env_ready && func_4_5_generate_golden_interactive ;;
+        "compare" | "cmp")
+            # Video quality comparison tool.
+            # Uses the project .venv (helmsman/.venv) — no external activation needed.
+            # Usage:
+            #   ./helmsman compare                           <- interactive prompts
+            #   ./helmsman compare --video-a A --video-b B  <- non-interactive
+            # Full help: ./helmsman compare --help
+            local _venv_python="${REPO_TOP_DIR}/.venv/bin/python3"
+            if [ ! -x "${_venv_python}" ]; then
+                func_1_2_err ".venv not found at ${REPO_TOP_DIR}/.venv — run './helmsman pre' first."
+            fi
+            "${_venv_python}" "${SCRIPTS_DIR}/compare_videos.py" "${ARGS[@]}" ;;
         "c" | "clean")
             func_5_1_clean_project ;;
         "ca" | "cleanall")
