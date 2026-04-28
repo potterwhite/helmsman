@@ -98,7 +98,6 @@ cv::Mat RVMMode::inferOneFrame(InferenceEngine* engine, const TensorData& src,
 	logger.Info("infer() cost: " + std::to_string(dur.count()) + " ms.", kRvmModuleName);
 
 	state_mgr_.update(outputs);
-	state_mgr_.reset();  // [DIAG] disable temporal memory — remove after validation
 	return backend_.postprocess(outputs, guide_bgr);
 }
 
