@@ -66,6 +66,7 @@ class MattingBackend {
 	std::string foreground_image_path_;
 
 	std::shared_ptr<IPostProcessor> post_processor_;  // nullptr = no post-processing
+	int process_count_ = 0;  // counts postprocess() calls; used for per-frame debug dump
 
 	cv::Mat nchwToHwc(const TensorData& tensor);
 };

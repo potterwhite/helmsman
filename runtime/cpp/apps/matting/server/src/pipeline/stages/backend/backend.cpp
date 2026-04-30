@@ -57,6 +57,8 @@ cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs) {
 cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs,
                                     const cv::Mat& guide_bgr_override) {
 
+	const int current_frame = process_count_++;  // 0-indexed frame number
+
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 	auto& file_utils = arcforge::utils::FileUtils::GetInstance();
 
@@ -167,6 +169,21 @@ cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs,
 	// Step C: Optional post-processing (e.g. Guided Filter edge refinement).
 	// Attach a processor via setPostProcessor(); leave nullptr to skip.
 	// guide priority: caller-supplied frame (video mode) > imread from path (image mode).
+
+	// --- Diagnostics §10: per-frame pha mean log + frame 50-70 PNG dump ---
+	{
+		cv::Scalar mean_val = cv::mean(restored_mat);
+		logger.Info("PHA_MEAN frame=" + std::to_string(current_frame) +
+		            " mean=" + std::to_string(mean_val[0]), kcurrent_module_name);
+
+		if (current_frame >= 50 && current_frame <= 70 && !output_path_.empty()) {
+			cv::Mat pha_debug_u8;
+			restored_mat.convertTo(pha_debug_u8, CV_8UC1, 255.0);
+			char fname[64];
+			snprintf(fname, sizeof(fname), "/debug_pha_rknn_frame%04d.png", current_frame);
+			cv::imwrite(output_path_ + fname, pha_debug_u8);
+		}
+	}
 	if (post_processor_) {
 		cv::Mat guide;
 		if (!guide_bgr_override.empty()) {

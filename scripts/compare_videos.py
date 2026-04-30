@@ -218,6 +218,21 @@ def _interactive_run():
 
     compare(path_a, path_b, label_a, label_b, out_dir, sample_frames)
 
+    # Print equivalent CLI command for future use
+    cli_parts = [
+        "./helmsman compare video",
+        f"--video-a '{path_a}'",
+        f"--video-b '{path_b}'",
+        f"--label-a '{label_a}'",
+        f"--label-b '{label_b}'",
+    ]
+    if out_dir != DEFAULT_OUT_DIR:
+        cli_parts.append(f"--out '{out_dir}'")
+    if frames_str != ",".join(str(x) for x in DEFAULT_SAMPLE_FRAMES):
+        cli_parts.append(f"--frames '{frames_str}'")
+    print(f"\n  Tip: Next time you can run this directly:")
+    print(f"    {' '.join(cli_parts)}")
+
 
 # ---------------------------------------------------------------------------
 # CLI entry
