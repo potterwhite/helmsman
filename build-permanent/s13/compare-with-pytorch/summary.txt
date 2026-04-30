@@ -1,0 +1,29 @@
+Video A: build-permanent/s13/output_composited.mp4
+Video B: /development/src/ai/image-matting/primary-folder/2nd-stage-apr22/inference-effect/pytorch/dance-mobilenetv3/a.py/com.mp4
+
+
+============================================================
+  COMPARISON SUMMARY
+    A = s13-RKNN-1080p  (build-permanent/s13/output_composited.mp4)
+    B = pytorch  (/development/src/ai/image-matting/primary-folder/2nd-stage-apr22/inference-effect/pytorch/dance-mobilenetv3/a.py/com.mp4)
+  Frames analysed: 363
+============================================================
+  bg_ratio A (green bg %)  avg=86.7  min=81.5  max=91.1
+  bg_ratio B (green bg %)  avg=86.6  min=82.4  max=90.9
+  mean_diff (A vs B)       avg=3.62  min=2.77  max=4.66
+  bg_ratio note: 100% = all green (person invisible); ~85% = person present (ONNX-Py baseline)
+============================================================
+  Per sample frame bg_ratio_A / bg_ratio_B:
+    frame    0:  A=82.0%  B=82.6%  diff=4.01
+    frame   45:  A=87.7%  B=87.6%  diff=4.05
+    frame   60:  A=88.3%  B=88.2%  diff=3.47
+    frame   61:  A=88.3%  B=88.3%  diff=3.46
+    frame   62:  A=88.4%  B=88.2%  diff=3.46
+    frame   63:  A=88.1%  B=88.0%  diff=3.46
+    frame   64:  A=88.0%  B=87.9%  diff=3.21
+    frame   65:  A=87.6%  B=87.6%  diff=3.23
+    frame   90:  A=84.6%  B=84.9%  diff=3.96
+    frame  180:  A=88.3%  B=88.3%  diff=3.33
+    frame  270:  A=86.2%  B=86.2%  diff=4.02
+    frame  362:  A=83.3%  B=83.6%  diff=3.83
+============================================================

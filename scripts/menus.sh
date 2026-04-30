@@ -203,22 +203,45 @@ func_9_1_main_menu_entry() {
         echo "2. Convert .ckpt model to .onnx"
         echo "3. Run Python inference"
         echo "4. Generate Golden Files (Interactive)"
-        echo "5. Build C++ Helmsman Engine"
-        echo "6. Clean build"
-        echo "7. Clean all(build/venv/models/MODNet SDK etc)"
-        echo "8. Exit"
-        read -p "   Select [1-8]: " choice
+        echo "5. Compare (video quality / pha mean)"
+        echo "6. Build C++ Helmsman Engine"
+        echo "7. Clean build"
+        echo "8. Clean all(build/venv/models/MODNet SDK etc)"
+        echo "9. Exit"
+        read -p "   Select [1-9]: " choice
 
         case $choice in
             1) func_3_2_setup_dep_before_build ;;
             2) func_2_1_check_env_ready && func_4_1_ckpt_2_onnx ;;
             3) func_2_1_check_env_ready && func_4_2_inference_with_onnx ;;
             4) func_2_1_check_env_ready && func_4_5_generate_golden_interactive ;;
-            5) func_2_1_check_env_ready && func_9_1_cpp_menu_entry ;;
-            6) func_5_1_clean_project ;;
-            7) func_5_1_clean_project 2;;
-            8) func_1_1_log "👋 Exiting." "green"; exit 0 ;;
+            5) func_9_3_compare_menu_entry ;;
+            6) func_2_1_check_env_ready && func_9_1_cpp_menu_entry ;;
+            7) func_5_1_clean_project ;;
+            8) func_5_1_clean_project 2;;
+            9) func_1_1_log "Exiting." "green"; exit 0 ;;
             *) func_1_1_log "Invalid choice." "red" ;;
         esac
     # done
+}
+
+func_9_3_compare_menu_entry() {
+    local _venv_python="${REPO_TOP_DIR}/.venv/bin/python3"
+    if [ ! -x "${_venv_python}" ]; then
+        func_1_2_err ".venv not found at ${REPO_TOP_DIR}/.venv — run './helmsman pre' first."
+    fi
+
+    echo ""
+    func_1_1_log "--- Helmsman Compare Menu ---" "blue"
+    echo "  1. Video quality comparison  (bg_ratio, mean_diff on composited videos)"
+    echo "  2. Pha mean curve comparison (alpha matte per-frame mean from run.log)"
+    echo "  3. Back"
+    read -p "   Select [1-3]: " cmp_choice
+
+    case "$cmp_choice" in
+        1) "${_venv_python}" "${SCRIPTS_DIR}/compare_videos.py" ;;
+        2) "${_venv_python}" "${SCRIPTS_DIR}/pha_compare.py" ;;
+        3) return ;;
+        *) func_1_1_log "Invalid choice." "red" ;;
+    esac
 }

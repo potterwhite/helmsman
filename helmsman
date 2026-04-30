@@ -34,7 +34,11 @@ main(){
     for arg in "$@"; do
         case $arg in
         -h | --help)
-            func_1_7_usage; exit 0 ;;
+            if [ -z "$COMMAND" ]; then
+                func_1_7_usage; exit 0
+            else
+                ARGS+=("$arg")  # pass --help to sub-command
+            fi ;;
         -v)
             export V=1; func_2_0_setup_env ;; # Reload env to apply verbose
         *)
@@ -61,17 +65,43 @@ main(){
         "g" | "golden")
             func_2_1_check_env_ready && func_4_5_generate_golden_interactive ;;
         "compare" | "cmp")
-            # Video quality comparison tool.
+            # Comparison tools with sub-commands.
             # Uses the project .venv (helmsman/.venv) — no external activation needed.
             # Usage:
-            #   ./helmsman compare                           <- interactive prompts
-            #   ./helmsman compare --video-a A --video-b B  <- non-interactive
-            # Full help: ./helmsman compare --help
+            #   ./helmsman compare                                 <- interactive menu
+            #   ./helmsman compare video --video-a A --video-b B  <- video quality compare
+            #   ./helmsman compare pha --log-a run.log             <- pha mean curve compare
+            #   ./helmsman compare --video-a A --video-b B        <- backward compat (direct video)
             local _venv_python="${REPO_TOP_DIR}/.venv/bin/python3"
             if [ ! -x "${_venv_python}" ]; then
                 func_1_2_err ".venv not found at ${REPO_TOP_DIR}/.venv — run './helmsman pre' first."
             fi
-            "${_venv_python}" "${SCRIPTS_DIR}/compare_videos.py" "${ARGS[@]}" ;;
+            local subcmd="${ARGS[0]:-}"
+            case "$subcmd" in
+                video|v)
+                    local shift_args=("${ARGS[@]:1}")
+                    "${_venv_python}" "${SCRIPTS_DIR}/compare_videos.py" "${shift_args[@]}" ;;
+                pha|p)
+                    local shift_args=("${ARGS[@]:1}")
+                    "${_venv_python}" "${SCRIPTS_DIR}/pha_compare.py" "${shift_args[@]}" ;;
+                -*)
+                    # First arg starts with '--' → old-style direct video compare (backward compat)
+                    "${_venv_python}" "${SCRIPTS_DIR}/compare_videos.py" "${ARGS[@]}" ;;
+                *)
+                    # No sub-command, no flags → interactive menu
+                    echo ""
+                    func_1_1_log "--- Helmsman Compare Menu ---" "blue"
+                    echo "  1. Video quality comparison  (bg_ratio, mean_diff on composited videos)"
+                    echo "  2. Pha mean curve comparison (alpha matte per-frame mean from run.log)"
+                    echo "  3. Back"
+                    read -p "   Select [1-3]: " cmp_choice
+                    case "$cmp_choice" in
+                        1) "${_venv_python}" "${SCRIPTS_DIR}/compare_videos.py" "${ARGS[@]}" ;;
+                        2) "${_venv_python}" "${SCRIPTS_DIR}/pha_compare.py" "${ARGS[@]}" ;;
+                        3) return ;;
+                        *) func_1_1_log "Invalid choice." "red" ;;
+                    esac ;;
+            esac ;;
         "c" | "clean")
             func_5_1_clean_project ;;
         "ca" | "cleanall")
