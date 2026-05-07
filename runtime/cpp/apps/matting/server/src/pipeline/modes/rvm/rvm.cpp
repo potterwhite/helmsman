@@ -126,40 +126,39 @@ void RVMMode::runPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChanne
 
 void RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
                                 const cv::Mat& alpha_8u) {
-	if (!writer.isOpened() || alpha_8u.empty()) {
-		return;
+	if (!writer.isOpened() || alpha_8u.empty()) return;
+
+	const int model_h = bg_model_u8_.rows;
+	const int model_w = bg_model_u8_.cols;
+
+	// 1. Resize alpha and frame to model resolution (uint8)
+	cv::Mat alpha_model, frame_model;
+	cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
+	cv::resize(frame, frame_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
+
+	// 2. Composite at model resolution — pure uint8, zero float32
+	//    Formula: composed = (fg * alpha + bg * (255 - alpha)) / 255
+	//    div255 uses bit-shift: (x + 1 + (x >> 8)) >> 8, exact for 0..65535
+	cv::Mat composed_model(model_h, model_w, CV_8UC3);
+	const int pixels = model_h * model_w;
+	const uint8_t* fg = frame_model.ptr<uint8_t>(0);
+	const uint8_t* bg = bg_model_u8_.ptr<uint8_t>(0);
+	const uint8_t* a  = alpha_model.ptr<uint8_t>(0);
+	uint8_t* out = composed_model.ptr<uint8_t>(0);
+
+	for (int i = 0; i < pixels; ++i) {
+		const uint16_t alpha = a[i];
+		const uint16_t inv = 255 - alpha;
+		out[0] = static_cast<uint8_t>((fg[0] * alpha + bg[0] * inv + 1 + ((fg[0] * alpha + bg[0] * inv) >> 8)) >> 8);
+		out[1] = static_cast<uint8_t>((fg[1] * alpha + bg[1] * inv + 1 + ((fg[1] * alpha + bg[1] * inv) >> 8)) >> 8);
+		out[2] = static_cast<uint8_t>((fg[2] * alpha + bg[2] * inv + 1 + ((fg[2] * alpha + bg[2] * inv) >> 8)) >> 8);
+		fg += 3; bg += 3; out += 3;
 	}
 
-	const int model_h = static_cast<int>(bg_model_f32_.rows);
-	const int model_w = static_cast<int>(bg_model_f32_.cols);
-
-	// 1. Resize alpha to model resolution (uint8)
-	cv::Mat alpha_model;
-	cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
-
-	// 2. alpha uint8 → float32 3ch at model resolution
-	cv::Mat alpha_f32;
-	alpha_model.convertTo(alpha_f32, CV_32FC1, 1.0 / 255.0);
-	cv::Mat alpha_3ch;
-	cv::cvtColor(alpha_f32, alpha_3ch, cv::COLOR_GRAY2BGR);
-
-	// 3. Resize frame to model resolution and convert to float32
-	cv::Mat frame_model;
-	cv::resize(frame, frame_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
-	cv::Mat fg_f32;
-	frame_model.convertTo(fg_f32, CV_32FC3, 1.0 / 255.0);
-
-	// 4. Composite at model resolution (bg_model_f32_ is pre-computed)
-	cv::Mat composed_f32 =
-	    alpha_3ch.mul(fg_f32) + (cv::Scalar(1.0, 1.0, 1.0) - alpha_3ch).mul(bg_model_f32_);
-
-	// 5. Convert to uint8, upscale to source resolution, write
-	cv::Mat composed_model_8u;
-	composed_f32.convertTo(composed_model_8u, CV_8UC3, 255.0);
-
-	cv::Mat composed_8u;
-	cv::resize(composed_model_8u, composed_8u, frame.size(), 0, 0, cv::INTER_LINEAR);
-	writer.write(composed_8u);
+	// 3. Upscale to source resolution and write
+	cv::Mat composed_full;
+	cv::resize(composed_model, composed_full, frame.size(), 0, 0, cv::INTER_LINEAR);
+	writer.write(composed_full);
 }
 
 RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& model_path,
@@ -246,7 +245,7 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 		                    static_cast<int>(model_input_height)),
 		           0, 0,
 		           cv::INTER_LINEAR);
-		bg_model.convertTo(bg_model_f32_, CV_32FC3, 1.0 / 255.0);
+		bg_model_u8_ = bg_model.clone();  // uint8 copy for fast compositing
 	}
 
 	// -------------------------------------------------------------------------

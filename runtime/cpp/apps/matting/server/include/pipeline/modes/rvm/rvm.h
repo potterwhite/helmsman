@@ -81,5 +81,5 @@ class RVMMode {
 	RecurrentStateManager state_mgr_;
 	std::string background_path_;
 	std::string output_bin_path_;
-	cv::Mat bg_model_f32_;  // Pre-computed background at model resolution (CV_32FC3)
+	cv::Mat bg_model_u8_;   // Pre-computed background at model resolution (CV_8UC3)
 };
