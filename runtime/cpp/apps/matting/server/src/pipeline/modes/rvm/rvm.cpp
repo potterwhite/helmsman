@@ -139,17 +139,12 @@ double RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
 	const int model_w = bg_model_u8_.cols;
 	ManualTimer t;
 
-	// 1. Resize alpha (RGA hardware)
+	// 1. Resize alpha (CPU — RGA doesn't support single-channel YUV400 format)
 	cv::Mat alpha_model;
 	t.start();
 	{
 		alpha_model.create(model_h, model_w, CV_8UC1);
-		ImageDescriptor src(alpha_8u.data, alpha_8u.cols, alpha_8u.rows, RgaPixelFormat::kYuv400);
-		ImageDescriptor dst(alpha_model.data, model_w, model_h, RgaPixelFormat::kYuv400);
-		if (!rga_resize_->Execute(src, dst)) {
-			// Fallback to OpenCV on RGA failure
-			cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
-		}
+		cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
 	}
 	acc_resize_alpha_.record(t.stop());
 
