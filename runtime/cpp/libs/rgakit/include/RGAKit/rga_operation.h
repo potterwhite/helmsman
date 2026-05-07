@@ -103,6 +103,7 @@ enum class RgaPixelFormat : int {
     kNv16     = 0x8 << 8,    // YCbCr 4:2:2 semi-planar
     kYuv420P  = 0xb << 8,    // YCbCr 4:2:0 3-plane (planar)
     kYuv420Sp = 0xa << 8,    // Same as kNv12 (alias)
+    kYuv400   = 0x15 << 8,   // Y-only 8-bit (grayscale, single channel)
 };
 
 // ---------------------------------------------------------------------------

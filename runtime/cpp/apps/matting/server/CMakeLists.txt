@@ -96,12 +96,18 @@ if(NOT TARGET ${PROJECT_NAMESPACE}::Runtime)
     find_package(${PROJECT_NAMESPACE}_Runtime REQUIRED)
 endif()
 
+if(NOT TARGET ${PROJECT_NAMESPACE}::RGAKit)
+    message(STATUS "Can`t find ${PROJECT_NAMESPACE}::RGAKit, start searching")
+    find_package(${PROJECT_NAMESPACE}_RGAKit REQUIRED)
+endif()
+
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
         ${PROJECT_NAMESPACE}::Utils
         ${PROJECT_NAMESPACE}::Network
         ${PROJECT_NAMESPACE}::CVKit
         ${PROJECT_NAMESPACE}::Runtime
+        ${PROJECT_NAMESPACE}::RGAKit
 )
 
 # ---------------------------------

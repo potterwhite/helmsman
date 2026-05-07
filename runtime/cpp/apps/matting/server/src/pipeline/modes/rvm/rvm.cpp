@@ -25,10 +25,14 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <thread>
+#include "RGAKit/rga_operation.h"
 #include "Utils/timing/timer.h"
 #include "common/common-define.h"
 #include "pipeline/single-slot-channel.h"
 #include "pipeline/stages/backend/post-processor/guided-filter-post-processor.h"
+
+using arcforge::rgakit::ImageDescriptor;
+using arcforge::rgakit::RgaPixelFormat;
 
 using arcforge::utils::timing::ManualTimer;
 using arcforge::utils::timing::ScopedTimer;
@@ -135,45 +139,83 @@ double RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
 	const int model_w = bg_model_u8_.cols;
 	ManualTimer t;
 
-	// 1. Resize alpha
+	// 1. Resize alpha (RGA hardware)
 	cv::Mat alpha_model;
 	t.start();
-	cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
+	{
+		alpha_model.create(model_h, model_w, CV_8UC1);
+		ImageDescriptor src(alpha_8u.data, alpha_8u.cols, alpha_8u.rows, RgaPixelFormat::kYuv400);
+		ImageDescriptor dst(alpha_model.data, model_w, model_h, RgaPixelFormat::kYuv400);
+		if (!rga_resize_->Execute(src, dst)) {
+			// Fallback to OpenCV on RGA failure
+			cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
+		}
+	}
 	acc_resize_alpha_.record(t.stop());
 
-	// 2. Resize frame
+	// 2. Resize frame (RGA hardware)
 	cv::Mat frame_model;
 	t.start();
-	cv::resize(frame, frame_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
+	{
+		frame_model.create(model_h, model_w, CV_8UC3);
+		ImageDescriptor src(frame.data, frame.cols, frame.rows, RgaPixelFormat::kBgr888);
+		ImageDescriptor dst(frame_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
+		if (!rga_resize_->Execute(src, dst)) {
+			cv::resize(frame, frame_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
+		}
+	}
 	acc_resize_frame_.record(t.stop());
 
-	// 3. Blend (uint8)
+	// 3. Merge alpha into frame as BGRA (required by RGA imcomposite).
+	//    cv::merge is fast at model resolution (~1.5MB for 288×512).
+	t.start();
+	{
+		cv::Mat channels[] = {frame_model, alpha_model};
+		cv::merge(channels, 2, merge_buf_);
+	}
+	acc_blend_.record(t.stop());
+
+	// 4. RGA composite: fg_bgra over bg_bgra → composed_bgr
+	//    This replaces the CPU uint8 blend loop with hardware Porter-Duff compositing.
 	cv::Mat composed_model(model_h, model_w, CV_8UC3);
 	t.start();
 	{
-		const int pixels = model_h * model_w;
-		const uint8_t* fg = frame_model.ptr<uint8_t>(0);
-		const uint8_t* bg = bg_model_u8_.ptr<uint8_t>(0);
-		const uint8_t* a  = alpha_model.ptr<uint8_t>(0);
-		uint8_t* out = composed_model.ptr<uint8_t>(0);
-		for (int i = 0; i < pixels; ++i) {
-			const uint16_t alpha = a[i];
-			const uint16_t inv = 255 - alpha;
-			out[0] = static_cast<uint8_t>((fg[0] * alpha + bg[0] * inv + 1 + ((fg[0] * alpha + bg[0] * inv) >> 8)) >> 8);
-			out[1] = static_cast<uint8_t>((fg[1] * alpha + bg[1] * inv + 1 + ((fg[1] * alpha + bg[1] * inv) >> 8)) >> 8);
-			out[2] = static_cast<uint8_t>((fg[2] * alpha + bg[2] * inv + 1 + ((fg[2] * alpha + bg[2] * inv) >> 8)) >> 8);
-			fg += 3; bg += 3; out += 3;
+		ImageDescriptor fg(merge_buf_.data, model_w, model_h, RgaPixelFormat::kBgra8888);
+		ImageDescriptor bg(bg_model_bgra_.data, model_w, model_h, RgaPixelFormat::kBgra8888);
+		ImageDescriptor dst(composed_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
+		if (!rga_composite_->Execute(fg, bg, dst)) {
+			// Fallback to CPU blend on RGA failure
+			const int pixels = model_h * model_w;
+			const uint8_t* fg_ptr = frame_model.ptr<uint8_t>(0);
+			const uint8_t* bg_ptr = bg_model_u8_.ptr<uint8_t>(0);
+			const uint8_t* a_ptr = alpha_model.ptr<uint8_t>(0);
+			uint8_t* out = composed_model.ptr<uint8_t>(0);
+			for (int i = 0; i < pixels; ++i) {
+				const uint16_t alpha = a_ptr[i];
+				const uint16_t inv = 255 - alpha;
+				out[0] = static_cast<uint8_t>((fg_ptr[0] * alpha + bg_ptr[0] * inv + 1 + ((fg_ptr[0] * alpha + bg_ptr[0] * inv) >> 8)) >> 8);
+				out[1] = static_cast<uint8_t>((fg_ptr[1] * alpha + bg_ptr[1] * inv + 1 + ((fg_ptr[1] * alpha + bg_ptr[1] * inv) >> 8)) >> 8);
+				out[2] = static_cast<uint8_t>((fg_ptr[2] * alpha + bg_ptr[2] * inv + 1 + ((fg_ptr[2] * alpha + bg_ptr[2] * inv) >> 8)) >> 8);
+				fg_ptr += 3; bg_ptr += 3; out += 3;
+			}
 		}
 	}
 	acc_blend_.record(t.stop());
 
-	// 4. Upscale
+	// 5. Upscale (RGA hardware)
 	cv::Mat composed_full;
 	t.start();
-	cv::resize(composed_model, composed_full, frame.size(), 0, 0, cv::INTER_LINEAR);
+	{
+		composed_full.create(frame.rows, frame.cols, CV_8UC3);
+		ImageDescriptor src(composed_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
+		ImageDescriptor dst(composed_full.data, frame.cols, frame.rows, RgaPixelFormat::kBgr888);
+		if (!rga_resize_->Execute(src, dst)) {
+			cv::resize(composed_model, composed_full, frame.size(), 0, 0, cv::INTER_LINEAR);
+		}
+	}
 	acc_upscale_.record(t.stop());
 
-	// 5. Write
+	// 6. Write
 	t.start();
 	writer.write(composed_full);
 	acc_writer_.record(t.stop());
@@ -266,7 +308,22 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 		           0, 0,
 		           cv::INTER_LINEAR);
 		bg_model_u8_ = bg_model.clone();  // uint8 copy for fast compositing
+
+		// Convert to BGRA for RGA hardware composite (imcomposite needs alpha channel in fg).
+		// Background alpha = 255 (fully opaque) — imcomposite uses fg alpha, ignores bg alpha.
+		cv::Mat alpha_full(bg_model.rows, bg_model.cols, CV_8UC1, cv::Scalar(255));
+		cv::Mat bgra_channels[] = {bg_model, alpha_full};
+		cv::merge(bgra_channels, 2, bg_model_bgra_);
+
+		// Pre-allocate merge buffer for per-frame alpha+frame → BGRA conversion.
+		merge_buf_ = cv::Mat(bg_model.rows, bg_model.cols, CV_8UC4);
 	}
+
+	// Create RGA hardware operations (stateless, reused every frame).
+	// RGA resize replaces cv::resize for the downscale/upscale steps.
+	// RGA composite replaces the CPU uint8 blend loop.
+	rga_resize_ = arcforge::rgakit::CreateOperation<arcforge::rgakit::RgaResize>();
+	rga_composite_ = arcforge::rgakit::CreateOperation<arcforge::rgakit::RgaComposite>();
 
 	// -------------------------------------------------------------------------
 	// 3rd — Dual-buffer prefetch worker (producer thread)

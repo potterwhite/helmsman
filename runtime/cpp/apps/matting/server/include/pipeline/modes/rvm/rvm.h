@@ -23,6 +23,8 @@
 #include <memory>
 #include <opencv2/videoio.hpp>
 #include <string>
+#include "RGAKit/rga_composite.h"
+#include "RGAKit/rga_resize.h"
 #include "Utils/timing/timer.h"
 #include "input/input-source.h"
 #include "pipeline/recurrent-state-manager.h"
@@ -83,6 +85,12 @@ class RVMMode {
 	std::string background_path_;
 	std::string output_bin_path_;
 	cv::Mat bg_model_u8_;   // Pre-computed background at model resolution (CV_8UC3)
+	cv::Mat bg_model_bgra_;  // Pre-computed background at model resolution (CV_8UC4, for RGA composite)
+	cv::Mat merge_buf_;      // Pre-allocated BGRA buffer for alpha+frame merge (avoids per-frame alloc)
+
+	// RGA hardware operations (stateless, created once, reused every frame)
+	std::unique_ptr<arcforge::rgakit::RgaResize> rga_resize_;
+	std::unique_ptr<arcforge::rgakit::RgaComposite> rga_composite_;
 
 	// 5.8-s4 instrumentation: per-sub-operation timing in compositeAndWrite()
 	arcforge::utils::timing::StageAccumulator acc_resize_alpha_{"comp::resize_alpha"};
