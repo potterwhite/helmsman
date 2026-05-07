@@ -130,35 +130,50 @@ void RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
 
 	const int model_h = bg_model_u8_.rows;
 	const int model_w = bg_model_u8_.cols;
+	ManualTimer t;
 
-	// 1. Resize alpha and frame to model resolution (uint8)
-	cv::Mat alpha_model, frame_model;
+	// 1. Resize alpha
+	cv::Mat alpha_model;
+	t.start();
 	cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
+	acc_resize_alpha_.record(t.stop());
+
+	// 2. Resize frame
+	cv::Mat frame_model;
+	t.start();
 	cv::resize(frame, frame_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
+	acc_resize_frame_.record(t.stop());
 
-	// 2. Composite at model resolution — pure uint8, zero float32
-	//    Formula: composed = (fg * alpha + bg * (255 - alpha)) / 255
-	//    div255 uses bit-shift: (x + 1 + (x >> 8)) >> 8, exact for 0..65535
+	// 3. Blend (uint8)
 	cv::Mat composed_model(model_h, model_w, CV_8UC3);
-	const int pixels = model_h * model_w;
-	const uint8_t* fg = frame_model.ptr<uint8_t>(0);
-	const uint8_t* bg = bg_model_u8_.ptr<uint8_t>(0);
-	const uint8_t* a  = alpha_model.ptr<uint8_t>(0);
-	uint8_t* out = composed_model.ptr<uint8_t>(0);
-
-	for (int i = 0; i < pixels; ++i) {
-		const uint16_t alpha = a[i];
-		const uint16_t inv = 255 - alpha;
-		out[0] = static_cast<uint8_t>((fg[0] * alpha + bg[0] * inv + 1 + ((fg[0] * alpha + bg[0] * inv) >> 8)) >> 8);
-		out[1] = static_cast<uint8_t>((fg[1] * alpha + bg[1] * inv + 1 + ((fg[1] * alpha + bg[1] * inv) >> 8)) >> 8);
-		out[2] = static_cast<uint8_t>((fg[2] * alpha + bg[2] * inv + 1 + ((fg[2] * alpha + bg[2] * inv) >> 8)) >> 8);
-		fg += 3; bg += 3; out += 3;
+	t.start();
+	{
+		const int pixels = model_h * model_w;
+		const uint8_t* fg = frame_model.ptr<uint8_t>(0);
+		const uint8_t* bg = bg_model_u8_.ptr<uint8_t>(0);
+		const uint8_t* a  = alpha_model.ptr<uint8_t>(0);
+		uint8_t* out = composed_model.ptr<uint8_t>(0);
+		for (int i = 0; i < pixels; ++i) {
+			const uint16_t alpha = a[i];
+			const uint16_t inv = 255 - alpha;
+			out[0] = static_cast<uint8_t>((fg[0] * alpha + bg[0] * inv + 1 + ((fg[0] * alpha + bg[0] * inv) >> 8)) >> 8);
+			out[1] = static_cast<uint8_t>((fg[1] * alpha + bg[1] * inv + 1 + ((fg[1] * alpha + bg[1] * inv) >> 8)) >> 8);
+			out[2] = static_cast<uint8_t>((fg[2] * alpha + bg[2] * inv + 1 + ((fg[2] * alpha + bg[2] * inv) >> 8)) >> 8);
+			fg += 3; bg += 3; out += 3;
+		}
 	}
+	acc_blend_.record(t.stop());
 
-	// 3. Upscale to source resolution and write
+	// 4. Upscale
 	cv::Mat composed_full;
+	t.start();
 	cv::resize(composed_model, composed_full, frame.size(), 0, 0, cv::INTER_LINEAR);
+	acc_upscale_.record(t.stop());
+
+	// 5. Write
+	t.start();
 	writer.write(composed_full);
+	acc_writer_.record(t.stop());
 }
 
 RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& model_path,
@@ -348,6 +363,11 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 
 	preprocess_acc.report(timing_enabled, logger, kRvmModuleName);
 	infer_acc.report(timing_enabled, logger, kRvmModuleName);
+	acc_resize_alpha_.report(timing_enabled, logger, kRvmModuleName);
+	acc_resize_frame_.report(timing_enabled, logger, kRvmModuleName);
+	acc_blend_.report(timing_enabled, logger, kRvmModuleName);
+	acc_upscale_.report(timing_enabled, logger, kRvmModuleName);
+	acc_writer_.report(timing_enabled, logger, kRvmModuleName);
 
 	if (video_writer.isOpened()) {
 		video_writer.release();
