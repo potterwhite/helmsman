@@ -42,13 +42,14 @@ namespace arcforge {
 namespace rgakit {
 
 static rga_buffer_t ToRgaBuffer(const ImageDescriptor& desc) {
-    return wrapbuffer_virtualaddr(
-        desc.data,
-        desc.width,
-        desc.height,
-        desc.wstride > 0 ? desc.wstride : desc.width,
-        desc.hstride > 0 ? desc.hstride : desc.height,
-        static_cast<int>(desc.format));
+    // wrapbuffer_virtualaddr is a MACRO: (vir_addr, width, height, format, wstride, hstride)
+    // Must always pass wstride+hstride in C++ to avoid zero-size array error.
+    const int w = desc.width;
+    const int h = desc.height;
+    const int fmt = static_cast<int>(desc.format);
+    const int ws = desc.wstride > 0 ? desc.wstride : desc.width;
+    const int hs = desc.hstride > 0 ? desc.hstride : desc.height;
+    return wrapbuffer_virtualaddr(desc.data, w, h, fmt, ws, hs);
 }
 
 // ---------------------------------------------------------------------------
