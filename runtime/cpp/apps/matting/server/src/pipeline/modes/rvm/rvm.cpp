@@ -124,9 +124,12 @@ void RVMMode::runPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChanne
 	tensor_ch.close();
 }
 
-void RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
+double RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
                                 const cv::Mat& alpha_8u) {
-	if (!writer.isOpened() || alpha_8u.empty()) return;
+	if (!writer.isOpened() || alpha_8u.empty()) return 0.0;
+
+	ManualTimer total_t;
+	total_t.start();
 
 	const int model_h = bg_model_u8_.rows;
 	const int model_w = bg_model_u8_.cols;
@@ -174,6 +177,8 @@ void RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
 	t.start();
 	writer.write(composed_full);
 	acc_writer_.record(t.stop());
+
+	return total_t.elapsed_ms();
 }
 
 RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& model_path,
@@ -283,7 +288,8 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	SingleSlotChannel<TensorData> tensor_ch;
 
 	StageAccumulator preprocess_acc("worker::preprocess");
-	StageAccumulator infer_acc("main::infer+composite");
+	StageAccumulator infer_acc("main::infer");
+	StageAccumulator comp_acc("main::composite");
 
 	std::thread prefetch_worker(&RVMMode::runPrefetchWorker, this, model_input_width,
 	                            model_input_height, std::ref(raw_ch), std::ref(tensor_ch),
@@ -348,8 +354,16 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 		ManualTimer infer_t;
 		infer_t.start();
 		cv::Mat alpha_8u = inferOneFrame(engine, *tensor_opt, current_frame);
-		compositeAndWrite(video_writer, current_frame, alpha_8u);
-		infer_acc.record(infer_t.stop());
+		const double infer_ms = infer_t.stop();
+		infer_acc.record(infer_ms);
+
+		const double comp_ms = compositeAndWrite(video_writer, current_frame, alpha_8u);
+		comp_acc.record(comp_ms);
+
+		logger.Info("[PerFrame] frame=" + std::to_string(frame_count) +
+		                "  infer=" + std::to_string(infer_ms) + "ms" +
+		                "  composite=" + std::to_string(comp_ms) + "ms",
+		            kRvmModuleName);
 
 		current_frame = std::move(next_frame);  // advance sliding window
 		frame_count++;
@@ -363,6 +377,7 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 
 	preprocess_acc.report(timing_enabled, logger, kRvmModuleName);
 	infer_acc.report(timing_enabled, logger, kRvmModuleName);
+	comp_acc.report(timing_enabled, logger, kRvmModuleName);
 	acc_resize_alpha_.report(timing_enabled, logger, kRvmModuleName);
 	acc_resize_frame_.report(timing_enabled, logger, kRvmModuleName);
 	acc_blend_.report(timing_enabled, logger, kRvmModuleName);

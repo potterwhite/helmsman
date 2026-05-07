@@ -61,7 +61,8 @@ class RVMMode {
 	                     double fps);
 	cv::Mat loadOrCreateBackground(int width, int height);
 	cv::Mat inferOneFrame(InferenceEngine* engine, const TensorData& src, const cv::Mat& guide_bgr);
-	void compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame, const cv::Mat& alpha_8u);
+	// Returns total composite time in ms (for per-frame logging).
+	double compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame, const cv::Mat& alpha_8u);
 
 	/**
      * Body of the prefetch worker thread.
