@@ -42,11 +42,18 @@ extern std::atomic<bool> g_stop_signal_received;
 
 inline constexpr std::string_view kRvmModuleName = "RVMMode";
 
-void RVMMode::initRecurrentStates(size_t /*model_input_height*/, size_t /*model_input_width*/) {
-	// Initialise all four recurrent states to [1,1,1,1] zeros.
-	// ONNX Runtime broadcasts these to the correct shape at the first inference call.
-	state_mgr_.init({{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
-	                {"r1i", "r2i", "r3i", "r4i"});
+void RVMMode::initRecurrentStates(InferenceEngine* engine) {
+	// Try to get recurrent state shapes from the engine (RKNN reports actual shapes).
+	auto shapes = engine->getRecurrentStateShapes();
+	if (shapes.size() == 4) {
+		auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+		logger.Info("Using model-reported recurrent state shapes", kRvmModuleName);
+		state_mgr_.init(shapes, {"r1i", "r2i", "r3i", "r4i"});
+	} else {
+		// Fallback: use [1,1,1,1] (ONNX broadcasts, RKNN first frame uses zeros).
+		state_mgr_.init({{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
+		                {"r1i", "r2i", "r3i", "r4i"});
+	}
 }
 
 bool RVMMode::openVideoWriter(cv::VideoWriter& writer, const std::string& path, int width,
@@ -335,7 +342,7 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& mode
 	setup.model_input_height = engine->getInputHeight() > 0 ? engine->getInputHeight() : 288;
 	setup.model_input_width = engine->getInputWidth() > 0 ? engine->getInputWidth() : 512;
 
-	initRecurrentStates(setup.model_input_height, setup.model_input_width);
+	initRecurrentStates(engine);
 
 	frontend_.setOutputBinPath(output_bin_path);
 	prefetch_frontend_.setOutputBinPath(output_bin_path);

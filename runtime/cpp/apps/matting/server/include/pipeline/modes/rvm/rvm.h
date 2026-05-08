@@ -59,7 +59,7 @@ class RVMMode {
 	                       const std::string& output_bin_path, const std::string& background_path,
 	                       bool timing_enabled);
 
-	void initRecurrentStates(size_t model_input_height, size_t model_input_width);
+	void initRecurrentStates(InferenceEngine* engine);
 	bool openVideoWriter(cv::VideoWriter& writer, const std::string& path, int width, int height,
 	                     double fps);
 	cv::Mat loadOrCreateBackground(int width, int height);

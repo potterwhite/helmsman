@@ -61,6 +61,22 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 		return input_attrs_.empty() ? 0 : static_cast<size_t>(input_attrs_[0].dims[2]);
 	}
 
+	// Return the shapes of recurrent state inputs (inputs 1..N).
+	// For RVM: inputs[1]=r1i, inputs[2]=r2i, inputs[3]=r3i, inputs[4]=r4i.
+	// Returns shapes in the model's native layout (NHWC for RKNN).
+	std::vector<std::vector<int64_t>> getRecurrentStateShapes() const override {
+		std::vector<std::vector<int64_t>> shapes;
+		// Skip input 0 (image/src), return shapes for inputs 1..N-1
+		for (size_t i = 1; i < input_attrs_.size(); ++i) {
+			std::vector<int64_t> shape;
+			for (uint32_t d = 0; d < input_attrs_[i].n_dims; ++d) {
+				shape.push_back(static_cast<int64_t>(input_attrs_[i].dims[d]));
+			}
+			shapes.push_back(std::move(shape));
+		}
+		return shapes;
+	}
+
    private:
 	// member functions
 	void releaseBuffers();

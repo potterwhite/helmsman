@@ -56,6 +56,11 @@ class InferenceEngine {
 	virtual std::size_t getInputHeight() const { return 0; }
 	virtual std::size_t getInputWidth()  const { return 0; }
 
+	// Get the shapes of recurrent state inputs (inputs 1..4 for RVM).
+	// Returns empty vector if not available (e.g. ONNX engine).
+	// Used by Pipeline to initialize RecurrentStateManager with correct shapes.
+	virtual std::vector<std::vector<int64_t>> getRecurrentStateShapes() const { return {}; }
+
 	// Optional: path for debug binary dumps.
 	virtual void setOutputBinPath(const std::string& path) { output_bin_path_ = path; }
 
