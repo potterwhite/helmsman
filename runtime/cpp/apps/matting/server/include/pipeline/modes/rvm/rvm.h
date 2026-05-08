@@ -23,6 +23,7 @@
 #include <memory>
 #include <opencv2/videoio.hpp>
 #include <string>
+#include "DmaKit/dma_buffer.h"
 #include "RGAKit/rga_composite.h"
 #include "RGAKit/rga_resize.h"
 #include "Utils/timing/timer.h"
@@ -66,6 +67,15 @@ class RVMMode {
 	// Returns total composite time in ms (for per-frame logging).
 	double compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame, const cv::Mat& alpha_8u);
 
+	// DMA zero-copy composite: composites into a pre-allocated DMA buffer.
+	// Returns the DMA buffer fd (valid until next call or destruction).
+	// The buffer is allocated once at initOutputDma() and reused every frame.
+	int compositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u);
+
+	// Allocate the output DMA buffer for the given source dimensions.
+	// Must be called before compositeToDma(). Returns false on failure.
+	bool initOutputDma(int src_width, int src_height);
+
 	/**
      * Body of the prefetch worker thread.
      * Loops: pop raw frame from raw_ch → preprocess → push tensor to tensor_ch.
@@ -91,6 +101,9 @@ class RVMMode {
 	// RGA hardware operations (stateless, created once, reused every frame)
 	std::unique_ptr<arcforge::rgakit::RgaResize> rga_resize_;
 	std::unique_ptr<arcforge::rgakit::RgaComposite> rga_composite_;
+
+	// DMA zero-copy output buffer (allocated once, reused every frame)
+	std::unique_ptr<arcforge::dmakit::DmaBuffer> dma_output_buf_;
 
 	// 5.8-s4 instrumentation: per-sub-operation timing in compositeAndWrite()
 	arcforge::utils::timing::StageAccumulator acc_resize_alpha_{"comp::resize_alpha"};

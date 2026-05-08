@@ -101,6 +101,11 @@ if(NOT TARGET ${PROJECT_NAMESPACE}::RGAKit)
     find_package(${PROJECT_NAMESPACE}_RGAKit REQUIRED)
 endif()
 
+if(NOT TARGET ${PROJECT_NAMESPACE}::DmaKit)
+    message(STATUS "Can`t find ${PROJECT_NAMESPACE}::DmaKit, start searching")
+    find_package(${PROJECT_NAMESPACE}_DmaKit REQUIRED)
+endif()
+
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
         ${PROJECT_NAMESPACE}::Utils
@@ -108,6 +113,7 @@ target_link_libraries(${PROJECT_NAME}
         ${PROJECT_NAMESPACE}::CVKit
         ${PROJECT_NAMESPACE}::Runtime
         ${PROJECT_NAMESPACE}::RGAKit
+        ${PROJECT_NAMESPACE}::DmaKit
 )
 
 # ---------------------------------

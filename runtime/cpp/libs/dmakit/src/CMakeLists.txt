@@ -1,4 +1,4 @@
-# Copyright (c) 2025 PotterWhite
+# Copyright (c) 2026 PotterWhite
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -18,19 +18,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+#
+# dmakit/src/CMakeLists.txt
+#
 
-# ---------------------------------
-# I. Main Executes
-# ---------------------------------
-add_subdirectory(utils)
-add_subdirectory(network)
-
-add_subdirectory(cvkit)
-add_subdirectory(mppkit)
-add_subdirectory(rgakit)
-add_subdirectory(dmakit)
-add_subdirectory(runtime)
-
-# ---------------------------------
-#               End
-# ---------------------------------
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/dma_buffer.cpp
+)

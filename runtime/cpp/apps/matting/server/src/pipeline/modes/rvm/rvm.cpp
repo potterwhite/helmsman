@@ -218,6 +218,108 @@ double RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
 	return total_t.elapsed_ms();
 }
 
+bool RVMMode::initOutputDma(int src_width, int src_height) {
+	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+	const size_t buf_bytes = static_cast<size_t>(src_width) * static_cast<size_t>(src_height) * 3;  // BGR888
+	dma_output_buf_ = arcforge::dmakit::DmaBuffer::Allocate(buf_bytes);
+	if (!dma_output_buf_) {
+		logger.Warning("Failed to allocate DMA output buffer (" + std::to_string(buf_bytes) +
+		                   " bytes). Falling back to VideoWriter.",
+		               kRvmModuleName);
+		return false;
+	}
+	// Map once so we can use the virtual address as RGA destination.
+	dma_output_buf_->map();
+	logger.Info("DMA output buffer allocated: fd=" + std::to_string(dma_output_buf_->fd()) +
+	                ", size=" + std::to_string(buf_bytes) + " bytes (" +
+	                std::to_string(src_width) + "x" + std::to_string(src_height) + " BGR)",
+	            kRvmModuleName);
+	return true;
+}
+
+int RVMMode::compositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u) {
+	if (!dma_output_buf_ || alpha_8u.empty()) return -1;
+
+	const int model_h = bg_model_u8_.rows;
+	const int model_w = bg_model_u8_.cols;
+	ManualTimer t;
+
+	// 1. Resize alpha (CPU — RGA doesn't support single-channel YUV400 format)
+	cv::Mat alpha_model;
+	t.start();
+	{
+		alpha_model.create(model_h, model_w, CV_8UC1);
+		cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
+	}
+	acc_resize_alpha_.record(t.stop());
+
+	// 2. Resize frame (RGA hardware)
+	cv::Mat frame_model;
+	t.start();
+	{
+		frame_model.create(model_h, model_w, CV_8UC3);
+		ImageDescriptor src(frame.data, frame.cols, frame.rows, RgaPixelFormat::kBgr888);
+		ImageDescriptor dst(frame_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
+		if (!rga_resize_->Execute(src, dst)) {
+			cv::resize(frame, frame_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
+		}
+	}
+	acc_resize_frame_.record(t.stop());
+
+	// 3. Merge alpha into frame as BGRA (required by RGA imcomposite).
+	t.start();
+	{
+		cv::Mat channels[] = {frame_model, alpha_model};
+		cv::merge(channels, 2, merge_buf_);
+	}
+	acc_blend_.record(t.stop());
+
+	// 4. RGA composite: fg_bgra over bg_bgra → composed_bgr
+	cv::Mat composed_model(model_h, model_w, CV_8UC3);
+	t.start();
+	{
+		ImageDescriptor fg(merge_buf_.data, model_w, model_h, RgaPixelFormat::kBgra8888);
+		ImageDescriptor bg(bg_model_bgra_.data, model_w, model_h, RgaPixelFormat::kBgra8888);
+		ImageDescriptor dst(composed_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
+		if (!rga_composite_->Execute(fg, bg, dst)) {
+			// Fallback to CPU blend
+			const int pixels = model_h * model_w;
+			const uint8_t* fg_ptr = frame_model.ptr<uint8_t>(0);
+			const uint8_t* bg_ptr = bg_model_u8_.ptr<uint8_t>(0);
+			const uint8_t* a_ptr = alpha_model.ptr<uint8_t>(0);
+			uint8_t* out = composed_model.ptr<uint8_t>(0);
+			for (int i = 0; i < pixels; ++i) {
+				const uint16_t alpha = a_ptr[i];
+				const uint16_t inv = 255 - alpha;
+				out[0] = static_cast<uint8_t>((fg_ptr[0] * alpha + bg_ptr[0] * inv + 1 + ((fg_ptr[0] * alpha + bg_ptr[0] * inv) >> 8)) >> 8);
+				out[1] = static_cast<uint8_t>((fg_ptr[1] * alpha + bg_ptr[1] * inv + 1 + ((fg_ptr[1] * alpha + bg_ptr[1] * inv) >> 8)) >> 8);
+				out[2] = static_cast<uint8_t>((fg_ptr[2] * alpha + bg_ptr[2] * inv + 1 + ((fg_ptr[2] * alpha + bg_ptr[2] * inv) >> 8)) >> 8);
+				fg_ptr += 3; bg_ptr += 3; out += 3;
+			}
+		}
+	}
+	acc_blend_.record(t.stop());
+
+	// 5. Upscale directly into DMA buffer (RGA hardware, zero-copy)
+	t.start();
+	{
+		void* dma_ptr = dma_output_buf_->map();
+		if (dma_ptr) {
+			ImageDescriptor src_desc(composed_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
+			ImageDescriptor dst_desc(dma_ptr, frame.cols, frame.rows, RgaPixelFormat::kBgr888);
+			if (!rga_resize_->Execute(src_desc, dst_desc)) {
+				// Fallback: CPU upscale then memcpy to DMA
+				cv::Mat composed_full;
+				cv::resize(composed_model, composed_full, frame.size(), 0, 0, cv::INTER_LINEAR);
+				memcpy(dma_ptr, composed_full.data, composed_full.total() * composed_full.elemSize());
+			}
+		}
+	}
+	acc_upscale_.record(t.stop());
+
+	return dma_output_buf_->fd();
+}
+
 RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& model_path,
                                 const std::string& output_bin_path,
                                 const std::string& background_path, bool timing_enabled) {
@@ -288,8 +390,12 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	const double output_fps = (src_fps > 0) ? src_fps : 30.0;
 	const std::string output_video_path = output_bin_path + "/output_composited.mp4";
 
+	// Try DMA zero-copy output first. If it fails, fall back to VideoWriter.
+	const bool use_dma_output = initOutputDma(src_width, src_height);
 	cv::VideoWriter video_writer;
-	openVideoWriter(video_writer, output_video_path, src_width, src_height, output_fps);
+	if (!use_dma_output) {
+		openVideoWriter(video_writer, output_video_path, src_width, src_height, output_fps);
+	}
 
 	cv::Mat bg_bgr = loadOrCreateBackground(src_width, src_height);
 
@@ -358,6 +464,8 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	raw_ch.push(current_frame);  // worker starts preprocessing frame 0 immediately
 
 	int frame_count = 0;
+	auto fps_window_start = std::chrono::steady_clock::now();
+	auto pipeline_start = fps_window_start;
 
 	// -------------------------------------------------------------------------
 	// 4th — Main inference loop  (consumer side of the dual-buffer pipeline)
@@ -409,7 +517,18 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 		const double infer_ms = infer_t.stop();
 		infer_acc.record(infer_ms);
 
-		const double comp_ms = compositeAndWrite(video_writer, current_frame, alpha_8u);
+		double comp_ms;
+		if (use_dma_output) {
+			ManualTimer dma_t;
+			dma_t.start();
+			const int output_fd = compositeToDma(current_frame, alpha_8u);
+			comp_ms = dma_t.stop();
+			if (frame_count == 0) {
+				logger.Info("DMA output fd=" + std::to_string(output_fd), kRvmModuleName);
+			}
+		} else {
+			comp_ms = compositeAndWrite(video_writer, current_frame, alpha_8u);
+		}
 		comp_acc.record(comp_ms);
 
 		logger.Info("[PerFrame] frame=" + std::to_string(frame_count) +
@@ -419,6 +538,16 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 
 		current_frame = std::move(next_frame);  // advance sliding window
 		frame_count++;
+
+		// FPS measurement: report every 30 frames
+		if (frame_count % 30 == 0) {
+			auto now = std::chrono::steady_clock::now();
+			double elapsed = std::chrono::duration<double>(now - fps_window_start).count();
+			logger.Info("[FPS] " + std::to_string(30.0 / elapsed) + " fps (last 30 frames in " +
+			            std::to_string(elapsed) + "s)",
+			            kRvmModuleName);
+			fps_window_start = now;
+		}
 
 		if (!has_next)
 			break;
@@ -440,6 +569,19 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 		video_writer.release();
 		logger.Info("Video compositing complete: " + std::to_string(frame_count) +
 		                " frames written to " + output_video_path,
+		            kRvmModuleName);
+	}
+	if (use_dma_output) {
+		logger.Info("DMA output: " + std::to_string(frame_count) +
+		                " frames composited to DMA fd=" + std::to_string(dma_output_buf_->fd()),
+		            kRvmModuleName);
+	}
+	if (frame_count > 0) {
+		const double total_elapsed =
+		    std::chrono::duration<double>(std::chrono::steady_clock::now() - pipeline_start).count();
+		const double avg_fps = static_cast<double>(frame_count) / total_elapsed;
+		logger.Info("[FPS] Total: " + std::to_string(frame_count) + " frames in " +
+		            std::to_string(total_elapsed) + "s = " + std::to_string(avg_fps) + " fps",
 		            kRvmModuleName);
 	}
 	logger.Info("RVM video pipeline finished. Total frames: " + std::to_string(frame_count),

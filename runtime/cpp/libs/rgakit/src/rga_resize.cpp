@@ -62,19 +62,13 @@ namespace rgakit {
 //   - format: pixel format constant
 // ---------------------------------------------------------------------------
 static rga_buffer_t ToRgaBuffer(const ImageDescriptor& desc) {
-    // wrapbuffer_virtualaddr is a MACRO with parameter order:
-    //   (vir_addr, width, height, format, wstride, hstride)
-    // NOT (vir_addr, width, height, wstride, hstride, format)!
-    //
-    // IMPORTANT: In C++ mode, calling with 0 variadic args causes
-    // "zero-size array '__args'" error because the macro does
-    // int __args[] = {__VA_ARGS__} which becomes int __args[] = {}.
-    // So we MUST always pass wstride and hstride explicitly.
     const int w = desc.width;
     const int h = desc.height;
     const int fmt = static_cast<int>(desc.format);
     const int ws = desc.wstride > 0 ? desc.wstride : desc.width;
     const int hs = desc.hstride > 0 ? desc.hstride : desc.height;
+    if (desc.fd >= 0)
+        return wrapbuffer_fd(desc.fd, w, h, fmt, ws, hs);
     return wrapbuffer_virtualaddr(desc.data, w, h, fmt, ws, hs);
 }
 

@@ -220,6 +220,19 @@ struct ImageDescriptor {
                                    RgaPixelFormat fmt) {
         return ImageDescriptor(ptr, w, h, fmt);
     }
+
+    // Convenience: create from DMA buffer fd (for zero-copy pipelines).
+    static ImageDescriptor FromFd(int fd, int w, int h,
+                                  RgaPixelFormat fmt) {
+        ImageDescriptor desc;
+        desc.fd = fd;
+        desc.width = w;
+        desc.height = h;
+        desc.wstride = w;
+        desc.hstride = h;
+        desc.format = fmt;
+        return desc;
+    }
 };
 
 // ---------------------------------------------------------------------------

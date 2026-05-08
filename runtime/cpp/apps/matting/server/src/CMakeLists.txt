@@ -58,6 +58,7 @@ set(PIPELINE_BACKEND_SOURCES
 set(PIPELINE_MODES_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/modes/modnet/modnet.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/modes/rvm/rvm.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/modes/rvm/matting-server.cpp"
 )
 
 set(PIPELINE_SOURCES
