@@ -397,12 +397,11 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	const double output_fps = (src_fps > 0) ? src_fps : 30.0;
 	const std::string output_video_path = output_bin_path + "/output_composited.mp4";
 
-	// Try DMA zero-copy output first. If it fails, fall back to VideoWriter.
-	const bool use_dma_output = initOutputDma(src_width, src_height);
+	// DMA zero-copy output disabled: experiment phase needs video file for quality comparison.
+	// Re-enable after sweet-spot experiments: uncomment initOutputDma and restore the if-block.
+	const bool use_dma_output = false;  // was: initOutputDma(src_width, src_height)
 	cv::VideoWriter video_writer;
-	if (!use_dma_output) {
-		openVideoWriter(video_writer, output_video_path, src_width, src_height, output_fps);
-	}
+	openVideoWriter(video_writer, output_video_path, src_width, src_height, output_fps);
 
 	cv::Mat bg_bgr = loadOrCreateBackground(src_width, src_height);
 
