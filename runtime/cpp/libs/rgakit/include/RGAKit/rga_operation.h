@@ -84,26 +84,49 @@ namespace rgakit {
 // These values are identical to RK_FORMAT_* in rga.h. We define our own enum
 // to avoid pulling the C SDK header into our public API.
 //
+// CRITICAL: The numeric values matter! They are passed directly to the RGA
+// hardware via wrapbuffer_virtualaddr(). Wrong value = wrong pixel layout.
+//
+// Format value encoding: RK_FORMAT_XXX = (format_id << 8)
+//   The lower 8 bits are unused (reserved). The format_id identifies the layout.
+//
+// Pixel memory layout (how bytes are arranged in RAM):
+//   kBgr888:   [B0 G0 R0] [B1 G1 R1] ...  (3 bytes/pixel, OpenCV default)
+//   kRgb888:   [R0 G0 B0] [R1 G1 B1] ...  (3 bytes/pixel, PyTorch default)
+//   kBgra8888: [B0 G0 R0 A0] [B1 G1 R1 A1] ...  (4 bytes/pixel, with alpha)
+//   kRgba8888: [R0 G0 B0 A0] [R1 G1 B1 A1] ...  (4 bytes/pixel, OpenGL)
+//   kNv12:     [Y plane] [UV interleaved plane]  (1.5 bytes/pixel, VPU native)
+//
 // Common formats for video pipelines:
 //   kBgr888   — OpenCV default (cv::Mat CV_8UC3)
-//   kRgb888   — many neural network inputs
+//   kRgb888   — many neural network inputs (PyTorch, ONNX)
+//   kBgra8888 — OpenCV with alpha (cv::Mat CV_8UC4), needed for imcomposite fg
 //   kRgba8888 — OpenGL, Android
-//   kNv12     — VPU native format (MPP encoder input)
-//   kNv16     — 4:2:2 semi-planar
-//   kYuv420P  — 3-plane YUV 4:2:0 (FFmpeg default)
+//   kNv12     — VPU native format (MPP encoder input/output)
+//   kYuv400   — single-channel grayscale (RGA does NOT support resize/composite!)
+//
+// RGA FORMAT SUPPORT MATRIX (from our testing on RK3588S):
+//   Operation    | kBgr888 | kBgra8888 | kRgb888 | kNv12 | kYuv400 |
+//   -------------|---------|-----------|---------|-------|---------|
+//   imresize     |   ✅    |    ✅     |   ✅    |  ✅   |   ❌    |
+//   imcomposite  |   ✅*   |    ✅     |   ✅    |  ❌   |   ❌    |
+//   imcvtcolor   |   ✅    |    ✅     |   ✅    |  ✅   |   ❌    |
+//   * = as dst only (fg must have alpha: BGRA/RGBA)
 // ---------------------------------------------------------------------------
 enum class RgaPixelFormat : int {
-    kRgba8888 = 0x0 << 8,    // R:G:B:A 8:8:8:8
-    kRgbx8888 = 0x1 << 8,    // R:G:B:X 8:8:8:8 (no alpha)
-    kRgb888   = 0x2 << 8,    // R:G:B 8:8:8
-    kBgra8888 = 0x3 << 8,    // B:G:R:A 8:8:8:8
-    kRgb565   = 0x4 << 8,    // R:G:B 5:6:5
-    kBgr888   = 0x7 << 8,    // B:G:R 8:8:8 (OpenCV default)
+    kRgba8888 = 0x0 << 8,    // R:G:B:A 8:8:8:8 (OpenGL, Android)
+    kRgbx8888 = 0x1 << 8,    // R:G:B:X 8:8:8:8 (no alpha, 4 bytes)
+    kRgb888   = 0x2 << 8,    // R:G:B 8:8:8 (3 bytes/pixel)
+    kBgra8888 = 0x3 << 8,    // B:G:R:A 8:8:8:8 (OpenCV + alpha)
+    kRgb565   = 0x4 << 8,    // R:G:B 5:6:5 (2 bytes/pixel, low precision)
+    kBgr888   = 0x7 << 8,    // B:G:R 8:8:8 (OpenCV default, 3 bytes/pixel)
     kNv12     = 0xa << 8,    // YCbCr 4:2:0 semi-planar (NV12, VPU native)
     kNv16     = 0x8 << 8,    // YCbCr 4:2:2 semi-planar
     kYuv420P  = 0xb << 8,    // YCbCr 4:2:0 3-plane (planar)
     kYuv420Sp = 0xa << 8,    // Same as kNv12 (alias)
     kYuv400   = 0x15 << 8,   // Y-only 8-bit (grayscale, single channel)
+                                  // WARNING: RGA does NOT support resize/composite
+                                  // on this format! Use CPU cv::resize instead.
 };
 
 // ---------------------------------------------------------------------------
@@ -134,15 +157,30 @@ enum class RgaCscMode : int {
 // ---------------------------------------------------------------------------
 // RgaBlendMode — Porter-Duff alpha blending modes for imblend()/imcomposite()
 //
+// These are BIT FLAGS (not sequential enum values). They are combined with
+// other flags using bitwise OR:
+//   usage = IM_ALPHA_BLEND_SRC_OVER | IM_ALPHA_BLEND_PRE_MUL;
+//
 // Porter-Duff compositing defines how two images combine based on their alpha
-// channels. "SRC" = foreground, "DST" = background.
+// channels. "SRC" = foreground (srcA), "DST" = background (srcB/dst).
 //
 // For RVM video compositing (alpha * FG + (1-alpha) * BG):
 //   Use kSrcOver — the standard "paint foreground over background" mode.
-//   This is also the default if you don't specify a mode.
+//   Formula: dst = src.alpha * src.rgb + (1 - src.alpha) * dst.rgb
 //
-// Other modes exist for special effects (e.g. kSrc for direct copy,
-// kDstOver for painting behind, etc.).
+// Additional flags (not blend modes, but can be OR'd with them):
+//   IM_ALPHA_BLEND_PRE_MUL = 1 << 25
+//     Tells RGA that source pixels are premultiplied alpha (associated alpha).
+//     Without this flag, RGA assumes straight alpha (unassociated alpha).
+//     Premultiplied: rgb already includes alpha contribution (rgb = alpha * original_rgb)
+//     Straight: rgb is independent of alpha (alpha is separate weight)
+//
+// IMPORTANT: Our RVM pipeline uses STRAIGHT alpha (alpha is a separate matte).
+//   The foreground pixels are NOT premultiplied. So we do NOT use PRE_MUL.
+//
+// KNOWN ISSUE: RGA imcomposite with kSrcOver does NOT produce correct
+//   Porter-Duff output on RK3588S. The hardware blending formula is different
+//   from the documented formula. See rga_composite.cpp header for details.
 // ---------------------------------------------------------------------------
 enum class RgaBlendMode : int {
     kSrcOver = 1 << 6,   // Default: result = SRC*alpha + DST*(1-alpha)
@@ -178,50 +216,78 @@ enum class RgaFlipMode : int {
 // ---------------------------------------------------------------------------
 // ImageDescriptor — describes a pixel buffer for RGA operations
 //
-// RGA needs to know:
-//   - Where the pixels are in memory (data pointer or DMA fd)
-//   - How big the image is (width × height)
-//   - How the pixels are laid out (stride, format)
+// This is our C++ wrapper around the RGA SDK's rga_buffer_t concept.
+// It holds all the information RGA needs to read/write pixel data:
 //
-// For most use cases, use the static From*() helpers:
-//   - FromBgr(cv::Mat)     — OpenCV BGR image
-//   - FromRaw(ptr, w, h)   — raw buffer with default stride
+//   - WHERE the pixels are: data (CPU pointer) or fd (DMA buffer)
+//   - HOW BIG: width × height in pixels
+//   - HOW they're laid out: wstride/hstride (padding), format (pixel layout)
 //
-// For advanced use (DMA buffers, hardware interop), set fd directly.
+// TWO MEMORY MODES:
 //
-// Note on strides:
-//   wstride (width stride) = number of pixels per row, including any padding.
-//   hstride (height stride) = number of rows, including any padding.
-//   For a tightly-packed buffer: wstride == width, hstride == height.
-//   For hardware buffers, strides may be larger (aligned to 16 or 64 bytes).
+//   1. Virtual address mode (data != nullptr, fd == -1):
+//      Uses malloc/new'd memory. RGA driver maps it for DMA access.
+//      Simple but may have performance issues on some platforms.
+//      Example: ImageDescriptor(mat.data, w, h, kBgr888)
+//
+//   2. DMA fd mode (fd >= 0):
+//      Uses DMA-buf file descriptor. Zero-copy, best performance.
+//      The buffer is allocated by the kernel (ion_alloc or CMA).
+//      Example: ImageDescriptor::FromFd(dma_fd, w, h, kBgr888)
+//
+// STRIDE EXPLAINED:
+//   wstride = number of pixels per row, INCLUDING any padding
+//   hstride = number of rows, INCLUDING any padding
+//   For tightly-packed buffers (like cv::Mat): wstride == width, hstride == height
+//   For hardware buffers: strides may be larger (aligned to 16 or 64 bytes)
+//
+//   Example: A 1920×1080 BGR image with 64-byte row alignment:
+//     Row bytes = 1920 * 3 = 5760 bytes
+//     Aligned row bytes = ceil(5760/64) * 64 = 5760 (already aligned)
+//     wstride = 1920, hstride = 1080
+//
+// HOW TO USE:
+//   From OpenCV Mat:
+//     cv::Mat frame(1080, 1920, CV_8UC3);
+//     ImageDescriptor desc(frame.data, frame.cols, frame.rows, kBgr888);
+//
+//   From raw buffer:
+//     uint8_t* buf = malloc(w * h * 3);
+//     ImageDescriptor desc(buf, w, h, kBgr888);
+//
+//   From DMA buffer:
+//     int fd = ion_alloc(size);
+//     ImageDescriptor desc = ImageDescriptor::FromFd(fd, w, h, kBgr888);
 // ---------------------------------------------------------------------------
 struct ImageDescriptor {
-    void* data = nullptr;        // Virtual address of pixel data
+    void* data = nullptr;        // Virtual address of pixel data (CPU pointer)
     int fd = -1;                 // DMA file descriptor (-1 = not using DMA)
     int width = 0;               // Image width in pixels
     int height = 0;              // Image height in pixels
-    int wstride = 0;             // Width stride in pixels (>= width)
-    int hstride = 0;             // Height stride in pixels (>= height)
+    int wstride = 0;             // Width stride in pixels (>= width, row padding)
+    int hstride = 0;             // Height stride in pixels (>= height, row count)
     RgaPixelFormat format = RgaPixelFormat::kBgr888;  // Pixel format
 
     // Default constructor — empty descriptor (must be filled manually).
     ImageDescriptor() = default;
 
-    // Full constructor — specify everything.
+    // Constructor: tightly-packed layout (wstride=width, hstride=height).
+    // Most common case for OpenCV Mat and malloc'd buffers.
     ImageDescriptor(void* d, int w, int h, RgaPixelFormat fmt)
         : data(d), width(w), height(h), wstride(w), hstride(h), format(fmt) {}
 
-    // Full constructor with custom strides.
+    // Constructor: custom strides for hardware-aligned buffers.
     ImageDescriptor(void* d, int w, int h, int ws, int hs, RgaPixelFormat fmt)
         : data(d), width(w), height(h), wstride(ws), hstride(hs), format(fmt) {}
 
-    // Convenience: create from raw pointer with tightly-packed layout.
+    // Create from raw pointer with tightly-packed layout.
     static ImageDescriptor FromRaw(void* ptr, int w, int h,
                                    RgaPixelFormat fmt) {
         return ImageDescriptor(ptr, w, h, fmt);
     }
 
-    // Convenience: create from DMA buffer fd (for zero-copy pipelines).
+    // Create from DMA buffer fd (for zero-copy pipelines).
+    // The fd is obtained from ion_alloc() or dma_buf_alloc().
     static ImageDescriptor FromFd(int fd, int w, int h,
                                   RgaPixelFormat fmt) {
         ImageDescriptor desc;
