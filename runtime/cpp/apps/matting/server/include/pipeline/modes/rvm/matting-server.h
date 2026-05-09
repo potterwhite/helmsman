@@ -44,7 +44,6 @@
 #include <memory>
 #include <string>
 #include "DmaKit/dma_buffer.h"
-#include "RGAKit/rga_composite.h"
 #include "RGAKit/rga_resize.h"
 #include "pipeline/recurrent-state-manager.h"
 #include "pipeline/stages/backend/backend.h"
@@ -96,12 +95,9 @@ class MattingServer {
 
 	// Pre-computed background at model resolution
 	cv::Mat bg_model_u8_;
-	cv::Mat bg_model_bgra_;
-	cv::Mat merge_buf_;
 
 	// RGA hardware operations
 	std::unique_ptr<arcforge::rgakit::RgaResize> rga_resize_;
-	std::unique_ptr<arcforge::rgakit::RgaComposite> rga_composite_;
 
 	// DMA buffers
 	std::unique_ptr<arcforge::dmakit::DmaBuffer> dma_output_buf_;

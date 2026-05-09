@@ -122,17 +122,9 @@ int MattingServer::processFrame(int input_fd, int input_w, int input_h) {
 		cv::resize(input_frame, frame_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
 	}
 
-	// 8c. Merge alpha + frame → BGRA.
-	cv::Mat channels[] = {frame_model, alpha_model};
-	cv::merge(channels, 2, merge_buf_);
-
-	// 8d. RGA composite: fg_bgra over bg_bgra → composed_bgr.
+	// 8c. CPU alpha blend: fg_bgr * alpha + bg_bgr * (1-alpha) → composed_bgr.
 	cv::Mat composed_model(model_h, model_w, CV_8UC3);
-	ImageDescriptor fg_desc(merge_buf_.data, model_w, model_h, RgaPixelFormat::kBgra8888);
-	ImageDescriptor bg_desc(bg_model_bgra_.data, model_w, model_h, RgaPixelFormat::kBgra8888);
-	ImageDescriptor comp_dst(composed_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
-	if (!rga_composite_->Execute(fg_desc, bg_desc, comp_dst)) {
-		// CPU fallback
+	{
 		const int pixels = model_h * model_w;
 		const uint8_t* fg_ptr = frame_model.ptr<uint8_t>(0);
 		const uint8_t* bg_ptr = bg_model_u8_.ptr<uint8_t>(0);
@@ -168,7 +160,6 @@ int MattingServer::processFrame(int input_fd, int input_w, int input_h) {
 void MattingServer::shutdown() {
 	dma_output_buf_.reset();
 	rga_resize_.reset();
-	rga_composite_.reset();
 	engine_.reset();
 	initialized_ = false;
 }
@@ -179,8 +170,7 @@ void MattingServer::shutdown() {
 
 bool MattingServer::initRga() {
 	rga_resize_ = arcforge::rgakit::CreateOperation<arcforge::rgakit::RgaResize>();
-	rga_composite_ = arcforge::rgakit::CreateOperation<arcforge::rgakit::RgaComposite>();
-	return rga_resize_ && rga_composite_;
+	return rga_resize_ != nullptr;
 }
 
 bool MattingServer::initModel(const std::string& model_path) {
@@ -237,13 +227,5 @@ bool MattingServer::initBackground(const std::string& bg_path, int w, int h) {
 	cv::Mat bg_model;
 	cv::resize(bg_bgr, bg_model, cv::Size(model_w_, model_h_), 0, 0, cv::INTER_LINEAR);
 	bg_model_u8_ = bg_model.clone();
-
-	// Convert to BGRA for RGA composite.
-	cv::Mat alpha_full(bg_model.rows, bg_model.cols, CV_8UC1, cv::Scalar(255));
-	cv::Mat bgra_ch[] = {bg_model, alpha_full};
-	cv::merge(bgra_ch, 2, bg_model_bgra_);
-
-	// Pre-allocate merge buffer.
-	merge_buf_ = cv::Mat(model_h_, model_w_, CV_8UC4);
 	return true;
 }

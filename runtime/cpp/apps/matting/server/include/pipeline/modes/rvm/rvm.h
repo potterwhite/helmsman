@@ -24,7 +24,6 @@
 #include <opencv2/videoio.hpp>
 #include <string>
 #include "DmaKit/dma_buffer.h"
-#include "RGAKit/rga_composite.h"
 #include "RGAKit/rga_resize.h"
 #include "Utils/timing/timer.h"
 #include "input/input-source.h"
@@ -95,12 +94,9 @@ class RVMMode {
 	std::string background_path_;
 	std::string output_bin_path_;
 	cv::Mat bg_model_u8_;   // Pre-computed background at model resolution (CV_8UC3)
-	cv::Mat bg_model_bgra_;  // Pre-computed background at model resolution (CV_8UC4, for RGA composite)
-	cv::Mat merge_buf_;      // Pre-allocated BGRA buffer for alpha+frame merge (avoids per-frame alloc)
 
 	// RGA hardware operations (stateless, created once, reused every frame)
 	std::unique_ptr<arcforge::rgakit::RgaResize> rga_resize_;
-	std::unique_ptr<arcforge::rgakit::RgaComposite> rga_composite_;
 
 	// DMA zero-copy output buffer (allocated once, reused every frame)
 	std::unique_ptr<arcforge::dmakit::DmaBuffer> dma_output_buf_;
