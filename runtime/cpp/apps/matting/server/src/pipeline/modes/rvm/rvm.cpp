@@ -411,9 +411,45 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	SingleSlotChannel<cv::Mat> raw_ch;
 	SingleSlotChannel<TensorData> tensor_ch;
 
+	// =========================================================================
+	// Pipeline timing layout (s10 — full coverage)
+	//
+	// Per-frame wall clock breakdown
+	//
+	//   [main thread]                          [worker thread]
+	//   loop_acc  (whole iteration)
+	//     ├── tensor_ch.pop()    ◄────────────  preprocess_acc
+	//     │   (blocks if worker     pushes here   (run on worker:
+	//     │    not done yet)                       BGR→tensor resize+norm)
+	//     ├── decode_acc         ────────────►   raw_ch.pop()
+	//     │   (read next frame                     (worker waits here)
+	//     │    + push to raw_ch)
+	//     ├── infer_acc           (NPU inference, current frame)
+	//     └── comp_acc            (composite + write, current frame)
+	//             │
+	//             ├── acc_resize_alpha_  (CPU resize alpha → model size)
+	//             ├── acc_resize_frame_  (RGA resize frame → model size)
+	//             ├── acc_blend_         (CPU alpha blend at model size)
+	//             ├── acc_upscale_       (RGA upscale composed → full size)
+	//             └── acc_writer_        (VideoWriter::write — see NOTE below)
+	//
+	// Whole-run timers (overlap with the above; cheap, kept for context)
+	//
+	//   ScopedTimer "Pipeline::run() total"   (pipeline.cpp)  — outermost
+	//   ScopedTimer "runRVM total"            (this fn)        — wraps loop
+	//   ScopedTimer "runRVM: model load"      (this fn)        — model load only
+	//   [FPS]   line every 30 frames                            — moving fps
+	//   [PerFrame] line every frame                             — infer + comp
+	//
+	// Identity (approx, ignoring tiny logging overhead):
+	//   loop_acc ≈ max(tensor_ch.pop wait, 0) + decode_acc + infer_acc + comp_acc
+	//   comp_acc ≈ resize_alpha + resize_frame + blend + upscale + writer
+	// =========================================================================
 	StageAccumulator preprocess_acc("worker::preprocess");
 	StageAccumulator infer_acc("main::infer");
 	StageAccumulator comp_acc("main::composite");
+	StageAccumulator decode_acc("main::decode");        // s10: input_source->read only
+	StageAccumulator loop_acc("main::loop_total");      // s10: whole main-loop iteration (incl. tensor_ch.pop wait)
 
 	std::thread prefetch_worker(&RVMMode::runPrefetchWorker, this, model_input_width,
 	                            model_input_height, std::ref(raw_ch), std::ref(tensor_ch),
@@ -447,6 +483,10 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	//      e. advance current_frame and frame_count; stop when no next frame
 	// -------------------------------------------------------------------------
 	while (true) {
+		// s10: per-iteration wall clock (covers pop-wait + decode + infer + comp)
+		ManualTimer loop_t;
+		loop_t.start();
+
 		// Graceful SIGINT handling: close the feed channel so the worker thread
 		// can exit, then break out — the main thread will join and flush below.
 		if (g_stop_signal_received.load()) {
@@ -467,12 +507,19 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 		// Read the frame that comes *after* the one we are about to infer,
 		// and hand it to the worker immediately so preprocessing overlaps with
 		// inference below (the dual-buffer trick).
+		// s10: time the decode (input_source->read) + handoff together.
 		cv::Mat next_frame;
-		bool has_next = input_source->read(next_frame);
-		if (has_next) {
-			raw_ch.push(next_frame);
-		} else {
-			raw_ch.close();  // no more frames — worker will drain and close tensor_ch
+		bool has_next;
+		{
+			ManualTimer decode_t;
+			decode_t.start();
+			has_next = input_source->read(next_frame);
+			if (has_next) {
+				raw_ch.push(next_frame);
+			} else {
+				raw_ch.close();  // no more frames — worker will drain and close tensor_ch
+			}
+			decode_acc.record(decode_t.stop());
 		}
 
 		// Run inference on the current tensor, postprocess the alpha matte,
@@ -515,6 +562,10 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 			fps_window_start = now;
 		}
 
+		// s10: record per-iteration wall clock — must be the last thing before
+		// loop exit / continue, so it covers everything done above.
+		loop_acc.record(loop_t.stop());
+
 		if (!has_next)
 			break;
 	}
@@ -522,6 +573,8 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	// Wait for the worker thread to finish before destroying the channels.
 	prefetch_worker.join();
 
+	loop_acc.report(timing_enabled, logger, kRvmModuleName);
+	decode_acc.report(timing_enabled, logger, kRvmModuleName);
 	preprocess_acc.report(timing_enabled, logger, kRvmModuleName);
 	infer_acc.report(timing_enabled, logger, kRvmModuleName);
 	comp_acc.report(timing_enabled, logger, kRvmModuleName);
@@ -529,6 +582,9 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	acc_resize_frame_.report(timing_enabled, logger, kRvmModuleName);
 	acc_blend_.report(timing_enabled, logger, kRvmModuleName);
 	acc_upscale_.report(timing_enabled, logger, kRvmModuleName);
+	// NOTE: acc_writer_ measures only the time VideoWriter::write() returns,
+	// NOT actual encoder completion (FFmpeg buffers internally). Treat this
+	// number as a lower bound for the true write cost.
 	acc_writer_.report(timing_enabled, logger, kRvmModuleName);
 
 	if (video_writer.isOpened()) {
