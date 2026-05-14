@@ -25,6 +25,7 @@
 #include <memory>
 #include <string>
 #include "Utils/logger/logger.h"
+#include "common/common-define.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
 #include "pipeline/modes/modnet/modnet.h"
 #include "pipeline/modes/rvm/rvm.h"
@@ -41,7 +42,8 @@ public:
 
     void init(std::unique_ptr<InputSource> input_source, const std::string& model_path,
               const std::string& output_bin_path, const std::string& background_path = "",
-              ModelType model_type = ModelType::kRVM);
+              ModelType model_type = ModelType::kRVM,
+              OutputMode output_mode = OutputMode::kMp4);
 
     void init(const std::string& image_path, const std::string& model_path,
               const std::string& output_bin_path, const std::string& background_path = "",
@@ -67,6 +69,7 @@ private:
     std::string output_bin_path_;
     std::string background_path_;
     ModelType model_type_ = ModelType::kMODNet;
+    OutputMode output_mode_ = OutputMode::kMp4;
 
     bool timing_enabled_ = true;
 

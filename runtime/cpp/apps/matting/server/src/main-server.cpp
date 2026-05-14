@@ -141,6 +141,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	// -----------------------------------------------
 	// Scan for --rvm / --modnet / --timing=off flags, then collect positional args.
 	ModelType model_type    = ModelType::kMODNet;
+	OutputMode output_mode  = OutputMode::kMp4;
 	bool      timing_enabled = true;  // default ON; --timing=off disables
 	std::vector<std::string> positional_args;
 
@@ -149,6 +150,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 			model_type = ModelType::kRVM;
 		} else if (std::strcmp(argv[i], "--modnet") == 0) {
 			model_type = ModelType::kMODNet;  // explicit default
+		} else if (std::strcmp(argv[i], "--output=mp4") == 0) {
+			output_mode = OutputMode::kMp4;
+		} else if (std::strcmp(argv[i], "--output=drm") == 0) {
+			output_mode = OutputMode::kDrm;
 		} else if (std::strcmp(argv[i], "--timing=off") == 0) {
 			timing_enabled = false;
 		} else if (std::strcmp(argv[i], "--timing=on") == 0) {
@@ -160,11 +165,13 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
 	if (positional_args.size() < 3 || positional_args.size() > 4) {
 		std::cerr << "Usage: " << argv[0]
-		          << " <image_path> <model_path> <output_dir> [background_path] [--rvm] [--timing=off]\n"
+		          << " <image_path> <model_path> <output_dir> [background_path] [--rvm] [--output=mp4|drm] [--timing=off]\n"
 		          << "\n"
 		          << "Flags:\n"
 		          << "  --rvm          Use RVM (Robust Video Matting) with recurrent states\n"
 		          << "  --modnet       Use MODNet single-frame matting (default)\n"
+		          << "  --output=mp4   Write composited video to mp4 file (default)\n"
+		          << "  --output=drm   Display on DRM/KMS panel (embedded only)\n"
 		          << "  --timing=off   Disable pipeline timing statistics (default: on)\n"
 		          << "  --timing=on    Enable pipeline timing statistics (default)\n";
 		return 1;
@@ -186,7 +193,9 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	// 3. Log configuration
 	// -----------------------------------------------
 	std::string mode_str = (model_type == ModelType::kRVM) ? "RVM" : "MODNet";
+	std::string output_str = (output_mode == OutputMode::kDrm) ? "DRM" : "MP4";
 	logger.Info("Model type: " + mode_str, kcurrent_module_name);
+	logger.Info("Output mode: " + output_str, kcurrent_module_name);
 	logger.Info("Input:      " + input_path + (is_video ? " (video)" : " (image)"), kcurrent_module_name);
 	logger.Info("Model:      " + model_path, kcurrent_module_name);
 	logger.Info("Output:     " + output_bin_path, kcurrent_module_name);
@@ -209,7 +218,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		            std::to_string(source->fps()) + " fps", kcurrent_module_name);
 
 		pipeline.init(std::move(source), model_path, output_bin_path,
-		              background_path, model_type);
+		              background_path, model_type, output_mode);
 	} else {
 		// Single image mode (existing path)
 		pipeline.init(input_path, model_path, output_bin_path,

@@ -21,6 +21,7 @@
 #include "pipeline/modes/rvm/rvm.h"
 #include <atomic>
 #include <chrono>
+#include <cstring>
 #include <functional>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
@@ -297,6 +298,95 @@ int RVMMode::compositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u) {
 	return dma_output_buf_->fd();
 }
 
+double RVMMode::compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u,
+                               int panel_w, int panel_h) {
+	if (!drm_display_.IsOpen() || alpha_8u.empty()) return 0.0;
+
+	ManualTimer total_t;
+	total_t.start();
+
+	const int model_h = bg_model_u8_.rows;
+	const int model_w = bg_model_u8_.cols;
+	ManualTimer t;
+
+	// 1. Resize alpha (CPU — RGA doesn't support single-channel YUV400 format)
+	cv::Mat alpha_model;
+	t.start();
+	{
+		alpha_model.create(model_h, model_w, CV_8UC1);
+		cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
+	}
+	acc_resize_alpha_.record(t.stop());
+
+	// 2. Resize frame (RGA hardware)
+	cv::Mat frame_model;
+	t.start();
+	{
+		frame_model.create(model_h, model_w, CV_8UC3);
+		ImageDescriptor src(frame.data, frame.cols, frame.rows, RgaPixelFormat::kBgr888);
+		ImageDescriptor dst(frame_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
+		if (!rga_resize_->Execute(src, dst)) {
+			cv::resize(frame, frame_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
+		}
+	}
+	acc_resize_frame_.record(t.stop());
+
+	// 3. CPU alpha blend: fg_bgr * alpha + bg_bgr * (1-alpha) → composed_bgr
+	cv::Mat composed_model(model_h, model_w, CV_8UC3);
+	t.start();
+	{
+		const int pixels = model_h * model_w;
+		const uint8_t* fg_ptr = frame_model.ptr<uint8_t>(0);
+		const uint8_t* bg_ptr = bg_model_u8_.ptr<uint8_t>(0);
+		const uint8_t* a_ptr = alpha_model.ptr<uint8_t>(0);
+		uint8_t* out = composed_model.ptr<uint8_t>(0);
+		for (int i = 0; i < pixels; ++i) {
+			const uint16_t alpha = a_ptr[i];
+			const uint16_t inv = 255 - alpha;
+			out[0] = static_cast<uint8_t>((fg_ptr[0] * alpha + bg_ptr[0] * inv + 1 + ((fg_ptr[0] * alpha + bg_ptr[0] * inv) >> 8)) >> 8);
+			out[1] = static_cast<uint8_t>((fg_ptr[1] * alpha + bg_ptr[1] * inv + 1 + ((fg_ptr[1] * alpha + bg_ptr[1] * inv) >> 8)) >> 8);
+			out[2] = static_cast<uint8_t>((fg_ptr[2] * alpha + bg_ptr[2] * inv + 1 + ((fg_ptr[2] * alpha + bg_ptr[2] * inv) >> 8)) >> 8);
+			fg_ptr += 3; bg_ptr += 3; out += 3;
+		}
+	}
+	acc_blend_.record(t.stop());
+
+	// 4. Upscale to panel size (RGA hardware)
+	cv::Mat composed_panel;
+	t.start();
+	{
+		composed_panel.create(panel_h, panel_w, CV_8UC3);
+		ImageDescriptor src(composed_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
+		ImageDescriptor dst(composed_panel.data, panel_w, panel_h, RgaPixelFormat::kBgr888);
+		if (!rga_resize_->Execute(src, dst)) {
+			cv::resize(composed_model, composed_panel, cv::Size(panel_w, panel_h), 0, 0,
+			           cv::INTER_LINEAR);
+		}
+	}
+	acc_upscale_.record(t.stop());
+
+	// 5. BGR888 → XRGB8888 + ShowARGB
+	t.start();
+	{
+		const int n_pixels = panel_w * panel_h;
+		argb_buf_.resize(static_cast<size_t>(n_pixels) * 4);
+		const uint8_t* bgr = composed_panel.ptr<uint8_t>(0);
+		uint8_t* xrgb = argb_buf_.data();
+		for (int i = 0; i < n_pixels; ++i) {
+			xrgb[0] = bgr[0];  // B → B
+			xrgb[1] = bgr[1];  // G → G
+			xrgb[2] = bgr[2];  // R → R
+			xrgb[3] = 0xFF;    // X (padding)
+			bgr += 3;
+			xrgb += 4;
+		}
+		drm_display_.ShowARGB(argb_buf_.data());
+	}
+	acc_drm_.record(t.stop());
+
+	return total_t.elapsed_ms();
+}
+
 RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& model_path,
                                 const std::string& output_bin_path,
                                 const std::string& background_path, bool timing_enabled) {
@@ -329,7 +419,8 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& mode
 
 int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_source,
                  const std::string& model_path, const std::string& output_bin_path,
-                 const std::string& background_path, bool timing_enabled) {
+                 const std::string& background_path, bool timing_enabled,
+                 OutputMode output_mode) {
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 
 	// Stash paths as member variables so helper methods (e.g. future per-frame
@@ -371,7 +462,21 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	// Re-enable after sweet-spot experiments: uncomment initOutputDma and restore the if-block.
 	const bool use_dma_output = false;  // was: initOutputDma(src_width, src_height)
 	cv::VideoWriter video_writer;
-	openVideoWriter(video_writer, output_video_path, src_width, src_height, output_fps);
+	int drm_panel_w = 0;
+	int drm_panel_h = 0;
+	if (output_mode == OutputMode::kDrm) {
+		if (drm_display_.Init(src_width, src_height)) {
+			std::tie(drm_panel_w, drm_panel_h) = drm_display_.PanelSize();
+			logger.Info("DRM display initialized: panel " + std::to_string(drm_panel_w) + "x" +
+			            std::to_string(drm_panel_h), kRvmModuleName);
+		} else {
+			logger.Warning("DRM init failed. Falling back to mp4.", kRvmModuleName);
+			output_mode = OutputMode::kMp4;
+		}
+	}
+	if (output_mode == OutputMode::kMp4) {
+		openVideoWriter(video_writer, output_video_path, src_width, src_height, output_fps);
+	}
 
 	cv::Mat bg_bgr = loadOrCreateBackground(src_width, src_height);
 
@@ -539,6 +644,8 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 			if (frame_count == 0) {
 				logger.Info("DMA output fd=" + std::to_string(output_fd), kRvmModuleName);
 			}
+		} else if (output_mode == OutputMode::kDrm) {
+			comp_ms = compositeToDrm(current_frame, alpha_8u, drm_panel_w, drm_panel_h);
 		} else {
 			comp_ms = compositeAndWrite(video_writer, current_frame, alpha_8u);
 		}
@@ -586,11 +693,17 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	// NOT actual encoder completion (FFmpeg buffers internally). Treat this
 	// number as a lower bound for the true write cost.
 	acc_writer_.report(timing_enabled, logger, kRvmModuleName);
+	acc_drm_.report(timing_enabled, logger, kRvmModuleName);
 
 	if (video_writer.isOpened()) {
 		video_writer.release();
 		logger.Info("Video compositing complete: " + std::to_string(frame_count) +
 		                " frames written to " + output_video_path,
+		            kRvmModuleName);
+	}
+	if (drm_display_.IsOpen()) {
+		drm_display_.Close();
+		logger.Info("DRM display closed after " + std::to_string(frame_count) + " frames.",
 		            kRvmModuleName);
 	}
 	if (use_dma_output) {

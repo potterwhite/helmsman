@@ -106,6 +106,11 @@ if(NOT TARGET ${PROJECT_NAMESPACE}::DmaKit)
     find_package(${PROJECT_NAMESPACE}_DmaKit REQUIRED)
 endif()
 
+if(NOT TARGET ${PROJECT_NAMESPACE}::DRMKit)
+    message(STATUS "Can`t find ${PROJECT_NAMESPACE}::DRMKit, start searching")
+    find_package(${PROJECT_NAMESPACE}_DRMKit REQUIRED)
+endif()
+
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
         ${PROJECT_NAMESPACE}::Utils
@@ -114,6 +119,7 @@ target_link_libraries(${PROJECT_NAME}
         ${PROJECT_NAMESPACE}::Runtime
         ${PROJECT_NAMESPACE}::RGAKit
         ${PROJECT_NAMESPACE}::DmaKit
+        ${PROJECT_NAMESPACE}::DRMKit
 )
 
 # ---------------------------------
