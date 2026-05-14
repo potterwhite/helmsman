@@ -29,6 +29,7 @@ add_subdirectory(cvkit)
 add_subdirectory(mppkit)
 add_subdirectory(rgakit)
 add_subdirectory(dmakit)
+add_subdirectory(drmkit)
 add_subdirectory(runtime)
 
 # ---------------------------------
