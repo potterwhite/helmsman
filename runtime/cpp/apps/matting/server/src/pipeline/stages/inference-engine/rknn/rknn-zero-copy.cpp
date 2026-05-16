@@ -152,6 +152,14 @@ void InferenceEngineRKNNZeroCP::load(const std::string& model_path) {
 	// Phase V - Set NPU core mask
 	// ----------------------------------------------------------------
 	rknn_core_mask mask = RKNN_NPU_CORE_ALL;
+	// rknn_core_mask mask = RKNN_NPU_CORE_0_1_2;
+	// rknn_core_mask mask = RKNN_NPU_CORE_0_1;
+	// rknn_core_mask mask = RKNN_NPU_CORE_2;
+	// rknn_core_mask mask = RKNN_NPU_CORE_1;
+	// rknn_core_mask mask = RKNN_NPU_CORE_0;
+	// rknn_core_mask mask = RKNN_NPU_CORE_AUTO;
+
+
 	auto retval = rknn_set_core_mask(ctx_, mask);
 	if (retval == RKNN_SUCC) {
 		logger.Info("Set core to " + arcforge::runtime::to_string(mask) + " Successfully");
