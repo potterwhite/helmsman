@@ -115,7 +115,7 @@ cv::Mat RVMMode::inferOneFrame(InferenceEngine* engine, const TensorData& src,
 
 void RVMMode::runPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChannel<cv::Mat>& raw_ch,
                                 SingleSlotChannel<TensorData>& tensor_ch,
-                                StageAccumulator& preprocess_acc) {
+                                StageAccumulator& acc_1st_worker_preprocess) {
 	while (true) {
 		// Block until a raw frame is available, or the channel is closed (EOF).
 		auto frame_opt = raw_ch.pop();
@@ -128,7 +128,7 @@ void RVMMode::runPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChanne
 		// prefetch_frontend_ is a separate ImageFrontend instance so this thread
 		// never races with the main thread's frontend_ usage.
 		auto tensor = prefetch_frontend_.preprocess(*frame_opt, model_w, model_h);
-		preprocess_acc.record(t.stop());
+		acc_1st_worker_preprocess.record(t.stop());
 
 		tensor_ch.push(std::move(tensor));
 	}
@@ -137,8 +137,9 @@ void RVMMode::runPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChanne
 }
 
 double RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
-                                const cv::Mat& alpha_8u) {
-	if (!writer.isOpened() || alpha_8u.empty()) return 0.0;
+                                  const cv::Mat& alpha_8u) {
+	if (!writer.isOpened() || alpha_8u.empty())
+		return 0.0;
 
 	ManualTimer total_t;
 	total_t.start();
@@ -181,10 +182,18 @@ double RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
 		for (int i = 0; i < pixels; ++i) {
 			const uint16_t alpha = a_ptr[i];
 			const uint16_t inv = 255 - alpha;
-			out[0] = static_cast<uint8_t>((fg_ptr[0] * alpha + bg_ptr[0] * inv + 1 + ((fg_ptr[0] * alpha + bg_ptr[0] * inv) >> 8)) >> 8);
-			out[1] = static_cast<uint8_t>((fg_ptr[1] * alpha + bg_ptr[1] * inv + 1 + ((fg_ptr[1] * alpha + bg_ptr[1] * inv) >> 8)) >> 8);
-			out[2] = static_cast<uint8_t>((fg_ptr[2] * alpha + bg_ptr[2] * inv + 1 + ((fg_ptr[2] * alpha + bg_ptr[2] * inv) >> 8)) >> 8);
-			fg_ptr += 3; bg_ptr += 3; out += 3;
+			out[0] = static_cast<uint8_t>((fg_ptr[0] * alpha + bg_ptr[0] * inv + 1 +
+			                               ((fg_ptr[0] * alpha + bg_ptr[0] * inv) >> 8)) >>
+			                              8);
+			out[1] = static_cast<uint8_t>((fg_ptr[1] * alpha + bg_ptr[1] * inv + 1 +
+			                               ((fg_ptr[1] * alpha + bg_ptr[1] * inv) >> 8)) >>
+			                              8);
+			out[2] = static_cast<uint8_t>((fg_ptr[2] * alpha + bg_ptr[2] * inv + 1 +
+			                               ((fg_ptr[2] * alpha + bg_ptr[2] * inv) >> 8)) >>
+			                              8);
+			fg_ptr += 3;
+			bg_ptr += 3;
+			out += 3;
 		}
 	}
 	acc_blend_.record(t.stop());
@@ -212,7 +221,8 @@ double RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
 
 bool RVMMode::initOutputDma(int src_width, int src_height) {
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
-	const size_t buf_bytes = static_cast<size_t>(src_width) * static_cast<size_t>(src_height) * 3;  // BGR888
+	const size_t buf_bytes =
+	    static_cast<size_t>(src_width) * static_cast<size_t>(src_height) * 3;  // BGR888
 	dma_output_buf_ = arcforge::dmakit::DmaBuffer::Allocate(buf_bytes);
 	if (!dma_output_buf_) {
 		logger.Warning("Failed to allocate DMA output buffer (" + std::to_string(buf_bytes) +
@@ -223,14 +233,15 @@ bool RVMMode::initOutputDma(int src_width, int src_height) {
 	// Map once so we can use the virtual address as RGA destination.
 	dma_output_buf_->map();
 	logger.Info("DMA output buffer allocated: fd=" + std::to_string(dma_output_buf_->fd()) +
-	                ", size=" + std::to_string(buf_bytes) + " bytes (" +
-	                std::to_string(src_width) + "x" + std::to_string(src_height) + " BGR)",
+	                ", size=" + std::to_string(buf_bytes) + " bytes (" + std::to_string(src_width) +
+	                "x" + std::to_string(src_height) + " BGR)",
 	            kRvmModuleName);
 	return true;
 }
 
 int RVMMode::compositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u) {
-	if (!dma_output_buf_ || alpha_8u.empty()) return -1;
+	if (!dma_output_buf_ || alpha_8u.empty())
+		return -1;
 
 	const int model_h = bg_model_u8_.rows;
 	const int model_w = bg_model_u8_.cols;
@@ -270,10 +281,18 @@ int RVMMode::compositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u) {
 		for (int i = 0; i < pixels; ++i) {
 			const uint16_t alpha = a_ptr[i];
 			const uint16_t inv = 255 - alpha;
-			out[0] = static_cast<uint8_t>((fg_ptr[0] * alpha + bg_ptr[0] * inv + 1 + ((fg_ptr[0] * alpha + bg_ptr[0] * inv) >> 8)) >> 8);
-			out[1] = static_cast<uint8_t>((fg_ptr[1] * alpha + bg_ptr[1] * inv + 1 + ((fg_ptr[1] * alpha + bg_ptr[1] * inv) >> 8)) >> 8);
-			out[2] = static_cast<uint8_t>((fg_ptr[2] * alpha + bg_ptr[2] * inv + 1 + ((fg_ptr[2] * alpha + bg_ptr[2] * inv) >> 8)) >> 8);
-			fg_ptr += 3; bg_ptr += 3; out += 3;
+			out[0] = static_cast<uint8_t>((fg_ptr[0] * alpha + bg_ptr[0] * inv + 1 +
+			                               ((fg_ptr[0] * alpha + bg_ptr[0] * inv) >> 8)) >>
+			                              8);
+			out[1] = static_cast<uint8_t>((fg_ptr[1] * alpha + bg_ptr[1] * inv + 1 +
+			                               ((fg_ptr[1] * alpha + bg_ptr[1] * inv) >> 8)) >>
+			                              8);
+			out[2] = static_cast<uint8_t>((fg_ptr[2] * alpha + bg_ptr[2] * inv + 1 +
+			                               ((fg_ptr[2] * alpha + bg_ptr[2] * inv) >> 8)) >>
+			                              8);
+			fg_ptr += 3;
+			bg_ptr += 3;
+			out += 3;
 		}
 	}
 	acc_blend_.record(t.stop());
@@ -283,13 +302,15 @@ int RVMMode::compositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u) {
 	{
 		void* dma_ptr = dma_output_buf_->map();
 		if (dma_ptr) {
-			ImageDescriptor src_desc(composed_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
+			ImageDescriptor src_desc(composed_model.data, model_w, model_h,
+			                         RgaPixelFormat::kBgr888);
 			ImageDescriptor dst_desc(dma_ptr, frame.cols, frame.rows, RgaPixelFormat::kBgr888);
 			if (!rga_resize_->Execute(src_desc, dst_desc)) {
 				// Fallback: CPU upscale then memcpy to DMA
 				cv::Mat composed_full;
 				cv::resize(composed_model, composed_full, frame.size(), 0, 0, cv::INTER_LINEAR);
-				memcpy(dma_ptr, composed_full.data, composed_full.total() * composed_full.elemSize());
+				memcpy(dma_ptr, composed_full.data,
+				       composed_full.total() * composed_full.elemSize());
 			}
 		}
 	}
@@ -298,9 +319,10 @@ int RVMMode::compositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u) {
 	return dma_output_buf_->fd();
 }
 
-double RVMMode::compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u,
-                               int panel_w, int panel_h) {
-	if (!drm_display_.IsOpen() || alpha_8u.empty()) return 0.0;
+double RVMMode::compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, int panel_w,
+                               int panel_h) {
+	if (!drm_display_.IsOpen() || alpha_8u.empty())
+		return 0.0;
 
 	ManualTimer total_t;
 	total_t.start();
@@ -343,10 +365,18 @@ double RVMMode::compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u,
 		for (int i = 0; i < pixels; ++i) {
 			const uint16_t alpha = a_ptr[i];
 			const uint16_t inv = 255 - alpha;
-			out[0] = static_cast<uint8_t>((fg_ptr[0] * alpha + bg_ptr[0] * inv + 1 + ((fg_ptr[0] * alpha + bg_ptr[0] * inv) >> 8)) >> 8);
-			out[1] = static_cast<uint8_t>((fg_ptr[1] * alpha + bg_ptr[1] * inv + 1 + ((fg_ptr[1] * alpha + bg_ptr[1] * inv) >> 8)) >> 8);
-			out[2] = static_cast<uint8_t>((fg_ptr[2] * alpha + bg_ptr[2] * inv + 1 + ((fg_ptr[2] * alpha + bg_ptr[2] * inv) >> 8)) >> 8);
-			fg_ptr += 3; bg_ptr += 3; out += 3;
+			out[0] = static_cast<uint8_t>((fg_ptr[0] * alpha + bg_ptr[0] * inv + 1 +
+			                               ((fg_ptr[0] * alpha + bg_ptr[0] * inv) >> 8)) >>
+			                              8);
+			out[1] = static_cast<uint8_t>((fg_ptr[1] * alpha + bg_ptr[1] * inv + 1 +
+			                               ((fg_ptr[1] * alpha + bg_ptr[1] * inv) >> 8)) >>
+			                              8);
+			out[2] = static_cast<uint8_t>((fg_ptr[2] * alpha + bg_ptr[2] * inv + 1 +
+			                               ((fg_ptr[2] * alpha + bg_ptr[2] * inv) >> 8)) >>
+			                              8);
+			fg_ptr += 3;
+			bg_ptr += 3;
+			out += 3;
 		}
 	}
 	acc_blend_.record(t.stop());
@@ -419,8 +449,7 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& mode
 
 int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_source,
                  const std::string& model_path, const std::string& output_bin_path,
-                 const std::string& background_path, bool timing_enabled,
-                 OutputMode output_mode) {
+                 const std::string& background_path, bool timing_enabled, OutputMode output_mode) {
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
 
 	// Stash paths as member variables so helper methods (e.g. future per-frame
@@ -430,26 +459,26 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 
 	ScopedTimer run_rvm_timer("runRVM total", timing_enabled, logger, kRvmModuleName);
 
-	// -------------------------------------------------------------------------
+	// =========================================================================
 	// 1st — Setup phase
 	//    - load the model into the inference engine
 	//    - query the model's expected input resolution (fall back to 288×512 if
 	//      the engine returns 0, which can happen with dynamic-shape ONNX models)
 	//    - initialise the four RNN hidden-state tensors (r1i–r4i) to zero
 	//    - wire output / background paths into frontend and backend members
-	// -------------------------------------------------------------------------
+	// =========================================================================
 	const RvmRunSetup setup =
 	    prepareRun(engine, model_path, output_bin_path, background_path, timing_enabled);
 	const size_t model_input_height = setup.model_input_height;
 	const size_t model_input_width = setup.model_input_width;
 
-	// -------------------------------------------------------------------------
+	// =========================================================================
 	// 2nd — Video I/O setup
 	//    - read source dimensions and fps from the InputSource abstraction
 	//      (works for both Mp4InputSource and any future camera/IPC source)
 	//    - open the VideoWriter; if it fails, compositeAndWrite() is a no-op
 	//    - load or synthesise a solid-colour background for alpha compositing
-	// -------------------------------------------------------------------------
+	// =========================================================================
 	const int src_width = input_source->width();
 	const int src_height = input_source->height();
 	dsr_ = 512.0f / static_cast<float>(std::max(src_width, src_height));
@@ -468,7 +497,8 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 		if (drm_display_.Init(src_width, src_height)) {
 			std::tie(drm_panel_w, drm_panel_h) = drm_display_.PanelSize();
 			logger.Info("DRM display initialized: panel " + std::to_string(drm_panel_w) + "x" +
-			            std::to_string(drm_panel_h), kRvmModuleName);
+			                std::to_string(drm_panel_h),
+			            kRvmModuleName);
 		} else {
 			logger.Warning("DRM init failed. Falling back to mp4.", kRvmModuleName);
 			output_mode = OutputMode::kMp4;
@@ -484,11 +514,10 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	// Avoids converting bg from uint8→float32 at full resolution every frame.
 	{
 		cv::Mat bg_model;
-		cv::resize(bg_bgr, bg_model,
-		           cv::Size(static_cast<int>(model_input_width),
-		                    static_cast<int>(model_input_height)),
-		           0, 0,
-		           cv::INTER_LINEAR);
+		cv::resize(
+		    bg_bgr, bg_model,
+		    cv::Size(static_cast<int>(model_input_width), static_cast<int>(model_input_height)), 0,
+		    0, cv::INTER_LINEAR);
 		bg_model_u8_ = bg_model.clone();  // uint8 copy for fast compositing
 	}
 
@@ -497,7 +526,7 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	// RGA composite replaces the CPU uint8 blend loop.
 	rga_resize_ = arcforge::rgakit::CreateOperation<arcforge::rgakit::RgaResize>();
 
-	// -------------------------------------------------------------------------
+	// =========================================================================
 	// 3rd — Dual-buffer prefetch worker (producer thread)
 	//
 	//    Two single-slot channels decouple three stages of work:
@@ -511,26 +540,26 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	//      c. push the result onto tensor_ch for the main thread to consume
 	//      d. close tensor_ch when raw_ch is closed (signals EOF to main)
 	//
-	//    Timing is accumulated in preprocess_acc and reported after the loop.
-	// -------------------------------------------------------------------------
+	//    Timing is accumulated in acc_1st_worker_preprocess and reported after the loop.
+	// =========================================================================
 	SingleSlotChannel<cv::Mat> raw_ch;
 	SingleSlotChannel<TensorData> tensor_ch;
 
-	// =========================================================================
+	// -------------------------------------------------------------------------
 	// Pipeline timing layout (s10 — full coverage)
 	//
 	// Per-frame wall clock breakdown
 	//
 	//   [main thread]                          [worker thread]
-	//   loop_acc  (whole iteration)
-	//     ├── tensor_ch.pop()    ◄────────────  preprocess_acc
+	//   acc_5th_main_loop_total  (whole iteration)
+	//     ├── tensor_ch.pop()    ◄────────────  acc_1st_worker_preprocess
 	//     │   (blocks if worker     pushes here   (run on worker:
 	//     │    not done yet)                       BGR→tensor resize+norm)
-	//     ├── decode_acc         ────────────►   raw_ch.pop()
+	//     ├── acc_2nd_main_decode         ────────────►   raw_ch.pop()
 	//     │   (read next frame                     (worker waits here)
 	//     │    + push to raw_ch)
-	//     ├── infer_acc           (NPU inference, current frame)
-	//     └── comp_acc            (composite + write, current frame)
+	//     ├── acc_3rd_main_infer           (NPU inference, current frame)
+	//     └── acc_4th_main_composite            (composite + write, current frame)
 	//             │
 	//             ├── acc_resize_alpha_  (CPU resize alpha → model size)
 	//             ├── acc_resize_frame_  (RGA resize frame → model size)
@@ -547,20 +576,23 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	//   [PerFrame] line every frame                             — infer + comp
 	//
 	// Identity (approx, ignoring tiny logging overhead):
-	//   loop_acc ≈ max(tensor_ch.pop wait, 0) + decode_acc + infer_acc + comp_acc
-	//   comp_acc ≈ resize_alpha + resize_frame + blend + upscale + writer
-	// =========================================================================
-	StageAccumulator preprocess_acc("worker::preprocess");
-	StageAccumulator infer_acc("main::infer");
-	StageAccumulator comp_acc("main::composite");
-	StageAccumulator decode_acc("main::decode");        // s10: input_source->read only
-	StageAccumulator loop_acc("main::loop_total");      // s10: whole main-loop iteration (incl. tensor_ch.pop wait)
+	//   acc_5th_main_loop_total ≈ max(tensor_ch.pop wait, 0) + acc_2nd_main_decode + acc_3rd_main_infer + acc_4th_main_composite
+	//   acc_4th_main_composite ≈ resize_alpha + resize_frame + blend + upscale + writer
+	// -------------------------------------------------------------------------
+	StageAccumulator acc_1st_worker_preprocess("1/5::worker::preprocess");
+	StageAccumulator acc_2nd_main_decode("2/5::main::decode");
+	StageAccumulator acc_3rd_main_infer("3/5::main::infer");
+	StageAccumulator acc_4th_main_composite("4/5::main::composite");
+	StageAccumulator acc_5th_main_loop_total("5/5::main::loop_total");
 
+	// --------------------
+	// Start the worker thread that runs the prefetch + preprocess loop, and
 	std::thread prefetch_worker(&RVMMode::runPrefetchWorker, this, model_input_width,
 	                            model_input_height, std::ref(raw_ch), std::ref(tensor_ch),
-	                            std::ref(preprocess_acc));
+	                            std::ref(acc_1st_worker_preprocess));
 
-	// Seed the pipeline with the very first frame before entering the main loop.
+	// --------------------
+	// obtain the first raw frame and push it into thread-safe raw_ch
 	cv::Mat current_frame;
 	if (!input_source->read(current_frame)) {
 		logger.Info("No frames to process.", kRvmModuleName);
@@ -570,11 +602,7 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	}
 	raw_ch.push(current_frame);  // worker starts preprocessing frame 0 immediately
 
-	int frame_count = 0;
-	auto fps_window_start = std::chrono::steady_clock::now();
-	auto pipeline_start = fps_window_start;
-
-	// -------------------------------------------------------------------------
+	// =========================================================================
 	// 4th — Main inference loop  (consumer side of the dual-buffer pipeline)
 	//
 	//    Each iteration:
@@ -586,12 +614,19 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	//         current tensor (this is the overlap that hides decode latency)
 	//      d. run inference → postprocess → composite → write to video
 	//      e. advance current_frame and frame_count; stop when no next frame
-	// -------------------------------------------------------------------------
+	// =========================================================================
+	int frame_count = 0;
+	auto fps_window_start = std::chrono::steady_clock::now();
+	auto pipeline_start = fps_window_start;
+
 	while (true) {
-		// s10: per-iteration wall clock (covers pop-wait + decode + infer + comp)
-		ManualTimer loop_t;
+
+		// --------------------
+		// start acc_5th_main_loop_total acuumulation here
+		ManualTimer loop_t;  // accumulate for acc_5th_main_loop_total
 		loop_t.start();
 
+		// --------------------
 		// Graceful SIGINT handling: close the feed channel so the worker thread
 		// can exit, then break out — the main thread will join and flush below.
 		if (g_stop_signal_received.load()) {
@@ -602,13 +637,18 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 			break;
 		}
 
+		// --------------------
 		// Block until the worker has finished preprocessing the current frame.
 		auto tensor_opt = tensor_ch.pop();
-		if (!tensor_opt)
+		if (!tensor_opt) {
 			break;  // channel closed (worker exited after last frame)
+		}
 
+		// --------------------
+		// If we executes this far, we have the tensor data and the processing will be started imminently
 		logger.Info("=== RVM Frame " + std::to_string(frame_count + 1) + " ===", kRvmModuleName);
 
+		// --------------------
 		// Read the frame that comes *after* the one we are about to infer,
 		// and hand it to the worker immediately so preprocessing overlaps with
 		// inference below (the dual-buffer trick).
@@ -624,17 +664,19 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 			} else {
 				raw_ch.close();  // no more frames — worker will drain and close tensor_ch
 			}
-			decode_acc.record(decode_t.stop());
+			acc_2nd_main_decode.record(decode_t.stop());
 		}
 
+		// --------------- infer one frame ---------------
 		// Run inference on the current tensor, postprocess the alpha matte,
 		// and composite + write the output frame to the video file.
 		ManualTimer infer_t;
 		infer_t.start();
 		cv::Mat alpha_8u = inferOneFrame(engine, *tensor_opt, current_frame);
 		const double infer_ms = infer_t.stop();
-		infer_acc.record(infer_ms);
+		acc_3rd_main_infer.record(infer_ms);
 
+		// --------------- composite one frame ---------------
 		double comp_ms;
 		if (use_dma_output) {
 			ManualTimer dma_t;
@@ -649,8 +691,9 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 		} else {
 			comp_ms = compositeAndWrite(video_writer, current_frame, alpha_8u);
 		}
-		comp_acc.record(comp_ms);
+		acc_4th_main_composite.record(comp_ms);
 
+		// --------------- end of one frame processing ---------------
 		logger.Info("[PerFrame] frame=" + std::to_string(frame_count) +
 		                "  infer=" + std::to_string(infer_ms) + "ms" +
 		                "  composite=" + std::to_string(comp_ms) + "ms",
@@ -664,14 +707,14 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 			auto now = std::chrono::steady_clock::now();
 			double elapsed = std::chrono::duration<double>(now - fps_window_start).count();
 			logger.Info("[FPS] " + std::to_string(30.0 / elapsed) + " fps (last 30 frames in " +
-			            std::to_string(elapsed) + "s)",
+			                std::to_string(elapsed) + "s)",
 			            kRvmModuleName);
 			fps_window_start = now;
 		}
 
 		// s10: record per-iteration wall clock — must be the last thing before
 		// loop exit / continue, so it covers everything done above.
-		loop_acc.record(loop_t.stop());
+		acc_5th_main_loop_total.record(loop_t.stop());
 
 		if (!has_next)
 			break;
@@ -680,11 +723,12 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	// Wait for the worker thread to finish before destroying the channels.
 	prefetch_worker.join();
 
-	loop_acc.report(timing_enabled, logger, kRvmModuleName);
-	decode_acc.report(timing_enabled, logger, kRvmModuleName);
-	preprocess_acc.report(timing_enabled, logger, kRvmModuleName);
-	infer_acc.report(timing_enabled, logger, kRvmModuleName);
-	comp_acc.report(timing_enabled, logger, kRvmModuleName);
+	acc_1st_worker_preprocess.report(timing_enabled, logger, kRvmModuleName);
+	acc_2nd_main_decode.report(timing_enabled, logger, kRvmModuleName);
+	acc_3rd_main_infer.report(timing_enabled, logger, kRvmModuleName);
+	acc_4th_main_composite.report(timing_enabled, logger, kRvmModuleName);
+	acc_5th_main_loop_total.report(timing_enabled, logger, kRvmModuleName);
+	
 	acc_resize_alpha_.report(timing_enabled, logger, kRvmModuleName);
 	acc_resize_frame_.report(timing_enabled, logger, kRvmModuleName);
 	acc_blend_.report(timing_enabled, logger, kRvmModuleName);
@@ -713,10 +757,11 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	}
 	if (frame_count > 0) {
 		const double total_elapsed =
-		    std::chrono::duration<double>(std::chrono::steady_clock::now() - pipeline_start).count();
+		    std::chrono::duration<double>(std::chrono::steady_clock::now() - pipeline_start)
+		        .count();
 		const double avg_fps = static_cast<double>(frame_count) / total_elapsed;
 		logger.Info("[FPS] Total: " + std::to_string(frame_count) + " frames in " +
-		            std::to_string(total_elapsed) + "s = " + std::to_string(avg_fps) + " fps",
+		                std::to_string(total_elapsed) + "s = " + std::to_string(avg_fps) + " fps",
 		            kRvmModuleName);
 	}
 	logger.Info("RVM video pipeline finished. Total frames: " + std::to_string(frame_count),
