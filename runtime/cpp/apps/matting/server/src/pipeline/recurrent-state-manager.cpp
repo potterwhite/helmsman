@@ -95,29 +95,29 @@ void RecurrentStateManager::update(const std::vector<TensorData>& outputs,
 	for (std::size_t i = 0; i < states_.size(); ++i) {
 		const TensorData& src = outputs[state_output_offset + i];
 
-		// ---- s20 diagnostic: stride padding check ----
-		{
-			auto& logger = arcforge::embedded::utils::Logger::GetInstance();
-			const int64_t N = src.shape[0];
-			const int64_t C = src.shape[1];
-			const int64_t H = src.shape[2];
-			const int64_t W = src.shape[3];
-			const std::size_t expected_elements = static_cast<std::size_t>(N * C * H * W);
-			const std::size_t actual_elements = src.data.size();
+		// // ---- s20 diagnostic: stride padding check ----
+		// {
+		// 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+		// 	const int64_t N = src.shape[0];
+		// 	const int64_t C = src.shape[1];
+		// 	const int64_t H = src.shape[2];
+		// 	const int64_t W = src.shape[3];
+		// 	const std::size_t expected_elements = static_cast<std::size_t>(N * C * H * W);
+		// 	const std::size_t actual_elements = src.data.size();
 
-			std::ostringstream oss;
-			oss << "[s20-diag] " << src.name << "  shape=[" << N << "," << C << "," << H << "," << W
-			    << "]"
-			    << "  expected_elements=" << expected_elements
-			    << "  actual_elements=" << actual_elements
-			    << "  match=" << (expected_elements == actual_elements ? "YES" : "NO");
-			if (expected_elements != actual_elements) {
-				oss << "  ** STRIDE PADDING DETECTED **";
-			}
-			// 使用 spdlog 或 logger（参考项目现有的 log 调用方式）
-			logger.Info(oss.str(), kcurrent_module_name);
-		}
-		// ---- end s20 diagnostic ----
+		// 	std::ostringstream oss;
+		// 	oss << "[s20-diag] " << src.name << "  shape=[" << N << "," << C << "," << H << "," << W
+		// 	    << "]"
+		// 	    << "  expected_elements=" << expected_elements
+		// 	    << "  actual_elements=" << actual_elements
+		// 	    << "  match=" << (expected_elements == actual_elements ? "YES" : "NO");
+		// 	if (expected_elements != actual_elements) {
+		// 		oss << "  ** STRIDE PADDING DETECTED **";
+		// 	}
+		// 	// 使用 spdlog 或 logger（参考项目现有的 log 调用方式）
+		// 	logger.Info(oss.str(), kcurrent_module_name);
+		// }
+		// // ---- end s20 diagnostic ----
 
 		{
 			const int64_t N = src.shape[0];

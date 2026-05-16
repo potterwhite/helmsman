@@ -659,11 +659,13 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 			ManualTimer decode_t;
 			decode_t.start();
 			has_next = input_source->read(next_frame);
+
 			if (has_next) {
 				raw_ch.push(next_frame);
 			} else {
 				raw_ch.close();  // no more frames — worker will drain and close tensor_ch
 			}
+
 			acc_2nd_main_decode.record(decode_t.stop());
 		}
 
@@ -699,9 +701,7 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 		                "  composite=" + std::to_string(comp_ms) + "ms",
 		            kRvmModuleName);
 
-		current_frame = std::move(next_frame);  // advance sliding window
-		frame_count++;
-
+		// ---------------
 		// FPS measurement: report every 30 frames
 		if (frame_count % 30 == 0) {
 			auto now = std::chrono::steady_clock::now();
@@ -712,12 +712,26 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 			fps_window_start = now;
 		}
 
+		// ---------------
 		// s10: record per-iteration wall clock — must be the last thing before
 		// loop exit / continue, so it covers everything done above.
 		acc_5th_main_loop_total.record(loop_t.stop());
 
-		if (!has_next)
+		// ---------------
+		// echo the end message for current single frame
+		logger.Info(" --- End of RVM Frame " + std::to_string(frame_count + 1) + " ---" + "\n",
+		            kRvmModuleName);
+
+		// ---------------
+		// prepare for next frame(iteration)
+		current_frame = std::move(next_frame);  // advance sliding window
+		frame_count++;
+
+		// ---------------
+		// exit loop if no next frame; the worker thread will see the raw_ch close and exit cleanly
+		if (!has_next) {
 			break;
+		}
 	}
 
 	// Wait for the worker thread to finish before destroying the channels.
@@ -728,7 +742,7 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	acc_3rd_main_infer.report(timing_enabled, logger, kRvmModuleName);
 	acc_4th_main_composite.report(timing_enabled, logger, kRvmModuleName);
 	acc_5th_main_loop_total.report(timing_enabled, logger, kRvmModuleName);
-	
+
 	acc_resize_alpha_.report(timing_enabled, logger, kRvmModuleName);
 	acc_resize_frame_.report(timing_enabled, logger, kRvmModuleName);
 	acc_blend_.report(timing_enabled, logger, kRvmModuleName);
