@@ -111,6 +111,12 @@ if(NOT TARGET ${PROJECT_NAMESPACE}::DRMKit)
     find_package(${PROJECT_NAMESPACE}_DRMKit REQUIRED)
 endif()
 
+# MPPKit: optional, only on RK3588
+set(_HAS_MPPKIT FALSE)
+if(TARGET ${PROJECT_NAMESPACE}::MPPKit)
+    set(_HAS_MPPKIT TRUE)
+endif()
+
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
         ${PROJECT_NAMESPACE}::Utils
@@ -121,6 +127,11 @@ target_link_libraries(${PROJECT_NAME}
         ${PROJECT_NAMESPACE}::DmaKit
         ${PROJECT_NAMESPACE}::DRMKit
 )
+
+if(_HAS_MPPKIT)
+    target_link_libraries(${PROJECT_NAME} PUBLIC ${PROJECT_NAMESPACE}::MPPKit)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HAS_MPP=1)
+endif()
 
 # ---------------------------------
 # VIII. installation rules

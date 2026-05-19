@@ -47,7 +47,7 @@
 #include "RGAKit/rga_resize.h"
 #include "pipeline/recurrent-state-manager.h"
 #include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/frontend.h"
+#include "pipeline/stages/frontend/preprocess/preprocessor.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
 
 class MattingServer {
@@ -80,7 +80,7 @@ class MattingServer {
 	bool initBackground(const std::string& bg_path, int w, int h);
 
 	std::unique_ptr<InferenceEngine> engine_;
-	ImageFrontend frontend_;
+	_Preprocessor frontend_;
 	MattingBackend backend_;
 	RecurrentStateManager state_mgr_;
 

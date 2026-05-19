@@ -39,8 +39,8 @@
 #include <utility>
 #include <vector>
 #include "common/common-define.h"
-#include "input/mp4-input-source.h"
 #include "pipeline/pipeline.h"
+#include "pipeline/stages/frontend/frontend.h"
 
 using namespace arcforge::embedded;
 
@@ -207,17 +207,13 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	// 4. Run pipeline
 	// -----------------------------------------------
 	if (is_video) {
-		// Video mode: create Mp4InputSource, pass ownership to Pipeline
-		auto source = std::make_unique<Mp4InputSource>();
-		if (!source->open(input_path)) {
-			logger.Warning("Failed to open video: " + input_path, kcurrent_module_name);
-			return 1;
-		}
-		logger.Info("Video source: " + std::to_string(source->width()) + "x" +
-		            std::to_string(source->height()) + " @ " +
-		            std::to_string(source->fps()) + " fps", kcurrent_module_name);
+		// Video mode: create Frontend (OpenCV shortcut path for Phase 1)
+		auto frontend = std::make_unique<Frontend>(input_path);
+		logger.Info("Video source: " + std::to_string(frontend->width()) + "x" +
+		            std::to_string(frontend->height()) + " @ " +
+		            std::to_string(frontend->fps()) + " fps", kcurrent_module_name);
 
-		pipeline.init(std::move(source), model_path, output_bin_path,
+		pipeline.init(std::move(frontend), model_path, output_bin_path,
 		              background_path, model_type, output_mode);
 	} else {
 		// Single image mode (existing path)

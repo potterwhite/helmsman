@@ -30,11 +30,10 @@
 #include "RGAKit/rga_resize.h"
 #include "Utils/timing/timer.h"
 #include "common/common-define.h"
-#include "input/input-source.h"
 #include "pipeline/recurrent-state-manager.h"
 #include "pipeline/single-slot-channel.h"
 #include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/frontend.h"
+#include "pipeline/stages/frontend/frontend.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
 
 /**
@@ -48,7 +47,7 @@ struct RvmRunSetup {
 
 class RVMMode {
    public:
-	int run(InferenceEngine* engine, std::unique_ptr<InputSource> input_source,
+	int run(InferenceEngine* engine, Frontend* frontend,
 	        const std::string& model_path, const std::string& output_bin_path,
 	        const std::string& background_path, bool timing_enabled,
 	        OutputMode output_mode = OutputMode::kMp4);
@@ -97,8 +96,7 @@ class RVMMode {
    private:
 	// Member variables
 	float dsr_ = 0.25f;  ///< downsample_ratio, computed in run() as 512/max(src_w, src_h)
-	ImageFrontend frontend_;
-	ImageFrontend prefetch_frontend_;
+	Frontend* frontend_ = nullptr;  // Non-owning; owned by Pipeline
 	MattingBackend backend_;
 	RecurrentStateManager state_mgr_;
 	std::string background_path_;

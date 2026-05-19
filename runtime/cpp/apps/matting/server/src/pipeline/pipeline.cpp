@@ -58,10 +58,10 @@ Pipeline::~Pipeline() {
                                                       kcurrent_module_name);
 }
 
-void Pipeline::init(std::unique_ptr<InputSource> input_source, const std::string& model_path,
+void Pipeline::init(std::unique_ptr<Frontend> frontend, const std::string& model_path,
                     const std::string& output_bin_path, const std::string& background_path,
                     ModelType model_type, OutputMode output_mode) {
-    this->input_source_    = std::move(input_source);
+    this->frontend_        = std::move(frontend);
     this->model_path_      = model_path;
     this->output_bin_path_ = output_bin_path;
     this->background_path_ = background_path;
@@ -82,7 +82,7 @@ void Pipeline::init(const std::string& input_image_path, const std::string& mode
 }
 
 void Pipeline::verify_parameters_necessary() {
-    if (input_source_ == nullptr && input_image_path_.empty()) {
+    if (frontend_ == nullptr && input_image_path_.empty()) {
         throw std::invalid_argument("No input source: neither video nor image provided.");
     }
     if (model_path_.empty()) {
@@ -107,7 +107,7 @@ int Pipeline::run() {
                                      output_bin_path_, background_path_, timing_enabled_);
         case ModelType::kRVM:
             logger.Info("Pipeline: running RVM path (recurrent multi-frame)", kcurrent_module_name);
-            return rvm_mode_.run(engine_.get(), std::move(input_source_), model_path_,
+            return rvm_mode_.run(engine_.get(), frontend_.get(), model_path_,
                                    output_bin_path_, background_path_, timing_enabled_,
                                    output_mode_);
         default:

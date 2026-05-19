@@ -18,23 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+// =============================================================================
+// preprocessor.h — Image preprocessor for inference (internal to Frontend)
+//
+// Converts a BGR cv::Mat frame into a TensorData structure ready for the
+// inference engine. Migrated from the old ImageFrontend class.
+//
+// =============================================================================
+
 #pragma once
 
-#include <memory>
 #include <string>
-#include "pipeline/stages/inference-engine/base/inference-engine.h"
-#include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/frontend/preprocess/preprocessor.h"
+#include "CVKit/base/base.h"
+#include "pipeline/stages/frontend/preprocess/i-preprocessor.h"
 
-class MODNetMode {
+class _Preprocessor : public _IPreprocessor {
 public:
-    int run(InferenceEngine* engine,
-           const std::string& input_image_path,
-           const std::string& model_path,
-           const std::string& output_bin_path,
-           const std::string& background_path,
-           bool timing_enabled);
+    _Preprocessor();
+    ~_Preprocessor() override;
+
+    // Preprocess a BGR frame into a TensorData for inference.
+    TensorData preprocess(const cv::Mat& bgr_frame,
+                          size_t model_width,
+                          size_t model_height) override;
+
+    // Configure output binary dump directory.
+    void setOutputBinPath(const std::string& path);
 
 private:
-    _Preprocessor frontend_;
+    TensorData preprocessCore(cv::Mat img, size_t model_width, size_t model_height);
+
+    bool isDumpEnabled() const { return !output_bin_path_.empty(); }
+
+    std::string output_bin_path_;
+    arcforge::cvkit::Base cvkit_;
 };

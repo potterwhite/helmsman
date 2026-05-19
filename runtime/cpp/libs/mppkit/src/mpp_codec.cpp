@@ -72,8 +72,9 @@ std::unique_ptr<MppCodec> CreateEncoder(EncoderConfig config) {
 }
 
 std::unique_ptr<MppCodec> CreateDecoder(DecoderConfig config) {
-    if (config.input_path.empty()) {
-        fprintf(stderr, "[MPPKit] CreateDecoder: input_path is empty\n");
+    if (config.width <= 0 || config.height <= 0) {
+        fprintf(stderr, "[MPPKit] CreateDecoder: invalid dimensions %dx%d\n",
+                config.width, config.height);
         return nullptr;
     }
 

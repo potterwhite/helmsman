@@ -18,23 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+// =============================================================================
+// i-frame-decoder.h — Abstract frame decoder interface (internal to Frontend)
+//
+// A FrameDecoder takes compressed bitstream data and produces decoded frames.
+//
+// =============================================================================
+
 #pragma once
 
-#include <memory>
-#include <string>
-#include "pipeline/stages/inference-engine/base/inference-engine.h"
-#include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/frontend/preprocess/preprocessor.h"
+// Hardware frame output — a DMA buffer fd for zero-copy downstream.
+struct HardwareFrame {
+    int fd = -1;        // DMA buffer file descriptor
+    int width = 0;      // Frame width in pixels
+    int height = 0;     // Frame height in pixels
+    int format = 0;     // Pixel format (implementation-specific)
+};
 
-class MODNetMode {
+// Abstract frame decoder interface (internal — do not use directly).
+class _IFrameDecoder {
 public:
-    int run(InferenceEngine* engine,
-           const std::string& input_image_path,
-           const std::string& model_path,
-           const std::string& output_bin_path,
-           const std::string& background_path,
-           bool timing_enabled);
+    virtual ~_IFrameDecoder() = default;
 
-private:
-    _Preprocessor frontend_;
+    // Decode a compressed packet into a hardware frame (DMA buffer fd).
+    // Returns true if a decoded frame is available.
+    // The fd is valid until the next decode() call or destruction.
+    virtual bool decode(const uint8_t* data, size_t size, HardwareFrame& out) = 0;
 };

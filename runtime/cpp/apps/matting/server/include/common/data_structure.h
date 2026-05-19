@@ -34,7 +34,7 @@ typedef struct {
 	std::vector<float>     data;
 	std::vector<int64_t>   shape;
 
-	// --- Letterbox metadata (filled by ImageFrontend, consumed by MattingBackend) ---
+	// --- Letterbox metadata (filled by Preprocessor, consumed by MattingBackend) ---
 	int orig_width  = 0;
 	int orig_height = 0;
 	int pad_top     = 0;

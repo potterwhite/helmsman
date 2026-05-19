@@ -18,23 +18,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+// =============================================================================
+// i-preprocessor.h — Abstract preprocessor interface (internal to Frontend)
+//
+// A Preprocessor converts a decoded frame (cv::Mat BGR) into a TensorData
+// structure ready for the inference engine.
+//
+// =============================================================================
+
 #pragma once
 
-#include <memory>
-#include <string>
-#include "pipeline/stages/inference-engine/base/inference-engine.h"
-#include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/frontend/preprocess/preprocessor.h"
+#include <opencv2/core/mat.hpp>
+#include "common/data_structure.h"
 
-class MODNetMode {
+// Abstract preprocessor interface (internal — do not use directly).
+class _IPreprocessor {
 public:
-    int run(InferenceEngine* engine,
-           const std::string& input_image_path,
-           const std::string& model_path,
-           const std::string& output_bin_path,
-           const std::string& background_path,
-           bool timing_enabled);
+    virtual ~_IPreprocessor() = default;
 
-private:
-    _Preprocessor frontend_;
+    // Preprocess a BGR frame into a TensorData for inference.
+    virtual TensorData preprocess(const cv::Mat& bgr_frame,
+                                  size_t model_width,
+                                  size_t model_height) = 0;
 };

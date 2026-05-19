@@ -125,9 +125,8 @@ void RVMMode::runPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChanne
 		ManualTimer t;
 		t.start();
 		// BGR frame → letterbox-resized float32 tensor ready for inference.
-		// prefetch_frontend_ is a separate ImageFrontend instance so this thread
-		// never races with the main thread's frontend_ usage.
-		auto tensor = prefetch_frontend_.preprocess(*frame_opt, model_w, model_h);
+		// frontend_->preprocess() is thread-safe (Preprocessor is stateless).
+		auto tensor = frontend_->preprocess(*frame_opt, model_w, model_h);
 		acc_1st_worker_preprocess.record(t.stop());
 
 		tensor_ch.push(std::move(tensor));
@@ -434,9 +433,6 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& mode
 
 	initRecurrentStates(engine);
 
-	frontend_.setOutputBinPath(output_bin_path);
-	prefetch_frontend_.setOutputBinPath(output_bin_path);
-
 	backend_.setOutputPath(output_bin_path);
 	backend_.setBackgroundPath(background_path);
 	// Post-processor: disabled to match PyTorch baseline (no post-processing).
@@ -447,7 +443,7 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& mode
 	return setup;
 }
 
-int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_source,
+int RVMMode::run(InferenceEngine* engine, Frontend* frontend,
                  const std::string& model_path, const std::string& output_bin_path,
                  const std::string& background_path, bool timing_enabled, OutputMode output_mode) {
 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
@@ -456,6 +452,7 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	// post-processing) can reach them without extra parameters.
 	output_bin_path_ = output_bin_path;
 	background_path_ = background_path;
+	frontend_ = frontend;
 
 	ScopedTimer run_rvm_timer("runRVM total", timing_enabled, logger, kRvmModuleName);
 
@@ -479,11 +476,11 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	//    - open the VideoWriter; if it fails, compositeAndWrite() is a no-op
 	//    - load or synthesise a solid-colour background for alpha compositing
 	// =========================================================================
-	const int src_width = input_source->width();
-	const int src_height = input_source->height();
+	const int src_width = frontend_->width();
+	const int src_height = frontend_->height();
 	dsr_ = 512.0f / static_cast<float>(std::max(src_width, src_height));
 	// dance.mp4 1920×1080 → dsr_ = 512/1920 ≈ 0.2667
-	const double src_fps = input_source->fps();
+	const double src_fps = frontend_->fps();
 	const double output_fps = (src_fps > 0) ? src_fps : 30.0;
 	const std::string output_video_path = output_bin_path + "/output_composited.mp4";
 
@@ -594,7 +591,8 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 	// --------------------
 	// obtain the first raw frame and push it into thread-safe raw_ch
 	cv::Mat current_frame;
-	if (!input_source->read(current_frame)) {
+	HardwareFrame current_hw_frame;
+	if (!frontend_->readFrame(current_frame, current_hw_frame)) {
 		logger.Info("No frames to process.", kRvmModuleName);
 		raw_ch.close();  // unblock worker so it can exit cleanly
 		prefetch_worker.join();
@@ -652,13 +650,14 @@ int RVMMode::run(InferenceEngine* engine, std::unique_ptr<InputSource> input_sou
 		// Read the frame that comes *after* the one we are about to infer,
 		// and hand it to the worker immediately so preprocessing overlaps with
 		// inference below (the dual-buffer trick).
-		// s10: time the decode (input_source->read) + handoff together.
+		// s18: decode now goes through Frontend (OpenCV or MPP path).
 		cv::Mat next_frame;
+		HardwareFrame next_hw_frame;
 		bool has_next;
 		{
 			ManualTimer decode_t;
 			decode_t.start();
-			has_next = input_source->read(next_frame);
+			has_next = frontend_->readFrame(next_frame, next_hw_frame);
 
 			if (has_next) {
 				raw_ch.push(next_frame);

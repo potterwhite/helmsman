@@ -19,32 +19,39 @@
 // SOFTWARE.
 
 // =============================================================================
-// mpp_decoder.cpp — Placeholder implementation of the MppDecoder class
+// mpp_decoder.cpp — Hardware video decoder implementation
 //
-// This is a stub for future use. The decoder follows a similar pattern to the
-// encoder, but with the data flow reversed:
+// Decoding flow (per frame):
 //
-//   Encoder: NV12 frame → VPU → H.264/H.265 packet → file
-//   Decoder: H.264/H.265 packet from file → VPU → NV12 frame → user buffer
-//
-// The full implementation will be added when the decoding path is needed
-// (e.g. for video playback, transcoding, or frame-by-frame analysis).
+//   1. Create MppPacket from the compressed bitstream data
+//   2. mpi->decode_put_packet() — submit packet to VPU
+//   3. mpi->decode_get_frame()  — retrieve decoded frame (blocks until ready)
+//   4. Extract the DMA buffer fd from the decoded MppFrame
+//   5. Release the MppFrame and MppPacket
 //
 // Key differences from encoding:
-//   - Uses mpp_init(ctx, MPP_CTX_DEC, ...) instead of MPP_CTX_ENC
-//   - Uses decode_put_packet() + decode_get_frame() instead of encode_*
-//   - No MppEncCfg — decoder configures itself from the bitstream headers
-//   - May need to handle info_change events (resolution change in stream)
+//   - Uses MPP_CTX_DEC instead of MPP_CTX_ENC
+//   - No MppEncCfg — decoder auto-configures from bitstream headers
+//   - Output buffer is allocated by MPP (not by us) — we just read the fd
+//   - May need to handle info_change events (resolution change mid-stream)
 //
 // =============================================================================
 
 #include "MPPKit/mpp_decoder.h"
 
+#include <cstring>
 #include <cstdio>
 
 extern "C" {
 #include "rk_mpi.h"
+#include "mpp_frame.h"
+#include "mpp_packet.h"
+#include "mpp_buffer.h"
 }
+
+#ifndef MPP_ALIGN
+#define MPP_ALIGN(x, a) (((x) + (a) - 1) & ~(static_cast<RK_U32>(a) - 1))
+#endif
 
 namespace arcforge {
 namespace mppkit {
@@ -53,11 +60,32 @@ struct MppDecoder::DecoderImpl {
     MppCtx ctx = nullptr;
     MppApi* mpi = nullptr;
     bool is_open = false;
+
+    DecoderConfig config;
+    MppCodingType coding_type = MPP_VIDEO_CodingAVC;
+    RK_U32 width = 0;
+    RK_U32 height = 0;
+    RK_U32 hor_stride = 0;
+    RK_U32 ver_stride = 0;
 };
 
-MppDecoder::MppDecoder(DecoderConfig /*config*/)
+MppDecoder::MppDecoder(DecoderConfig config)
     : decoder_impl_(std::make_unique<DecoderImpl>()) {
-    // TODO: store config for Init() to use
+    decoder_impl_->config = config;
+    decoder_impl_->width = static_cast<RK_U32>(config.width);
+    decoder_impl_->height = static_cast<RK_U32>(config.height);
+    decoder_impl_->hor_stride = MPP_ALIGN(decoder_impl_->width, 16);
+    decoder_impl_->ver_stride = MPP_ALIGN(decoder_impl_->height, 16);
+
+    switch (config.codec_type) {
+        case CodecType::kH265:
+            decoder_impl_->coding_type = MPP_VIDEO_CodingHEVC;
+            break;
+        case CodecType::kH264:
+        default:
+            decoder_impl_->coding_type = MPP_VIDEO_CodingAVC;
+            break;
+    }
 }
 
 MppDecoder::~MppDecoder() {
@@ -78,7 +106,7 @@ bool MppDecoder::Init() {
         return false;
     }
 
-    ret = mpp_init(decoder_impl_->ctx, MPP_CTX_DEC, MPP_VIDEO_CodingAVC);
+    ret = mpp_init(decoder_impl_->ctx, MPP_CTX_DEC, decoder_impl_->coding_type);
     if (ret != MPP_OK) {
         fprintf(stderr, "[MPPKit] MppDecoder::Init: mpp_init failed, ret=%d\n", ret);
         mpp_destroy(decoder_impl_->ctx);
@@ -90,21 +118,77 @@ bool MppDecoder::Init() {
     return true;
 }
 
-bool MppDecoder::DecodeNextFrame(uint8_t* /*nv12_out*/) {
-    if (!decoder_impl_->is_open) {
+bool MppDecoder::DecodeNextFrame(const uint8_t* packet_data, size_t packet_size,
+                                  DecodedFrame& out) {
+    if (!decoder_impl_->is_open || !packet_data || packet_size == 0) {
         return false;
     }
 
-    // TODO: implement the decode loop:
-    //   1. Read a chunk from the input file
-    //   2. Create MppPacket from the chunk
-    //   3. decode_put_packet() — submit to VPU
-    //   4. decode_get_frame() — retrieve decoded frame
-    //   5. Copy frame data from DMA buffer to nv12_out
-    //   6. Release MppFrame and MppPacket
+    out = {};
 
-    fprintf(stderr, "[MPPKit] MppDecoder::DecodeNextFrame: not implemented yet\n");
-    return false;
+    MPP_RET ret;
+    MppPacket packet = nullptr;
+    MppFrame frame = nullptr;
+
+    // Step 1: Create MppPacket from the raw bitstream data.
+    // mpp_packet_init wraps the user buffer without copying.
+    // The data must remain valid until decode_put_packet() returns.
+    ret = mpp_packet_init(&packet, const_cast<uint8_t*>(packet_data), packet_size);
+    if (ret != MPP_OK) {
+        fprintf(stderr, "[MPPKit] MppDecoder::DecodeNextFrame: mpp_packet_init failed, ret=%d\n", ret);
+        return false;
+    }
+
+    // Step 2: Submit the compressed packet to the VPU decoder.
+    ret = decoder_impl_->mpi->decode_put_packet(decoder_impl_->ctx, packet);
+    if (ret != MPP_OK) {
+        fprintf(stderr, "[MPPKit] MppDecoder::DecodeNextFrame: decode_put_packet failed, ret=%d\n", ret);
+        mpp_packet_deinit(&packet);
+        return false;
+    }
+
+    // Step 3: Try to get a decoded frame.
+    // The decoder may need multiple packets before producing the first frame
+    // (e.g. it needs SPS/PPS before it can output). In that case, we return
+    // false to signal "need more data".
+    ret = decoder_impl_->mpi->decode_get_frame(decoder_impl_->ctx, &frame);
+    mpp_packet_deinit(&packet);
+
+    if (ret != MPP_OK || !frame) {
+        // No frame available yet — need more data
+        return false;
+    }
+
+    // Step 4: Check if the frame is valid (not an info_change event).
+    // MPP may return frames with info_change set when the stream parameters
+    // change. We skip those for now (fixed-resolution assumption).
+    if (mpp_frame_get_info_change(frame)) {
+        // Handle resolution change: reconfigure buffer group
+        decoder_impl_->width = mpp_frame_get_width(frame);
+        decoder_impl_->height = mpp_frame_get_height(frame);
+        decoder_impl_->hor_stride = mpp_frame_get_hor_stride(frame);
+        decoder_impl_->ver_stride = mpp_frame_get_ver_stride(frame);
+
+        // Acknowledge the info change
+        decoder_impl_->mpi->control(decoder_impl_->ctx, MPP_DEC_SET_INFO_CHANGE_READY, nullptr);
+        mpp_frame_deinit(&frame);
+        return false;  // No actual frame data yet
+    }
+
+    // Step 5: Extract the decoded frame's DMA buffer.
+    // The VPU writes the decoded NV12 data into a DMA buffer managed by MPP.
+    // We get the fd from MppBuffer for zero-copy downstream.
+    MppBuffer buffer = mpp_frame_get_buffer(frame);
+    if (buffer) {
+        out.fd = mpp_buffer_get_fd(buffer);
+        out.width = static_cast<int>(mpp_frame_get_width(frame));
+        out.height = static_cast<int>(mpp_frame_get_height(frame));
+        out.format = static_cast<int>(mpp_frame_get_fmt(frame));
+    }
+
+    mpp_frame_deinit(&frame);
+
+    return out.fd >= 0;
 }
 
 void MppDecoder::Close() {

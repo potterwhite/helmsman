@@ -23,18 +23,26 @@
 #
 
 #################################
-# 1.0 input/
-set(INPUT_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/input/mp4-input-source.cpp"
-)
-
-#################################
 # 2.0 pipeline/
 
 # 2.1 pipeline/stages/frontend/
 set(PIPELINE_FRONTEND_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/stages/frontend/frontend.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/stages/frontend/preprocess/preprocessor.cpp"
 )
+
+# FFmpegInputSource: Phase 2 (code kept, not compiled yet)
+# To enable: uncomment below and add FFmpeg as a direct dependency.
+# list(APPEND PIPELINE_FRONTEND_SOURCES
+#     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/stages/frontend/input-source/ffmpeg-input-source.cpp"
+# )
+
+# MppFrameDecoder: only when MPPKit is available (RK3588)
+if(TARGET ${PROJECT_NAMESPACE}::MPPKit)
+    list(APPEND PIPELINE_FRONTEND_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/stages/frontend/decoder/mpp-frame-decoder.cpp"
+    )
+endif()
 
 # 2.2 pipeline/stages/inference-engine/
 set(PIPELINE_INFERENCE_ENGINE_SOURCES
@@ -78,7 +86,6 @@ set(SERVER_SOURCE
 
 target_sources(${PROJECT_NAME}
     PRIVATE
-        ${INPUT_SOURCES}
         ${PIPELINE_SOURCES}
         ${SERVER_SOURCE}
 )

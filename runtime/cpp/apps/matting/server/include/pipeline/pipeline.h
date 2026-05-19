@@ -27,9 +27,9 @@
 #include "Utils/logger/logger.h"
 #include "common/common-define.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
+#include "pipeline/stages/frontend/frontend.h"
 #include "pipeline/modes/modnet/modnet.h"
 #include "pipeline/modes/rvm/rvm.h"
-#include "input/input-source.h"
 
 enum class ModelType {
     kMODNet,
@@ -40,7 +40,7 @@ class Pipeline {
 public:
     static Pipeline& GetInstance();
 
-    void init(std::unique_ptr<InputSource> input_source, const std::string& model_path,
+    void init(std::unique_ptr<Frontend> frontend, const std::string& model_path,
               const std::string& output_bin_path, const std::string& background_path = "",
               ModelType model_type = ModelType::kRVM,
               OutputMode output_mode = OutputMode::kMp4);
@@ -64,7 +64,7 @@ private:
 
 private:
     std::string input_image_path_;
-    std::unique_ptr<InputSource> input_source_;
+    std::unique_ptr<Frontend> frontend_;
     std::string model_path_;
     std::string output_bin_path_;
     std::string background_path_;

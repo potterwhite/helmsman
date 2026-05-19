@@ -20,6 +20,7 @@
 
 #include "pipeline/modes/modnet/modnet.h"
 #include <chrono>
+#include <opencv2/imgcodecs.hpp>
 #include "Utils/timing/timer.h"
 #include "common/common-define.h"
 #include "pipeline/stages/backend/post-processor/guided-filter-post-processor.h"
@@ -50,7 +51,8 @@ int MODNetMode::run(InferenceEngine* engine, const std::string& input_image_path
 	{
 		ScopedTimer t("runMODNet: preprocess", timing_enabled, logger, kModnetModuleName);
 		frontend_.setOutputBinPath(output_bin_path);
-		src = frontend_.preprocess(input_image_path, model_input_width, model_input_height);
+		cv::Mat img = cv::imread(input_image_path, cv::IMREAD_COLOR);
+		src = frontend_.preprocess(img, model_input_width, model_input_height);
 	}
 
 	// 3. Inference: benchmark 10 iterations

@@ -21,8 +21,22 @@
 // =============================================================================
 // MPPKit/mpp_decoder.h — Hardware video decoder using the RK3588 VPU
 //
-// Placeholder for future use. The full implementation will be added when the
-// decoding path is needed (e.g. for video playback or transcoding).
+// Decodes H.264/H.265 bitstream packets into NV12 frames via hardware.
+// Returns decoded frames as DMA buffer file descriptors (dmabuf fd) for
+// zero-copy integration with RGA and downstream pipeline stages.
+//
+// Usage:
+//   MppDecoder decoder({.codec_type = CodecType::kH264, .width = 1920, .height = 1080});
+//   decoder.Init();
+//
+//   // Feed compressed packets (e.g. from FFmpeg demuxer)
+//   DecodedFrame frame;
+//   if (decoder.DecodeNextFrame(packet_data, packet_size, frame)) {
+//       // frame.fd is a dmabuf fd containing NV12 data
+//       // frame.width, frame.height, frame.format describe the layout
+//   }
+//
+//   decoder.Close();
 //
 // =============================================================================
 
@@ -32,6 +46,14 @@
 
 namespace arcforge {
 namespace mppkit {
+
+// Decoded frame output — carries a dmabuf fd for zero-copy downstream.
+struct DecodedFrame {
+    int fd = -1;        // dmabuf file descriptor (NV12 data)
+    int width = 0;      // Decoded frame width in pixels
+    int height = 0;     // Decoded frame height in pixels
+    int format = 0;     // MPP pixel format (MPP_FMT_YUV420SP = NV12)
+};
 
 class MppDecoder : public MppCodec {
 public:
@@ -45,9 +67,18 @@ public:
     void Close() override;
     bool IsOpen() const override;
 
-    // Decode the next frame from the bitstream into nv12_out.
-    // Returns true if a frame was decoded, false at EOF or error.
-    bool DecodeNextFrame(uint8_t* nv12_out);
+    // Decode the next frame from a compressed bitstream packet.
+    //
+    // packet_data / packet_size: compressed H.264/H.265 NAL unit data.
+    //   The data must remain valid until this call returns.
+    // out: receives the decoded frame's dmabuf fd and dimensions.
+    //
+    // Returns true if a decoded frame is available.
+    // Returns false on error or if more data is needed (decoder is buffering).
+    //
+    // The returned fd is valid until the next DecodeNextFrame() call or Close().
+    bool DecodeNextFrame(const uint8_t* packet_data, size_t packet_size,
+                         DecodedFrame& out);
 
 private:
     struct DecoderImpl;
