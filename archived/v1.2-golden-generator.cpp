@@ -32,7 +32,7 @@
 #include <thread>
 #include <vector>
 
-using namespace arcforge::embedded;
+using namespace helmsman;
 
 const std::string_view kcurrent_app_name = "matting-client";
 
@@ -46,7 +46,7 @@ void SignalHandler(int signal_num) {
 	g_stop_signal_received = true;
 	std::ostringstream oss;
 	oss << "\nInterrupt signal (" << signal_num << ") received. Shutting down...";
-	arcforge::embedded::utils::Logger::GetInstance().Warning(oss.str(), kcurrent_app_name);
+	helmsman::utils::Logger::GetInstance().Warning(oss.str(), kcurrent_app_name);
 }
 
 bool isDebug() {
@@ -60,26 +60,26 @@ bool isRelease() {
 }
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
-	// auto& logger = arcforge::embedded::utils::Logger::GetInstance();
-	// logger.setLevel(arcforge::embedded::utils::LoggerLevel::kdebug);
+	// auto& logger = helmsman::utils::Logger::GetInstance();
+	// logger.setLevel(helmsman::utils::LoggerLevel::kdebug);
 
 	//*****************************************************
 	// logger level configuration
 	// obtain logger unique instance
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	// 1. Configure logger level
 	if (isRelease() == true) {
-		logger.setLevel(arcforge::embedded::utils::LoggerLevel::kinfo);
+		logger.setLevel(helmsman::utils::LoggerLevel::kinfo);
 	} else {
-		logger.setLevel(arcforge::embedded::utils::LoggerLevel::kdebug);
+		logger.setLevel(helmsman::utils::LoggerLevel::kdebug);
 	}
 
 	// 2. Configure output targets (Sinks)
 	logger.ClearSinks();
 	logger.AddSink(
-	    std::make_shared<arcforge::embedded::utils::FileSink>("/root/my_app_client.log"));
-	logger.AddSink(std::make_shared<arcforge::embedded::utils::ConsoleSink>());
+	    std::make_shared<helmsman::utils::FileSink>("/root/my_app_client.log"));
+	logger.AddSink(std::make_shared<helmsman::utils::ConsoleSink>());
 
 	//----------------------------------
 
@@ -94,7 +94,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
 	const std::string imagePath = argv[1];
 	const std::string outputBinPath = argv[2];
-	auto cvkit_obj = std::make_unique<arcforge::cvkit::Base>();
+	auto cvkit_obj = std::make_unique<helmsman::cvkit::Base>();
 	try {
 		cv::Mat img = cvkit_obj->loadImage(imagePath);
 		cvkit_obj->dumpBinary(img, outputBinPath + "/cpp_00_01_imread.bin");

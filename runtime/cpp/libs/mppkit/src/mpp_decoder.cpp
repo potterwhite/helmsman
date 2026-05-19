@@ -53,7 +53,7 @@ extern "C" {
 #define MPP_ALIGN(x, a) (((x) + (a) - 1) & ~(static_cast<RK_U32>(a) - 1))
 #endif
 
-namespace arcforge {
+namespace helmsman {
 namespace mppkit {
 
 struct MppDecoder::DecoderImpl {
@@ -210,4 +210,4 @@ bool MppDecoder::IsOpen() const {
 }
 
 }  // namespace mppkit
-}  // namespace arcforge
+}  // namespace helmsman

@@ -66,7 +66,7 @@
 
 #include "im2d.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace rgakit {
 
 // ToRgaBuffer — convert our ImageDescriptor to an RGA rga_buffer_t
@@ -237,4 +237,4 @@ bool RgaComposite::Execute(const ImageDescriptor& fg,
 }
 
 }  // namespace rgakit
-}  // namespace arcforge
+}  // namespace helmsman

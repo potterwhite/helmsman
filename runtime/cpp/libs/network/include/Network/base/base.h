@@ -25,8 +25,7 @@
 #include "Network/common/common-types.h"
 #include "Network/pch.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace network_socket {
 
 // forward declaration of PIMPL implementation class
@@ -84,5 +83,4 @@ class Base {
 };
 
 }  // namespace network_socket
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

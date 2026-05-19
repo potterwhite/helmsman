@@ -44,7 +44,7 @@
 
 #include "MPPKit/mpp_codec.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace mppkit {
 
 // Decoded frame output — carries a dmabuf fd for zero-copy downstream.
@@ -86,4 +86,4 @@ private:
 };
 
 }  // namespace mppkit
-}  // namespace arcforge
+}  // namespace helmsman

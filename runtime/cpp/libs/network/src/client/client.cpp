@@ -24,8 +24,7 @@
 // #include <sys/un.h>
 // #include <unistd.h>
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace network_socket {
 
 ClientBase::ClientBase() {}
@@ -33,5 +32,4 @@ ClientBase::ClientBase() {}
 ClientBase::~ClientBase() {}
 
 }  // namespace network_socket
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

@@ -228,7 +228,7 @@ Custom CMake macros:
 
 | File | Key Classes/Functions |
 |---|---|
-| `include/CVKit/base/base.h` | `arcforge::cvkit::Base`: `loadImage()`, `bgrToRgb()`, `ensure3Channel()`, `hwcToNchw()`, `dumpBinary()` |
+| `include/CVKit/base/base.h` | `helmsman::cvkit::Base`: `loadImage()`, `bgrToRgb()`, `ensure3Channel()`, `hwcToNchw()`, `dumpBinary()` |
 | `src/base/base.cpp` | Implementation |
 | `src/base/impl/base-impl.{h,cpp}` | Pimpl pattern |
 
@@ -248,7 +248,7 @@ Custom CMake macros:
 
 | File | Key Classes/Functions |
 |---|---|
-| `include/Runtime/onnx/onnx.h` | `arcforge::runtime::RuntimeONNX::GetInstance()` |
+| `include/Runtime/onnx/onnx.h` | `helmsman::runtime::RuntimeONNX::GetInstance()` |
 | `src/onnx/onnx.cpp` | ONNX Runtime session management |
 | `src/onnx/impl/impl.{h,cpp}` | Pimpl: create session, run inference, `GetInputNameAllocated()` |
 
@@ -390,7 +390,7 @@ typedef struct {
 
 ```cpp
 // Logging (use everywhere)
-auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+auto& logger = helmsman::utils::Logger::GetInstance();
 logger.Info("message", kcurrent_module_name);
 logger.Warning("message", kcurrent_module_name);
 logger.Debug("message", kcurrent_module_name);  // only shown in Debug builds

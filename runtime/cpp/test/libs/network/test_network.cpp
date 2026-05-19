@@ -58,7 +58,7 @@ TEST(NetworkModuleTest, FrameworkSanityCheck) {
  *          This proves that target_link_libraries() in CMake is correct.
  */
 TEST(NetworkModuleTest, LibraryLinkage) {
-    // Note: Adjust the namespace 'arcforge::embedded' if it differs in your actual code.
+    // Note: Adjust the namespace 'helmsman' if it differs in your actual code.
     // We strictly follow the Changelog v0.3.0 description here.
 
     // Assuming Base class exists or checking a macro from system-info

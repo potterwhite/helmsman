@@ -62,7 +62,7 @@
 
 #include "MPPKit/pch.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace mppkit {
 
 // ---------------------------------------------------------------------------
@@ -157,4 +157,4 @@ std::unique_ptr<MppCodec> CreateEncoder(EncoderConfig config);
 std::unique_ptr<MppCodec> CreateDecoder(DecoderConfig config);
 
 }  // namespace mppkit
-}  // namespace arcforge
+}  // namespace helmsman

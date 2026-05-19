@@ -32,12 +32,12 @@
 #include "pipeline/single-slot-channel.h"
 #include "pipeline/stages/backend/post-processor/guided-filter-post-processor.h"
 
-using arcforge::rgakit::ImageDescriptor;
-using arcforge::rgakit::RgaPixelFormat;
+using helmsman::rgakit::ImageDescriptor;
+using helmsman::rgakit::RgaPixelFormat;
 
-using arcforge::utils::timing::ManualTimer;
-using arcforge::utils::timing::ScopedTimer;
-using arcforge::utils::timing::StageAccumulator;
+using helmsman::utils::timing::ManualTimer;
+using helmsman::utils::timing::ScopedTimer;
+using helmsman::utils::timing::StageAccumulator;
 
 extern std::atomic<bool> g_stop_signal_received;
 
@@ -47,7 +47,7 @@ void RVMMode::initRecurrentStates(InferenceEngine* engine) {
 	// Try to get recurrent state shapes from the engine (RKNN reports actual shapes).
 	auto shapes = engine->getRecurrentStateShapes();
 	if (shapes.size() == 4) {
-		auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+		auto& logger = helmsman::utils::Logger::GetInstance();
 		logger.Info("Using model-reported recurrent state shapes", kRvmModuleName);
 		state_mgr_.init(shapes, {"r1i", "r2i", "r3i", "r4i"});
 	} else {
@@ -59,7 +59,7 @@ void RVMMode::initRecurrentStates(InferenceEngine* engine) {
 
 bool RVMMode::openVideoWriter(cv::VideoWriter& writer, const std::string& path, int width,
                               int height, double fps) {
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+	auto& logger = helmsman::utils::Logger::GetInstance();
 	writer.open(path, cv::VideoWriter::fourcc('m', 'p', '4', 'v'), fps, cv::Size(width, height));
 	if (!writer.isOpened()) {
 		logger.Warning(
@@ -88,7 +88,7 @@ cv::Mat RVMMode::loadOrCreateBackground(int width, int height) {
 
 cv::Mat RVMMode::inferOneFrame(InferenceEngine* engine, const TensorData& src,
                                const cv::Mat& guide_bgr) {
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	std::vector<TensorData> inputs = {src};
 	state_mgr_.inject(inputs);
@@ -219,10 +219,10 @@ double RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
 }
 
 bool RVMMode::initOutputDma(int src_width, int src_height) {
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+	auto& logger = helmsman::utils::Logger::GetInstance();
 	const size_t buf_bytes =
 	    static_cast<size_t>(src_width) * static_cast<size_t>(src_height) * 3;  // BGR888
-	dma_output_buf_ = arcforge::dmakit::DmaBuffer::Allocate(buf_bytes);
+	dma_output_buf_ = helmsman::dmakit::DmaBuffer::Allocate(buf_bytes);
 	if (!dma_output_buf_) {
 		logger.Warning("Failed to allocate DMA output buffer (" + std::to_string(buf_bytes) +
 		                   " bytes). Falling back to VideoWriter.",
@@ -419,7 +419,7 @@ double RVMMode::compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, in
 RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& model_path,
                                 const std::string& output_bin_path,
                                 const std::string& background_path, bool timing_enabled) {
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	{
 		ScopedTimer t("runRVM: model load", timing_enabled, logger, kRvmModuleName);
@@ -446,7 +446,7 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& mode
 int RVMMode::run(InferenceEngine* engine, Frontend* frontend,
                  const std::string& model_path, const std::string& output_bin_path,
                  const std::string& background_path, bool timing_enabled, OutputMode output_mode) {
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	// Stash paths as member variables so helper methods (e.g. future per-frame
 	// post-processing) can reach them without extra parameters.
@@ -521,7 +521,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend,
 	// Create RGA hardware operations (stateless, reused every frame).
 	// RGA resize replaces cv::resize for the downscale/upscale steps.
 	// RGA composite replaces the CPU uint8 blend loop.
-	rga_resize_ = arcforge::rgakit::CreateOperation<arcforge::rgakit::RgaResize>();
+	rga_resize_ = helmsman::rgakit::CreateOperation<helmsman::rgakit::RgaResize>();
 
 	// =========================================================================
 	// 3rd — Dual-buffer prefetch worker (producer thread)

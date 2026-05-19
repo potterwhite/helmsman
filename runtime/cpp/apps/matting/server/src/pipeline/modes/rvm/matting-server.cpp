@@ -30,8 +30,8 @@
 #include "RGAKit/rga_operation.h"
 #include "common/common-define.h"
 
-using arcforge::rgakit::ImageDescriptor;
-using arcforge::rgakit::RgaPixelFormat;
+using helmsman::rgakit::ImageDescriptor;
+using helmsman::rgakit::RgaPixelFormat;
 
 static constexpr const char* kMattingServerModule = "MattingServer";
 
@@ -40,7 +40,7 @@ MattingServer::~MattingServer() { shutdown(); }
 
 bool MattingServer::init(const std::string& model_path, const std::string& bg_path,
                          int output_w, int output_h) {
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+	auto& logger = helmsman::utils::Logger::GetInstance();
 	output_w_ = output_w;
 	output_h_ = output_h;
 
@@ -50,7 +50,7 @@ bool MattingServer::init(const std::string& model_path, const std::string& bg_pa
 
 	// Allocate output DMA buffer (BGR888 at output resolution).
 	const size_t buf_bytes = static_cast<size_t>(output_w) * static_cast<size_t>(output_h) * 3;
-	dma_output_buf_ = arcforge::dmakit::DmaBuffer::Allocate(buf_bytes);
+	dma_output_buf_ = helmsman::dmakit::DmaBuffer::Allocate(buf_bytes);
 	if (!dma_output_buf_ || !dma_output_buf_->map()) {
 		logger.Warning("MattingServer: failed to allocate output DMA buffer", kMattingServerModule);
 		return false;
@@ -66,7 +66,7 @@ bool MattingServer::init(const std::string& model_path, const std::string& bg_pa
 
 int MattingServer::processFrame(int input_fd, int input_w, int input_h) {
 	if (!initialized_ || input_fd < 0) return -1;
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	// 1. Map input DMA buffer to get pixel data.
 	void* input_ptr = ::mmap(nullptr, static_cast<size_t>(input_w) * static_cast<size_t>(input_h) * 3,
@@ -169,12 +169,12 @@ void MattingServer::shutdown() {
 // ---------------------------------------------------------------------------
 
 bool MattingServer::initRga() {
-	rga_resize_ = arcforge::rgakit::CreateOperation<arcforge::rgakit::RgaResize>();
+	rga_resize_ = helmsman::rgakit::CreateOperation<helmsman::rgakit::RgaResize>();
 	return rga_resize_ != nullptr;
 }
 
 bool MattingServer::initModel(const std::string& model_path) {
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	// Create inference engine (backend selected at compile time).
 #if defined(INFERENCE_BACKEND_RKNN_ZERO_COPY)

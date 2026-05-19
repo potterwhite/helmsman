@@ -25,8 +25,7 @@
 #include "Network/common/common-types.h"
 #include "Network/pch.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace network_socket {
 
 class ClientBase : public Base {
@@ -43,5 +42,4 @@ class ClientBase : public Base {
 };
 
 }  // namespace network_socket
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

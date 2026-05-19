@@ -45,7 +45,7 @@
 
 #include "DmaKit/pch.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace dmakit {
 
 class DmaBuffer {
@@ -90,4 +90,4 @@ private:
 };
 
 }  // namespace dmakit
-}  // namespace arcforge
+}  // namespace helmsman

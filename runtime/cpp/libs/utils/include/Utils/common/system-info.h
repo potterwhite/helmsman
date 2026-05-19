@@ -23,8 +23,7 @@
 #pragma once
 #include <string>
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace utils {
 
 /**
@@ -44,5 +43,4 @@ std::string get_utils_library_build_timestamp();
 // const char* g_internal_build_timestamp_string_for_binary_scan;
 
 }  // namespace utils
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

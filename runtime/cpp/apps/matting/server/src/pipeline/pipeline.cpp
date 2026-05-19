@@ -31,7 +31,7 @@
 
 #include "Utils/timing/timer.h"
 
-using arcforge::utils::timing::ScopedTimer;
+using helmsman::utils::timing::ScopedTimer;
 
 std::unique_ptr<InferenceEngine> Pipeline::make_engine() {
 #if defined(INFERENCE_BACKEND_RKNN_ZEROCOPY)
@@ -49,12 +49,12 @@ Pipeline& Pipeline::GetInstance() {
 }
 
 Pipeline::Pipeline() {
-    arcforge::embedded::utils::Logger::GetInstance().Info("Pipeline object constructed.",
+    helmsman::utils::Logger::GetInstance().Info("Pipeline object constructed.",
                                                       kcurrent_module_name);
 }
 
 Pipeline::~Pipeline() {
-    arcforge::embedded::utils::Logger::GetInstance().Info("Pipeline cleaned up.",
+    helmsman::utils::Logger::GetInstance().Info("Pipeline cleaned up.",
                                                       kcurrent_module_name);
 }
 
@@ -96,7 +96,7 @@ void Pipeline::verify_parameters_necessary() {
 int Pipeline::run() {
     verify_parameters_necessary();
 
-    auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+    auto& logger = helmsman::utils::Logger::GetInstance();
 
     ScopedTimer run_timer("Pipeline::run() total", timing_enabled_, logger, kcurrent_module_name);
 

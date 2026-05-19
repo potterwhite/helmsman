@@ -34,7 +34,7 @@
 int main(int argc, char** argv) {
     const char* card = (argc > 1) ? argv[1] : "";
 
-    arcforge::drmkit::DrmDisplay disp;
+    helmsman::drmkit::DrmDisplay disp;
     if (!disp.Init(/*req_w*/ 0, /*req_h*/ 0, card)) {
         std::fprintf(stderr, "DrmDisplay.Init failed\n");
         return 1;

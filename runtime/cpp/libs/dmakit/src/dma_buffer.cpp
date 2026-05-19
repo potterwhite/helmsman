@@ -41,7 +41,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-namespace arcforge {
+namespace helmsman {
 namespace dmakit {
 
 static constexpr const char* kDmaHeapPath = "/dev/dma_heap/system";
@@ -131,4 +131,4 @@ void DmaBuffer::unmap() {
 }
 
 }  // namespace dmakit
-}  // namespace arcforge
+}  // namespace helmsman

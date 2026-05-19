@@ -45,7 +45,7 @@
 // C++ overloads which have default arguments).
 #include "im2d.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace rgakit {
 
 // ---------------------------------------------------------------------------
@@ -116,4 +116,4 @@ bool RgaResize::Execute(const ImageDescriptor& src, ImageDescriptor& dst) {
 }
 
 }  // namespace rgakit
-}  // namespace arcforge
+}  // namespace helmsman

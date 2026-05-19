@@ -25,12 +25,12 @@
 // #include <cmath>
 
 MattingBackend::MattingBackend() {
-	arcforge::embedded::utils::Logger::GetInstance().Info("MattingBackend object constructed.",
+	helmsman::utils::Logger::GetInstance().Info("MattingBackend object constructed.",
 	                                                      kcurrent_module_name);
 }
 
 MattingBackend::~MattingBackend() {
-	arcforge::embedded::utils::Logger::GetInstance().Info("MattingBackend cleaned up.",
+	helmsman::utils::Logger::GetInstance().Info("MattingBackend cleaned up.",
 	                                                      kcurrent_module_name);
 }
 
@@ -59,8 +59,8 @@ cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs,
 
 	const int current_frame = process_count_++;  // 0-indexed frame number
 
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
-	auto& file_utils = arcforge::utils::FileUtils::GetInstance();
+	auto& logger = helmsman::utils::Logger::GetInstance();
+	auto& file_utils = helmsman::utils::FileUtils::GetInstance();
 
 	if (outputs.empty()) {
 		throw std::runtime_error("Backend received empty outputs");

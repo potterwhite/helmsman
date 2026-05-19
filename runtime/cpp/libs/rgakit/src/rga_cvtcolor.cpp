@@ -45,7 +45,7 @@
 
 #include "im2d.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace rgakit {
 
 static rga_buffer_t ToRgaBuffer(const ImageDescriptor& desc) {
@@ -108,4 +108,4 @@ bool RgaCvtColor::Execute(const ImageDescriptor& src, ImageDescriptor& dst) {
 }
 
 }  // namespace rgakit
-}  // namespace arcforge
+}  // namespace helmsman

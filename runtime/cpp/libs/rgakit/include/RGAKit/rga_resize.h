@@ -47,7 +47,7 @@
 
 #include "RGAKit/rga_operation.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace rgakit {
 
 // ---------------------------------------------------------------------------
@@ -86,4 +86,4 @@ private:
 };
 
 }  // namespace rgakit
-}  // namespace arcforge
+}  // namespace helmsman

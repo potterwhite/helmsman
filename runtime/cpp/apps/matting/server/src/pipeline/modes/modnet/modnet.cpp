@@ -25,14 +25,14 @@
 #include "common/common-define.h"
 #include "pipeline/stages/backend/post-processor/guided-filter-post-processor.h"
 
-using arcforge::utils::timing::ScopedTimer;
+using helmsman::utils::timing::ScopedTimer;
 
 inline constexpr std::string_view kModnetModuleName = "MODNetMode";
 
 int MODNetMode::run(InferenceEngine* engine, const std::string& input_image_path,
                     const std::string& model_path, const std::string& output_bin_path,
                     const std::string& background_path, bool timing_enabled) {
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	MattingBackend backend;
 

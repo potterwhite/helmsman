@@ -23,7 +23,7 @@
 #include "Runtime/onnx/onnx.h"
 #include "impl/impl.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace runtime {
 
 RuntimeONNX::RuntimeONNX() : impl_(std::make_unique<Impl>()) {}
@@ -63,4 +63,4 @@ Ort::SessionOptions RuntimeONNX::init_session_option(void) {
 }
 
 }  // namespace runtime
-}  // namespace arcforge
+}  // namespace helmsman

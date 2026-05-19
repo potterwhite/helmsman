@@ -24,12 +24,10 @@
 
 #include "Utils/pch.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace utils {
 
 extern const std::string_view kcurrent_lib_name;
 
 }  // namespace utils
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

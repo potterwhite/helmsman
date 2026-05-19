@@ -55,7 +55,7 @@
 
 #include "MPPKit/mpp_codec.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace mppkit {
 
 class MppEncoder : public MppCodec {
@@ -88,4 +88,4 @@ private:
 };
 
 }  // namespace mppkit
-}  // namespace arcforge
+}  // namespace helmsman

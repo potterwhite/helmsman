@@ -40,7 +40,7 @@
 // ============================================================================
 
 InferenceEngineRKNNZeroCP::InferenceEngineRKNNZeroCP() {
-	arcforge::embedded::utils::Logger::GetInstance().Info(
+	helmsman::utils::Logger::GetInstance().Info(
 	    "InferenceEngineRKNNZeroCP constructed. (Zero-Copy Mode)", kcurrent_module_name);
 }
 
@@ -76,7 +76,7 @@ void InferenceEngineRKNNZeroCP::releaseBuffers() {
 // Phase V   - Set NPU core mask
 // ============================================================================
 void InferenceEngineRKNNZeroCP::load(const std::string& model_path) {
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	// ----------------------------------------------------------------
 	// Phase I - RKNN Context Initialization (file path mode)
@@ -106,7 +106,7 @@ void InferenceEngineRKNNZeroCP::load(const std::string& model_path) {
 		input_attrs_[i].index = i;
 		rknn_query(ctx_, RKNN_QUERY_INPUT_ATTR, &input_attrs_[i], sizeof(rknn_tensor_attr));
 		logger.Info("Input[" + std::to_string(i) + "] attr: " +
-		            arcforge::runtime::to_string(input_attrs_[i]));
+		            helmsman::runtime::to_string(input_attrs_[i]));
 	}
 
 	// Query each output attribute
@@ -116,7 +116,7 @@ void InferenceEngineRKNNZeroCP::load(const std::string& model_path) {
 		output_attrs_[i].index = i;
 		rknn_query(ctx_, RKNN_QUERY_OUTPUT_ATTR, &output_attrs_[i], sizeof(rknn_tensor_attr));
 		logger.Info("Output[" + std::to_string(i) + "] attr: " +
-		            arcforge::runtime::to_string(output_attrs_[i]));
+		            helmsman::runtime::to_string(output_attrs_[i]));
 	}
 
 	// ----------------------------------------------------------------
@@ -162,9 +162,9 @@ void InferenceEngineRKNNZeroCP::load(const std::string& model_path) {
 
 	auto retval = rknn_set_core_mask(ctx_, mask);
 	if (retval == RKNN_SUCC) {
-		logger.Info("Set core to " + arcforge::runtime::to_string(mask) + " Successfully");
+		logger.Info("Set core to " + helmsman::runtime::to_string(mask) + " Successfully");
 	} else {
-		logger.Warning("Set core to " + arcforge::runtime::to_string(mask) + " Failed");
+		logger.Warning("Set core to " + helmsman::runtime::to_string(mask) + " Failed");
 	}
 
 	logger.Info("Zero-copy buffers allocated and bound: " +
@@ -189,8 +189,8 @@ void InferenceEngineRKNNZeroCP::infer(
     const std::vector<TensorData>& inputs,
           std::vector<TensorData>& outputs)
 {
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
-	auto& file_utils_ = arcforge::utils::FileUtils::GetInstance();
+	auto& logger = helmsman::utils::Logger::GetInstance();
+	auto& file_utils_ = helmsman::utils::FileUtils::GetInstance();
 
 	const uint32_t n_in  = io_num_.n_input;
 	const uint32_t n_out = io_num_.n_output;

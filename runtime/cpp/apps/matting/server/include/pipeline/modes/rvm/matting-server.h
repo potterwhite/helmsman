@@ -97,10 +97,10 @@ class MattingServer {
 	cv::Mat bg_model_u8_;
 
 	// RGA hardware operations
-	std::unique_ptr<arcforge::rgakit::RgaResize> rga_resize_;
+	std::unique_ptr<helmsman::rgakit::RgaResize> rga_resize_;
 
 	// DMA buffers
-	std::unique_ptr<arcforge::dmakit::DmaBuffer> dma_output_buf_;
+	std::unique_ptr<helmsman::dmakit::DmaBuffer> dma_output_buf_;
 
 	bool initialized_ = false;
 };

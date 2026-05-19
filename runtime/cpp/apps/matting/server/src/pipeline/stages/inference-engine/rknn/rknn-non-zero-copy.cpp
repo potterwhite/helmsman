@@ -30,13 +30,13 @@
 // ============================================================================
 
 InferenceEngineRKNN::InferenceEngineRKNN() {
-	arcforge::embedded::utils::Logger::GetInstance().Info(
+	helmsman::utils::Logger::GetInstance().Info(
 	    "InferenceEngineRKNN object constructed. (Non-Zero-Copy Mode)", kcurrent_module_name);
 }
 
 InferenceEngineRKNN::~InferenceEngineRKNN() {
 	release();
-	arcforge::embedded::utils::Logger::GetInstance().Info("InferenceEngineRKNN cleaned up.",
+	helmsman::utils::Logger::GetInstance().Info("InferenceEngineRKNN cleaned up.",
 	                                                      kcurrent_module_name);
 }
 
@@ -51,7 +51,7 @@ void InferenceEngineRKNN::release() {
 // Load Model — same as original (already supports multi-tensor query)
 // ============================================================================
 void InferenceEngineRKNN::load(const std::string& model_path) {
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	// Step 1: Read RKNN model file into memory
 	std::ifstream ifs(model_path, std::ios::in | std::ios::binary);
@@ -95,7 +95,7 @@ void InferenceEngineRKNN::load(const std::string& model_path) {
 		attr.index = i;
 		rknn_query(ctx_, RKNN_QUERY_INPUT_ATTR, &attr, sizeof(attr));
 		input_attrs_.push_back(attr);
-		logger.Info("Input attr: " + arcforge::runtime::to_string(attr));
+		logger.Info("Input attr: " + helmsman::runtime::to_string(attr));
 	}
 
 	// Query each output tensor attribute
@@ -106,7 +106,7 @@ void InferenceEngineRKNN::load(const std::string& model_path) {
 		attr.index = i;
 		rknn_query(ctx_, RKNN_QUERY_OUTPUT_ATTR, &attr, sizeof(attr));
 		output_attrs_.push_back(attr);
-		logger.Info("Output attr: " + arcforge::runtime::to_string(attr));
+		logger.Info("Output attr: " + helmsman::runtime::to_string(attr));
 	}
 }
 
@@ -117,8 +117,8 @@ void InferenceEngineRKNN::infer(
     const std::vector<TensorData>& inputs,
           std::vector<TensorData>& outputs)
 {
-	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
-	auto& file_utils_ = arcforge::utils::FileUtils::GetInstance();
+	auto& logger = helmsman::utils::Logger::GetInstance();
+	auto& file_utils_ = helmsman::utils::FileUtils::GetInstance();
 
 	if (ctx_ == 0) {
 		throw std::runtime_error("RKNN Context is null, please load model first.");

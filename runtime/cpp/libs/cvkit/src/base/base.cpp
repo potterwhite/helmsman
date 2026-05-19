@@ -23,7 +23,7 @@
 #include "CVKit/base/base.h"
 #include "impl/base-impl.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace cvkit {
 
 Base::Base() : impl_(std::make_unique<BaseImpl>()) {}
@@ -97,4 +97,4 @@ std::vector<float> Base::hwcToNchw(const cv::Mat& origin_img, const size_t chann
 }
 
 }  // namespace cvkit
-}  // namespace arcforge
+}  // namespace helmsman

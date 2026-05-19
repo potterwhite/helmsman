@@ -97,7 +97,7 @@ void RecurrentStateManager::update(const std::vector<TensorData>& outputs,
 
 		// // ---- s20 diagnostic: stride padding check ----
 		// {
-		// 	auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+		// 	auto& logger = helmsman::utils::Logger::GetInstance();
 		// 	const int64_t N = src.shape[0];
 		// 	const int64_t C = src.shape[1];
 		// 	const int64_t H = src.shape[2];

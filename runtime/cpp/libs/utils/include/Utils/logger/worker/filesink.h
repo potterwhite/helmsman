@@ -25,8 +25,7 @@
 #include "Utils/logger/worker/logsink.h"
 #include "Utils/pch.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace utils {
 
 class FileSink : public LogSink {
@@ -42,5 +41,4 @@ class FileSink : public LogSink {
 };
 
 }  // namespace utils
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

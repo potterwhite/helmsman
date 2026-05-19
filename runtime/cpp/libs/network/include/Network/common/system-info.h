@@ -23,8 +23,7 @@
 #pragma once
 #include <string>
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace network_socket {
 
 /**
@@ -40,5 +39,4 @@ std::string get_network_socket_library_author_email();
 std::string get_network_socket_library_build_timestamp();
 
 }  // namespace network_socket
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

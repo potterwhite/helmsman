@@ -75,7 +75,7 @@
 
 #include "RGAKit/pch.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace rgakit {
 
 // ---------------------------------------------------------------------------
@@ -348,4 +348,4 @@ std::unique_ptr<T> CreateOperation(Args&&... args) {
 }
 
 }  // namespace rgakit
-}  // namespace arcforge
+}  // namespace helmsman

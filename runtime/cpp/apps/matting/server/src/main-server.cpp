@@ -42,24 +42,24 @@
 #include "pipeline/pipeline.h"
 #include "pipeline/stages/frontend/frontend.h"
 
-using namespace arcforge::embedded;
+using namespace helmsman;
 
 const std::string ksocket_path = "/tmp/soCket.paTh";
 
 // --- kill signal capture ---
 std::atomic<bool> g_stop_signal_received(false);
 
-auto& logger = arcforge::embedded::utils::Logger::GetInstance();
-auto& file_utils = arcforge::utils::FileUtils::GetInstance();
-auto& math_utils = arcforge::utils::MathUtils::GetInstance();
-auto& runtime = arcforge::runtime::RuntimeONNX::GetInstance();
+auto& logger = helmsman::utils::Logger::GetInstance();
+auto& file_utils = helmsman::utils::FileUtils::GetInstance();
+auto& math_utils = helmsman::utils::MathUtils::GetInstance();
+auto& runtime = helmsman::runtime::RuntimeONNX::GetInstance();
 auto& pipeline = Pipeline::GetInstance();
 
 void SignalHandler(int signal_num) {
 	g_stop_signal_received = true;
 	std::ostringstream oss;
 	oss << "\nInterrupt signal (" << signal_num << ") received. Shutting down...";
-	arcforge::embedded::utils::Logger::GetInstance().Warning(oss.str(), kcurrent_module_name);
+	helmsman::utils::Logger::GetInstance().Warning(oss.str(), kcurrent_module_name);
 }
 
 bool isDebug() {
@@ -119,13 +119,13 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	// 1. Configure logger
 	// -----------------------------------------------
 	if (isRelease()) {
-		logger.setLevel(arcforge::embedded::utils::LoggerLevel::kinfo);
+		logger.setLevel(helmsman::utils::LoggerLevel::kinfo);
 	} else {
-		logger.setLevel(arcforge::embedded::utils::LoggerLevel::kdebug);
+		logger.setLevel(helmsman::utils::LoggerLevel::kdebug);
 	}
 
 	logger.ClearSinks();
-	logger.AddSink(std::make_shared<arcforge::embedded::utils::ConsoleSink>());
+	logger.AddSink(std::make_shared<helmsman::utils::ConsoleSink>());
 
 	// Setup signal handler
 	signal(SIGINT, SignalHandler);

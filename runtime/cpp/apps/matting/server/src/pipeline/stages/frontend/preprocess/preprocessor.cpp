@@ -31,12 +31,12 @@
 #include "common/data_structure.h"
 
 _Preprocessor::_Preprocessor() {
-    arcforge::embedded::utils::Logger::GetInstance().Info(
+    helmsman::utils::Logger::GetInstance().Info(
         "Preprocessor constructed.", kcurrent_module_name);
 }
 
 _Preprocessor::~_Preprocessor() {
-    arcforge::embedded::utils::Logger::GetInstance().Info(
+    helmsman::utils::Logger::GetInstance().Info(
         "Preprocessor cleaned up.", kcurrent_module_name);
 }
 
@@ -55,8 +55,8 @@ TensorData _Preprocessor::preprocessCore(cv::Mat img,
                                          size_t model_height) {
     TensorData tensor_data;
 
-    auto& logger = arcforge::embedded::utils::Logger::GetInstance();
-    auto& file_utils = arcforge::utils::FileUtils::GetInstance();
+    auto& logger = helmsman::utils::Logger::GetInstance();
+    auto& file_utils = helmsman::utils::FileUtils::GetInstance();
 
     // Step 1: BGR → RGB
     img = cvkit_.bgrToRgb(img);

@@ -24,8 +24,7 @@
 
 #include "Utils/pch.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace utils {
 
 // Forward declaration of LoggerLevel to avoid circular dependency with logger.h
@@ -44,5 +43,4 @@ struct LogEntry {
 };
 
 }  // namespace utils
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

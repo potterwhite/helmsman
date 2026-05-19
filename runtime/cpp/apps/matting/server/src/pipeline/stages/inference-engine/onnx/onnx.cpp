@@ -48,13 +48,13 @@
 InferenceEngineONNX::InferenceEngineONNX()
     : env_(ORT_LOGGING_LEVEL_WARNING, "onnx-inference-engine") {
 
-	arcforge::embedded::utils::Logger::GetInstance().Info(
+	helmsman::utils::Logger::GetInstance().Info(
 	    "InferenceEngineONNX object constructed. (CPU Mode)", kcurrent_module_name);
 }
 
 InferenceEngineONNX::~InferenceEngineONNX() {
 
-	arcforge::embedded::utils::Logger::GetInstance().Info("InferenceEngineONNX cleaned up.");
+	helmsman::utils::Logger::GetInstance().Info("InferenceEngineONNX cleaned up.");
 }
 
 // ============================================================================
@@ -62,8 +62,8 @@ InferenceEngineONNX::~InferenceEngineONNX() {
 // ============================================================================
 void InferenceEngineONNX::load(const std::string& model_path) {
 
-	auto& logger  = arcforge::embedded::utils::Logger::GetInstance();
-	auto& runtime = arcforge::runtime::RuntimeONNX::GetInstance();
+	auto& logger  = helmsman::utils::Logger::GetInstance();
+	auto& runtime = helmsman::runtime::RuntimeONNX::GetInstance();
 
 	session_ = std::make_unique<Ort::Session>(
 	    env_, model_path.c_str(), runtime.init_session_option());
@@ -106,8 +106,8 @@ void InferenceEngineONNX::infer(
     const std::vector<TensorData>& inputs,
           std::vector<TensorData>& outputs)
 {
-	auto& logger     = arcforge::embedded::utils::Logger::GetInstance();
-	auto& file_utils = arcforge::utils::FileUtils::GetInstance();
+	auto& logger     = helmsman::utils::Logger::GetInstance();
+	auto& file_utils = helmsman::utils::FileUtils::GetInstance();
 
 	const std::size_t n_in  = inputs.size();
 	const std::size_t n_out = output_names_.size();

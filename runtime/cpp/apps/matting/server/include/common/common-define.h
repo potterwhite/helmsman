@@ -43,8 +43,8 @@ inline bool isDumpEnabled() {
 	return enabled;
 }
 
-// namespace arcforge {
+// namespace helmsman {
 // namespace runtime {
 
 // }  // namespace runtime
-// }  // namespace arcforge
+// }  // namespace helmsman

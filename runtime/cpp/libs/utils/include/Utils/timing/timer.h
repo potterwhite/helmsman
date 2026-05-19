@@ -66,7 +66,7 @@
 
 #include "Utils/logger/logger.h"
 
-namespace arcforge::utils::timing {
+namespace helmsman::utils::timing {
 
 // ============================================================================
 // ManualTimer
@@ -118,7 +118,7 @@ class ScopedTimer {
     // module         kcurrent_module_name passed through.
     ScopedTimer(std::string label,
                 bool timing_enabled,
-                arcforge::embedded::utils::Logger& logger,
+                helmsman::utils::Logger& logger,
                 std::string_view module)
         : label_(std::move(label)),
           enabled_(timing_enabled),
@@ -145,7 +145,7 @@ class ScopedTimer {
    private:
     std::string  label_;
     bool         enabled_;
-    arcforge::embedded::utils::Logger& logger_;
+    helmsman::utils::Logger& logger_;
     std::string_view module_;
     std::chrono::high_resolution_clock::time_point t0_;
 };
@@ -183,7 +183,7 @@ class StageAccumulator {
     // Print min / avg / max / count via logger. NOT thread-safe — call only
     // after all producer threads have been joined.
     void report(bool timing_enabled,
-                arcforge::embedded::utils::Logger& logger,
+                helmsman::utils::Logger& logger,
                 std::string_view module) const {
         if (!timing_enabled) return;
         if (samples_.empty()) {
@@ -220,4 +220,4 @@ class StageAccumulator {
     std::vector<double>  samples_;
 };
 
-}  // namespace arcforge::utils::timing
+}  // namespace helmsman::utils::timing

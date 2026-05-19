@@ -24,8 +24,7 @@
 #include "Utils/logger/worker/consolesink.h"
 #include "Utils/logger/worker/log_entry.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace utils {
 
 Logger& Logger::GetInstance() {
@@ -139,5 +138,4 @@ void Logger::Critical(const std::string& message, std::string_view tag) {
 }
 
 }  // namespace utils
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

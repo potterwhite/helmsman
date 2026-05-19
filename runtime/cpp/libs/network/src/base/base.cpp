@@ -22,8 +22,7 @@
 #include "Network/base/base.h"
 #include "Network/base/impl/base-impl.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace network_socket {
 
 Base::Base() : impl_(std::make_unique<BaseImpl>()) {}
@@ -171,5 +170,4 @@ SocketReturnValue Base::unlinkSocketPath() {
 }
 
 }  // namespace network_socket
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

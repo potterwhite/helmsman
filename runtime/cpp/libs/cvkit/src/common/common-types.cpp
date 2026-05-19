@@ -21,10 +21,10 @@
 #include "CVKit/common/common-types.h"
 #include "CVKit/base/base.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace cvkit {
 
 const std::string_view kcurrent_lib_name = PROJECT_NAME;
 
 }  // namespace cvkit
-}  // namespace arcforge
+}  // namespace helmsman

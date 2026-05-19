@@ -28,7 +28,7 @@
 #include <cstdio>
 #include "MPPKit/mpp_decoder.h"
 
-_MppFrameDecoder::_MppFrameDecoder(arcforge::mppkit::DecoderConfig config)
+_MppFrameDecoder::_MppFrameDecoder(helmsman::mppkit::DecoderConfig config)
     : config_(std::move(config)) {}
 
 _MppFrameDecoder::~_MppFrameDecoder() = default;
@@ -42,7 +42,7 @@ bool _MppFrameDecoder::init() {
         return false;
     }
 
-    decoder_ = std::make_unique<arcforge::mppkit::MppDecoder>(config_);
+    decoder_ = std::make_unique<helmsman::mppkit::MppDecoder>(config_);
     if (!decoder_->Init()) {
         fprintf(stderr, "[MppFrameDecoder] MppDecoder::Init failed\n");
         decoder_.reset();
@@ -59,7 +59,7 @@ bool _MppFrameDecoder::decode(const uint8_t* data, size_t size,
         return false;
     }
 
-    arcforge::mppkit::DecodedFrame decoded;
+    helmsman::mppkit::DecodedFrame decoded;
     if (!decoder_->DecodeNextFrame(data, size, decoded)) {
         out = {};
         return false;

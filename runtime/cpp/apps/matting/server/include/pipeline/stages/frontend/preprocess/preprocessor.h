@@ -51,5 +51,5 @@ private:
     bool isDumpEnabled() const { return !output_bin_path_.empty(); }
 
     std::string output_bin_path_;
-    arcforge::cvkit::Base cvkit_;
+    helmsman::cvkit::Base cvkit_;
 };

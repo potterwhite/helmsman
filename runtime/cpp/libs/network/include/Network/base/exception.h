@@ -24,8 +24,7 @@
 
 #include "Network/pch.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace network_socket {
 class BException : std::runtime_error {
    public:
@@ -37,5 +36,4 @@ class BException : std::runtime_error {
 	int errno_;
 };
 }  // namespace network_socket
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

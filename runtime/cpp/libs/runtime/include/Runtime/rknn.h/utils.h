@@ -36,7 +36,7 @@
 #include <vector>
 #include "rknn_api.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace runtime {
 
 // -----------------------------------------------------------------------------
@@ -309,4 +309,4 @@ std::string to_string(const std::vector<T>& vec, const std::string& name = "vect
 }
 
 }  // namespace runtime
-}  // namespace arcforge
+}  // namespace helmsman

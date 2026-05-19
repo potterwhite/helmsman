@@ -21,8 +21,7 @@
 #include "Network/common/common-types.h"
 #include "Network/base/base.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace network_socket {
 
 const std::string_view kcurrent_lib_name = PROJECT_NAME;
@@ -131,5 +130,4 @@ SocketAcceptReturn::SocketAcceptReturn(SocketReturnValue value, std::unique_ptr<
     : return_value(value), client(std::move(client_ptr)) {};
 
 }  // namespace network_socket
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

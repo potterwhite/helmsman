@@ -32,15 +32,15 @@
 #include "pipeline/stages/frontend/decoder/i-frame-decoder.h"
 #include "MPPKit/mpp_codec.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace mppkit {
 class MppDecoder;
 }  // namespace mppkit
-}  // namespace arcforge
+}  // namespace helmsman
 
 class _MppFrameDecoder : public _IFrameDecoder {
 public:
-    explicit _MppFrameDecoder(arcforge::mppkit::DecoderConfig config);
+    explicit _MppFrameDecoder(helmsman::mppkit::DecoderConfig config);
     ~_MppFrameDecoder() override;
 
     // Non-copyable, movable.
@@ -56,6 +56,6 @@ public:
     bool decode(const uint8_t* data, size_t size, HardwareFrame& out) override;
 
 private:
-    arcforge::mppkit::DecoderConfig config_;
-    std::unique_ptr<arcforge::mppkit::MppDecoder> decoder_;
+    helmsman::mppkit::DecoderConfig config_;
+    std::unique_ptr<helmsman::mppkit::MppDecoder> decoder_;
 };

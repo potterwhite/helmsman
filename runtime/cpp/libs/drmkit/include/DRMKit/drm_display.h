@@ -44,7 +44,7 @@
 #include <memory>
 #include <utility>
 
-namespace arcforge {
+namespace helmsman {
 namespace drmkit {
 
 class DrmDisplay {
@@ -88,4 +88,4 @@ private:
 };
 
 }  // namespace drmkit
-}  // namespace arcforge
+}  // namespace helmsman

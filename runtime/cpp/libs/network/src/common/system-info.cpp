@@ -23,8 +23,7 @@
 // IMPORTANT: Import from CMakeLists.txt externally
 #include "system-info.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace network_socket {
 
 std::string get_network_socket_library_version() {
@@ -47,5 +46,4 @@ std::string get_network_socket_library_build_timestamp() {
 	return BUILD_TIMESTAMP;
 }
 }  // namespace network_socket
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

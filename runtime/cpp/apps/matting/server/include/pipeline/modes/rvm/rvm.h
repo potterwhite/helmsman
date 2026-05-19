@@ -91,7 +91,7 @@ class RVMMode {
      */
 	void runPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChannel<cv::Mat>& raw_ch,
 	                       SingleSlotChannel<TensorData>& tensor_ch,
-	                       arcforge::utils::timing::StageAccumulator& preprocess_acc);
+	                       helmsman::utils::timing::StageAccumulator& preprocess_acc);
 
    private:
 	// Member variables
@@ -104,20 +104,20 @@ class RVMMode {
 	cv::Mat bg_model_u8_;   // Pre-computed background at model resolution (CV_8UC3)
 
 	// RGA hardware operations (stateless, created once, reused every frame)
-	std::unique_ptr<arcforge::rgakit::RgaResize> rga_resize_;
+	std::unique_ptr<helmsman::rgakit::RgaResize> rga_resize_;
 
 	// DMA zero-copy output buffer (allocated once, reused every frame)
-	std::unique_ptr<arcforge::dmakit::DmaBuffer> dma_output_buf_;
+	std::unique_ptr<helmsman::dmakit::DmaBuffer> dma_output_buf_;
 
 	// DRM display (initialized when output_mode == kDrm)
-	arcforge::drmkit::DrmDisplay drm_display_;
+	helmsman::drmkit::DrmDisplay drm_display_;
 	std::vector<uint8_t> argb_buf_;  // reusable buffer for BGR→XRGB conversion
 
 	// 5.8-s4 instrumentation: per-sub-operation timing in compositeAndWrite()
-	arcforge::utils::timing::StageAccumulator acc_resize_alpha_{"comp::resize_alpha"};
-	arcforge::utils::timing::StageAccumulator acc_resize_frame_{"comp::resize_frame"};
-	arcforge::utils::timing::StageAccumulator acc_blend_{"comp::blend"};
-	arcforge::utils::timing::StageAccumulator acc_upscale_{"comp::upscale"};
-	arcforge::utils::timing::StageAccumulator acc_writer_{"comp::writer"};
-	arcforge::utils::timing::StageAccumulator acc_drm_{"comp::drm_show"};
+	helmsman::utils::timing::StageAccumulator acc_resize_alpha_{"comp::resize_alpha"};
+	helmsman::utils::timing::StageAccumulator acc_resize_frame_{"comp::resize_frame"};
+	helmsman::utils::timing::StageAccumulator acc_blend_{"comp::blend"};
+	helmsman::utils::timing::StageAccumulator acc_upscale_{"comp::upscale"};
+	helmsman::utils::timing::StageAccumulator acc_writer_{"comp::writer"};
+	helmsman::utils::timing::StageAccumulator acc_drm_{"comp::drm_show"};
 };

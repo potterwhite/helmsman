@@ -24,8 +24,7 @@
 
 #include "Network/pch.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace network_socket {
 
 
@@ -123,5 +122,4 @@ class SherpaConfig {
 };      // End of SherpaConfig class
 
 }  // namespace network_socket
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

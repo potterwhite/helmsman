@@ -24,7 +24,7 @@
 
 #include "Runtime/pch.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace runtime {
 
 extern const std::string_view kcurrent_lib_name;
@@ -32,4 +32,4 @@ extern const std::string_view kcurrent_lib_name;
 class RuntimeONNX;
 
 }  // namespace runtime
-}  // namespace arcforge
+}  // namespace helmsman

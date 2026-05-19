@@ -84,7 +84,7 @@ GuidedFilterPostProcessor::GuidedFilterPostProcessor(int radius, double epsilon,
       threshold_(threshold),
       erode_iters_(erode_iters),
       src_blur_ksize_(src_blur_ksize) {
-	arcforge::embedded::utils::Logger::GetInstance().Info(
+	helmsman::utils::Logger::GetInstance().Info(
 	    "GuidedFilterPostProcessor initialized." + std::to_string(radius_) + ", " +
 	        std::to_string(epsilon_) + ", " + std::to_string(threshold_) + ", " +
 	        std::to_string(erode_iters_) + ", " + std::to_string(src_blur_ksize_),

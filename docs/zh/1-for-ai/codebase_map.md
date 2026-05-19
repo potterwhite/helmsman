@@ -228,7 +228,7 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 
 | 文件 | 关键类/函数 |
 |---|---|
-| `include/CVKit/base/base.h` | `arcforge::cvkit::Base`: `loadImage()`, `bgrToRgb()`, `ensure3Channel()`, `hwcToNchw()`, `dumpBinary()` |
+| `include/CVKit/base/base.h` | `helmsman::cvkit::Base`: `loadImage()`, `bgrToRgb()`, `ensure3Channel()`, `hwcToNchw()`, `dumpBinary()` |
 | `src/base/base.cpp` | 实现 |
 | `src/base/impl/base-impl.{h,cpp}` | Pimpl 模式 |
 
@@ -249,7 +249,7 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 
 | 文件 | 关键类/函数 |
 |---|---|
-| `include/Runtime/onnx/onnx.h` | `arcforge::runtime::RuntimeONNX::GetInstance()` |
+| `include/Runtime/onnx/onnx.h` | `helmsman::runtime::RuntimeONNX::GetInstance()` |
 | `src/onnx/onnx.cpp` | ONNX Runtime 会话管理 |
 | `src/onnx/impl/impl.{h,cpp}` | Pimpl：创建会话、运行推理、`GetInputNameAllocated()` |
 
@@ -427,7 +427,7 @@ typedef struct {
 
 ```cpp
 // 日志（全局使用）
-auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+auto& logger = helmsman::utils::Logger::GetInstance();
 logger.Info("message", kcurrent_module_name);
 logger.Warning("message", kcurrent_module_name);
 logger.Debug("message", kcurrent_module_name);  // 仅在 Debug 构建中显示

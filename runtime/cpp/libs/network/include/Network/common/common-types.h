@@ -24,8 +24,7 @@
 
 #include "Network/pch.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace network_socket {
 
 extern const std::string_view kcurrent_lib_name;
@@ -77,5 +76,4 @@ struct SocketAcceptReturn {
 };
 
 }  // namespace network_socket
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman
