@@ -7,7 +7,7 @@
 
 ## 你现在在哪？
 
-**→ MR2 Phase-5 产品化 ⏳ Block 5.1 + 5.1.5 ✅ 通过。MP4 逐帧读取 + RVM 推理 + 视频合成输出验证通过（C++ 与 Python baseline 一致）。Block 5.2~5.4 待续。← 你在这里**
+**→ MR2 Phase-5 产品化 ⏳ Block 5.1 + 5.1.5 ✅ 通过。MP4 逐帧读取 + RVM 推理 + 视频合成输出验证通过（C++ 与 Python baseline 一致）。Block 5.2~5.4 待续。优化实验 s18（MPP 硬解 + dmabuf fd 输出）进行中。← 你在这里**
 
 ---
 

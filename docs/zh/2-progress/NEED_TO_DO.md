@@ -59,3 +59,13 @@ commit: 67e7032
 commit: d055593 (dual-buffer) + 521e0ac (three-way backend) + 1c3c4f9 (CLI --key=value)
       + fa51163 (CPU hot-path optimizations) + a9b42f1 (persistent prefetch worker)
 已归档至 PKB: [[log-MR2-P5-video-pipeline]] Block 5.2 / 5.3 / 5.4
+
+---
+
+### 2026-05-16 — s18: MPP 硬解替换 OpenCV + dmabuf fd 输出
+
+- [ ] s18-1: 补全 MppDecoder 实现（6 步 decode 流程 + dmabuf fd 输出）
+- [ ] s18-2: 扩展 InputSource 接口 — 新增 `readDmaBuf(DmaFrame&)` 方法
+- [ ] s18-3: 创建 MppInputSource（MppDecoder + RGA NV12→BGR fallback）
+- [ ] s18-4: 管线集成 — rvm.cpp 主循环优先 readDmaBuf，fallback read(Mat)
+- [ ] s18-5: 板端验证 — decode avg ≤ 3ms, fps ≥ 4.5, 视觉一致
