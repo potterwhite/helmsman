@@ -117,6 +117,23 @@ if(TARGET ${PROJECT_NAMESPACE}::MPPKit)
     set(_HAS_MPPKIT TRUE)
 endif()
 
+# FFmpeg: optional, needed for MPP hardware decode path
+set(_HAS_FFMPEG FALSE)
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(AVFORMAT QUIET IMPORTED_TARGET libavformat)
+    pkg_check_modules(AVCODEC QUIET IMPORTED_TARGET libavcodec)
+    pkg_check_modules(AVUTIL QUIET IMPORTED_TARGET libavutil)
+    if(AVFORMAT_FOUND AND AVCODEC_FOUND AND AVUTIL_FOUND)
+        set(_HAS_FFMPEG TRUE)
+        message(STATUS "FFmpeg found via pkg-config")
+    else()
+        message(STATUS "FFmpeg not found (MPP hardware decode path disabled)")
+    endif()
+else()
+    message(STATUS "pkg-config not found (FFmpeg detection skipped)")
+endif()
+
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
         ${PROJECT_NAMESPACE}::Utils
@@ -131,6 +148,12 @@ target_link_libraries(${PROJECT_NAME}
 if(_HAS_MPPKIT)
     target_link_libraries(${PROJECT_NAME} PUBLIC ${PROJECT_NAMESPACE}::MPPKit)
     target_compile_definitions(${PROJECT_NAME} PRIVATE HAS_MPP=1)
+endif()
+
+if(_HAS_FFMPEG)
+    target_link_libraries(${PROJECT_NAME}
+        PUBLIC PkgConfig::AVFORMAT PkgConfig::AVCODEC PkgConfig::AVUTIL)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HAS_FFMPEG=1)
 endif()
 
 # ---------------------------------

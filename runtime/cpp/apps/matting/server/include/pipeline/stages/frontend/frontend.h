@@ -26,9 +26,9 @@
 //   2. _IFrameDecoder — decodes compressed packets into frames
 //   3. _Preprocessor — converts frames into TensorData for inference
 //
-// Phase 1 implementation:
-//   - MPP path: _IInputSource → _IFrameDecoder → HardwareFrame (pure separation)
-//   - OpenCV path: cv::VideoCapture directly (shortcut, Phase 2 will unify)
+// Phase 1: MPP path: _IInputSource → _IFrameDecoder → HardwareFrame (pure separation)
+// Phase 2: MPP path + RGA NV12→BGR (hardware decode + color convert)
+// OpenCV path: cv::VideoCapture directly (fallback)
 //
 // =============================================================================
 
@@ -39,6 +39,7 @@
 #include "pipeline/stages/frontend/input-source/i-input-source.h"
 #include "pipeline/stages/frontend/decoder/i-frame-decoder.h"
 #include "pipeline/stages/frontend/preprocess/preprocessor.h"
+#include "RGAKit/rga_cvtcolor.h"
 #include "common/data_structure.h"
 
 class Frontend {
@@ -81,6 +82,11 @@ private:
     // MPP hardware path
     std::unique_ptr<_IInputSource> source_;
     std::unique_ptr<_IFrameDecoder> decoder_;
+
+    // RGA NV12→BGR converter (hardware path only)
+    std::unique_ptr<helmsman::rgakit::RgaCvtColor> nv12_to_bgr_;
+    // BGR output buffer for RGA conversion (DMA-backed)
+    cv::Mat bgr_buf_;
 
     // OpenCV shortcut path (Phase 1)
     cv::VideoCapture cv_cap_;

@@ -49,7 +49,8 @@ _FFmpegInputSource::_FFmpegInputSource(_FFmpegInputSource&& other) noexcept
       video_stream_idx_(other.video_stream_idx_),
       width_(other.width_),
       height_(other.height_),
-      fps_(other.fps_) {
+      fps_(other.fps_),
+      codec_id_(other.codec_id_) {
     other.fmt_ctx_ = nullptr;
     other.av_packet_ = nullptr;
     other.video_stream_idx_ = -1;
@@ -64,6 +65,7 @@ _FFmpegInputSource& _FFmpegInputSource::operator=(_FFmpegInputSource&& other) no
         width_ = other.width_;
         height_ = other.height_;
         fps_ = other.fps_;
+        codec_id_ = other.codec_id_;
         other.fmt_ctx_ = nullptr;
         other.av_packet_ = nullptr;
         other.video_stream_idx_ = -1;
@@ -110,6 +112,7 @@ bool _FFmpegInputSource::open(const std::string& uri) {
     AVStream* stream = fmt_ctx_->streams[video_stream_idx_];
     width_ = stream->codecpar->width;
     height_ = stream->codecpar->height;
+    codec_id_ = static_cast<int>(stream->codecpar->codec_id);
 
     if (stream->avg_frame_rate.den > 0 && stream->avg_frame_rate.num > 0) {
         fps_ = static_cast<double>(stream->avg_frame_rate.num) /
@@ -163,6 +166,7 @@ bool _FFmpegInputSource::readRaw(RawPacket& pkt) {
 int _FFmpegInputSource::width() const { return width_; }
 int _FFmpegInputSource::height() const { return height_; }
 double _FFmpegInputSource::fps() const { return fps_; }
+int _FFmpegInputSource::codecId() const { return codec_id_; }
 
 void _FFmpegInputSource::close() {
     if (av_packet_) {

@@ -31,11 +31,12 @@ set(PIPELINE_FRONTEND_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/stages/frontend/preprocess/preprocessor.cpp"
 )
 
-# FFmpegInputSource: Phase 2 (code kept, not compiled yet)
-# To enable: uncomment below and add FFmpeg as a direct dependency.
-# list(APPEND PIPELINE_FRONTEND_SOURCES
-#     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/stages/frontend/input-source/ffmpeg-input-source.cpp"
-# )
+# FFmpegInputSource: only when FFmpeg is available
+if(_HAS_FFMPEG)
+    list(APPEND PIPELINE_FRONTEND_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/stages/frontend/input-source/ffmpeg-input-source.cpp"
+    )
+endif()
 
 # MppFrameDecoder: only when MPPKit is available (RK3588)
 if(TARGET ${PROJECT_NAMESPACE}::MPPKit)

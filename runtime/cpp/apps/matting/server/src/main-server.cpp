@@ -42,6 +42,13 @@
 #include "pipeline/pipeline.h"
 #include "pipeline/stages/frontend/frontend.h"
 
+#ifdef HAS_FFMPEG
+#include "pipeline/stages/frontend/input-source/ffmpeg-input-source.h"
+#endif
+#ifdef HAS_MPP
+#include "pipeline/stages/frontend/decoder/mpp-frame-decoder.h"
+#endif
+
 using namespace helmsman;
 
 const std::string ksocket_path = "/tmp/soCket.paTh";
@@ -139,10 +146,11 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	// -----------------------------------------------
 	// 2. Parse arguments
 	// -----------------------------------------------
-	// Scan for --rvm / --modnet / --timing=off flags, then collect positional args.
+	// Scan for flags, then collect positional args.
 	ModelType model_type    = ModelType::kMODNet;
 	OutputMode output_mode  = OutputMode::kMp4;
 	bool      timing_enabled = true;  // default ON; --timing=off disables
+	bool      use_mpp       = false;  // --mpp: use MPP hardware decode path
 	std::vector<std::string> positional_args;
 
 	for (int i = 1; i < argc; ++i) {
@@ -158,6 +166,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 			timing_enabled = false;
 		} else if (std::strcmp(argv[i], "--timing=on") == 0) {
 			timing_enabled = true;            // explicit enable (no-op: already default)
+		} else if (std::strcmp(argv[i], "--mpp") == 0) {
+			use_mpp = true;
 		} else {
 			positional_args.push_back(argv[i]);
 		}
@@ -165,7 +175,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
 	if (positional_args.size() < 3 || positional_args.size() > 4) {
 		std::cerr << "Usage: " << argv[0]
-		          << " <image_path> <model_path> <output_dir> [background_path] [--rvm] [--output=mp4|drm] [--timing=off]\n"
+		          << " <image_path> <model_path> <output_dir> [background_path] [--rvm] [--output=mp4|drm] [--timing=off] [--mpp]\n"
 		          << "\n"
 		          << "Flags:\n"
 		          << "  --rvm          Use RVM (Robust Video Matting) with recurrent states\n"
@@ -173,7 +183,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		          << "  --output=mp4   Write composited video to mp4 file (default)\n"
 		          << "  --output=drm   Display on DRM/KMS panel (embedded only)\n"
 		          << "  --timing=off   Disable pipeline timing statistics (default: on)\n"
-		          << "  --timing=on    Enable pipeline timing statistics (default)\n";
+		          << "  --timing=on    Enable pipeline timing statistics (default)\n"
+		          << "  --mpp          Use MPP hardware decode path (requires FFmpeg + MPPKit)\n";
 		return 1;
 	}
 
@@ -194,8 +205,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	// -----------------------------------------------
 	std::string mode_str = (model_type == ModelType::kRVM) ? "RVM" : "MODNet";
 	std::string output_str = (output_mode == OutputMode::kDrm) ? "DRM" : "MP4";
+	std::string decode_str = use_mpp ? "MPP (hardware)" : "OpenCV (software)";
 	logger.Info("Model type: " + mode_str, kcurrent_module_name);
 	logger.Info("Output mode: " + output_str, kcurrent_module_name);
+	logger.Info("Decode path: " + decode_str, kcurrent_module_name);
 	logger.Info("Input:      " + input_path + (is_video ? " (video)" : " (image)"), kcurrent_module_name);
 	logger.Info("Model:      " + model_path, kcurrent_module_name);
 	logger.Info("Output:     " + output_bin_path, kcurrent_module_name);
@@ -207,8 +220,47 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	// 4. Run pipeline
 	// -----------------------------------------------
 	if (is_video) {
-		// Video mode: create Frontend (OpenCV shortcut path for Phase 1)
-		auto frontend = std::make_unique<Frontend>(input_path);
+		std::unique_ptr<Frontend> frontend;
+
+		if (use_mpp) {
+#if defined(HAS_FFMPEG) && defined(HAS_MPP)
+			// MPP hardware decode path: FFmpeg demux → MPP decode → RGA NV12→BGR
+			auto source = std::make_unique<_FFmpegInputSource>();
+			if (!source->open(input_path)) {
+				logger.Error("Failed to open video with FFmpeg: " + input_path, kcurrent_module_name);
+				return 1;
+			}
+
+			// Detect codec type from FFmpeg stream info
+			helmsman::mppkit::CodecType codec = helmsman::mppkit::CodecType::kH264;
+			// AV_CODEC_ID_HEVC = 173 in FFmpeg
+			if (source->codecId() == 173) {
+				codec = helmsman::mppkit::CodecType::kH265;
+			}
+
+			helmsman::mppkit::DecoderConfig cfg;
+			cfg.codec_type = codec;
+			cfg.width = source->width();
+			cfg.height = source->height();
+
+			auto decoder = std::make_unique<_MppFrameDecoder>(cfg);
+			if (!decoder->init()) {
+				logger.Error("Failed to init MPP decoder", kcurrent_module_name);
+				return 1;
+			}
+
+			frontend = std::make_unique<Frontend>(std::move(source), std::move(decoder));
+			logger.Info("MPP hardware decode path enabled", kcurrent_module_name);
+#else
+			logger.Error("--mpp requires HAS_FFMPEG and HAS_MPP. "
+			             "Rebuild with FFmpeg and MPPKit available.", kcurrent_module_name);
+			return 1;
+#endif
+		} else {
+			// OpenCV shortcut path (default)
+			frontend = std::make_unique<Frontend>(input_path);
+		}
+
 		logger.Info("Video source: " + std::to_string(frontend->width()) + "x" +
 		            std::to_string(frontend->height()) + " @ " +
 		            std::to_string(frontend->fps()) + " fps", kcurrent_module_name);

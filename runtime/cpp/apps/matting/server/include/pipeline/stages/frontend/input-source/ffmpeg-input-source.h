@@ -54,6 +54,10 @@ public:
     double fps() const override;
     void close() override;
 
+    // Codec ID from the video stream (AV_CODEC_ID_H264 or AV_CODEC_ID_HEVC).
+    // Only valid after open() returns true.
+    int codecId() const;
+
 private:
     AVFormatContext* fmt_ctx_ = nullptr;
     AVPacket* av_packet_ = nullptr;
@@ -61,4 +65,5 @@ private:
     int width_ = 0;
     int height_ = 0;
     double fps_ = 0.0;
+    int codec_id_ = 0;  // AVCodecID value
 };

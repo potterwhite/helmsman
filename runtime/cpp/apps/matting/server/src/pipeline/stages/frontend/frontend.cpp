@@ -22,7 +22,8 @@
 // frontend.cpp — Frontend router for the matting pipeline
 //
 // Two paths:
-//   MPP path:    _IInputSource::readRaw → _IFrameDecoder::decode → HardwareFrame
+//   MPP path:    _IInputSource::readRaw → _IFrameDecoder::decode → NV12 fd
+//                → RGA NV12→BGR → cpu_frame (cv::Mat)
 //   OpenCV path: cv::VideoCapture::read → cv::Mat (software decode)
 //
 // =============================================================================
@@ -38,10 +39,16 @@ Frontend::Frontend(std::unique_ptr<_IInputSource> source,
                    std::unique_ptr<_IFrameDecoder> decoder)
     : use_hardware_(true),
       source_(std::move(source)),
-      decoder_(std::move(decoder)) {}
+      decoder_(std::move(decoder)) {
+    // Create RGA NV12→BGR converter for hardware path
+    nv12_to_bgr_ = helmsman::rgakit::CreateOperation<helmsman::rgakit::RgaCvtColor>(
+        helmsman::rgakit::RgaPixelFormat::kNv12,
+        helmsman::rgakit::RgaPixelFormat::kBgr888,
+        helmsman::rgakit::RgaCscMode::kYuvToRgbBt601Limit);
+}
 
 // ---------------------------------------------------------------------------
-// OpenCV shortcut path constructor (Phase 1)
+// OpenCV shortcut path constructor
 // ---------------------------------------------------------------------------
 Frontend::Frontend(const std::string& video_path)
     : use_hardware_(false) {
@@ -70,7 +77,34 @@ bool Frontend::readFrame(cv::Mat& cpu_frame, HardwareFrame& hw_frame) {
             return false;
         }
 
-        return decoder_->decode(pkt.data, pkt.size, hw_frame);
+        if (!decoder_->decode(pkt.data, pkt.size, hw_frame)) {
+            return false;
+        }
+
+        // Convert NV12 → BGR via RGA hardware
+        if (hw_frame.fd >= 0 && nv12_to_bgr_) {
+            // Allocate BGR buffer on first frame (or dimension change)
+            if (bgr_buf_.empty() ||
+                bgr_buf_.cols != hw_frame.width ||
+                bgr_buf_.rows != hw_frame.height) {
+                bgr_buf_ = cv::Mat(hw_frame.height, hw_frame.width, CV_8UC3);
+            }
+
+            auto src = helmsman::rgakit::ImageDescriptor::FromFd(
+                hw_frame.fd, hw_frame.width, hw_frame.height,
+                helmsman::rgakit::RgaPixelFormat::kNv12);
+            auto dst = helmsman::rgakit::ImageDescriptor(
+                bgr_buf_.data, bgr_buf_.cols, bgr_buf_.rows,
+                helmsman::rgakit::RgaPixelFormat::kBgr888);
+
+            if (nv12_to_bgr_->Execute(src, dst)) {
+                cpu_frame = bgr_buf_;
+                return true;
+            }
+            fprintf(stderr, "[Frontend] RGA NV12→BGR conversion failed\n");
+            return false;
+        }
+        return false;
     }
 
     if (!cv_cap_.isOpened()) {
