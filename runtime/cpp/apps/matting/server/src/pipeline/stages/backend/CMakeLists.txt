@@ -19,16 +19,11 @@
 # SOFTWARE.
 
 #
-# apps/matting/server/src/CMakeLists.txt
+# apps/matting/server/src/pipeline/stages/backend/CMakeLists.txt
 #
 
-#################################
-# 1.0 main server
 target_sources(${PROJECT_NAME}
     PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/main-server.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/backend.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/post-processor/guided-filter-post-processor.cpp"
 )
-
-#################################
-# 2.0 pipeline/
-add_subdirectory(pipeline)

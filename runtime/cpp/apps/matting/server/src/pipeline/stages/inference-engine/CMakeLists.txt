@@ -19,16 +19,21 @@
 # SOFTWARE.
 
 #
-# apps/matting/server/src/CMakeLists.txt
+# apps/matting/server/src/pipeline/stages/inference-engine/CMakeLists.txt
 #
 
-#################################
-# 1.0 main server
+# Factory: one .cpp per backend — CMake selects which to compile.
+# INFERENCE_BACKEND is set by CMakePresets.json (backend-* mixin) or auto-defaulted.
 target_sources(${PROJECT_NAME}
     PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/main-server.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/factory/factory-${INFERENCE_BACKEND}.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/onnx/onnx.cpp"
 )
 
-#################################
-# 2.0 pipeline/
-add_subdirectory(pipeline)
+if(TARGET ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
+    target_sources(${PROJECT_NAME}
+        PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/rknn/rknn-zero-copy.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/rknn/rknn-non-zero-copy.cpp"
+    )
+endif()

@@ -68,12 +68,12 @@ static void SignalHandler(int signal_num) {
 	helmsman::utils::Logger::GetInstance().Warning(oss.str(), kcurrent_module_name);
 }
 
-static bool isDebug() {
+[[maybe_unused]] static bool isDebug() {
 	constexpr std::string_view build_type = BUILD_TYPE;
 	return build_type == "Debug";
 }
 
-static bool isRelease() {
+[[maybe_unused]] static bool isRelease() {
 	constexpr std::string_view build_type = BUILD_TYPE;
 	return build_type == "Release";
 }

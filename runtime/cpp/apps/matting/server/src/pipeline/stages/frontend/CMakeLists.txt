@@ -19,16 +19,20 @@
 # SOFTWARE.
 
 #
-# apps/matting/server/src/CMakeLists.txt
+# apps/matting/server/src/pipeline/stages/frontend/CMakeLists.txt
 #
 
-#################################
-# 1.0 main server
 target_sources(${PROJECT_NAME}
     PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/main-server.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/frontend.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/preprocess/preprocessor.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/input-source/ffmpeg-input-source.cpp"
 )
 
-#################################
-# 2.0 pipeline/
-add_subdirectory(pipeline)
+# MppFrameDecoder: only when MPPKit is available (RK3588)
+if(TARGET ${PROJECT_NAMESPACE}::MPPKit)
+    target_sources(${PROJECT_NAME}
+        PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/decoder/mpp-frame-decoder.cpp"
+    )
+endif()

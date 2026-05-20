@@ -19,16 +19,14 @@
 # SOFTWARE.
 
 #
-# apps/matting/server/src/CMakeLists.txt
+# apps/matting/server/src/pipeline/CMakeLists.txt
 #
 
-#################################
-# 1.0 main server
 target_sources(${PROJECT_NAME}
     PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/main-server.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/pipeline.cpp"
 )
 
-#################################
-# 2.0 pipeline/
-add_subdirectory(pipeline)
+add_subdirectory(infra)
+add_subdirectory(modes)
+add_subdirectory(stages)
