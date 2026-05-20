@@ -156,9 +156,9 @@ target_link_libraries(${PROJECT_NAME}
         ${PROJECT_NAMESPACE}::DmaKit
         ${PROJECT_NAMESPACE}::DRMKit
         ${PROJECT_NAMESPACE}::MPPKit
-        ${FFMPEG_AVCODEC}
-        ${FFMPEG_AVFORMAT}
-        ${FFMPEG_AVUTIL}
+        PkgConfig::FFMPEG_AVCODEC
+        PkgConfig::FFMPEG_AVFORMAT
+        PkgConfig::FFMPEG_AVUTIL
 )
 
 # ---------------------------------
