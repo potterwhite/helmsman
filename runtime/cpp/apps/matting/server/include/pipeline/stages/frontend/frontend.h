@@ -51,6 +51,10 @@ public:
     // OpenCV shortcut path constructor (Phase 1 only).
     explicit Frontend(const std::string& video_path);
 
+    // Config-based constructor — creates internal source + decoder automatically.
+    // Throws std::runtime_error on failure.
+    Frontend(const std::string& input_path, bool use_hardware_decoder);
+
     ~Frontend();
 
     // Non-copyable, non-movable (owned by unique_ptr in Pipeline).

@@ -41,10 +41,6 @@
 #include <vector>
 #include "common/common-define.h"
 #include "pipeline/pipeline.h"
-#include "pipeline/stages/frontend/frontend.h"
-
-#include "pipeline/stages/frontend/decoder/mpp-frame-decoder.h"
-#include "pipeline/stages/frontend/input-source/ffmpeg-input-source.h"
 
 using namespace helmsman;
 
@@ -95,21 +91,9 @@ static bool isVideoFile(const std::string& path) {
 // Server configuration & initialization
 // ============================================================================
 
-struct ServerConfig {
-	ModelType model_type = ModelType::kMODNet;
-	OutputMode output_mode = OutputMode::kMp4;
-	bool timing_enabled = true;
-	bool use_hardware_decoder = false;
-	bool is_video = false;
-	std::string input_path;
-	std::string model_path;
-	std::string output_bin_path;
-	std::string background_path;
-};
-
 // Configure logger, parse CLI arguments, and log the resulting configuration.
 // Returns nullopt when arguments are invalid (usage printed to stderr).
-static std::optional<ServerConfig> initServer(int argc, char* argv[]) {
+static std::optional<PipelineConfig> initServer(int argc, char* argv[]) {
 	// --- Logger ---
 	if (isRelease()) {
 		logger.setLevel(helmsman::utils::LoggerLevel::kinfo);
@@ -130,7 +114,7 @@ static std::optional<ServerConfig> initServer(int argc, char* argv[]) {
 	}
 
 	// --- Parse arguments ---
-	ServerConfig cfg;
+	PipelineConfig cfg;
 	std::vector<std::string> positional_args;
 
 	for (int i = 1; i < argc; ++i) {
@@ -175,12 +159,6 @@ static std::optional<ServerConfig> initServer(int argc, char* argv[]) {
 	cfg.background_path = (positional_args.size() == 4) ? positional_args[3] : "";
 
 	cfg.is_video = isVideoFile(cfg.input_path);
-	if (cfg.is_video && cfg.model_type == ModelType::kMODNet) {
-		logger.Info(
-		    "Video input detected, MODNet does not support video inferencing yet. Exit anyway.",
-		    kcurrent_module_name);
-		cfg.model_type = ModelType::kRVM;
-	}
 
 	// --- Log configuration ---
 	std::string mode_str = (cfg.model_type == ModelType::kRVM) ? "RVM" : "MODNet";
@@ -238,61 +216,8 @@ int main(int argc, char* argv[]) {
 	if (!config)
 		return 1;
 
-	// --- Run pipeline ---
-	if (config->is_video) {
-		std::unique_ptr<Frontend> frontend;
-
-		if (config->use_hardware_decoder) {
-			// hardware decode path (FFmpeg + MPPKit)
-			auto source = std::make_unique<_FFmpegInputSource>();
-			if (!source->open(config->input_path)) {
-				logger.Error("Failed to open video with FFmpeg: " + config->input_path,
-				             kcurrent_module_name);
-				return 1;
-			}
-
-			helmsman::mppkit::CodecType codec = helmsman::mppkit::CodecType::kH264;
-			if (source->codecId() == 173) {
-				codec = helmsman::mppkit::CodecType::kH265;
-			}
-
-			helmsman::mppkit::DecoderConfig cfg;
-			cfg.codec_type = codec;
-			cfg.width = source->width();
-			cfg.height = source->height();
-
-			auto decoder = std::make_unique<_MppFrameDecoder>(cfg);
-			if (!decoder->init()) {
-				logger.Error("Failed to init MPP decoder", kcurrent_module_name);
-				return 1;
-			}
-
-			frontend = std::make_unique<Frontend>(std::move(source), std::move(decoder));
-			logger.Info("MPP hardware decode path enabled", kcurrent_module_name);
-		} else {
-			// OpenCV path (software decode)
-			frontend = std::make_unique<Frontend>(config->input_path);
-		}
-
-		logger.Info("Video source: " + std::to_string(frontend->width()) + "x" +
-		                std::to_string(frontend->height()) + " @ " +
-		                std::to_string(frontend->fps()) + " fps",
-		            kcurrent_module_name);
-
-		pipeline.init(std::move(frontend), config->model_path, config->output_bin_path,
-		              config->background_path, config->model_type, config->output_mode);
-	} else {
-		pipeline.init(config->input_path, config->model_path, config->output_bin_path,
-		              config->background_path, config->model_type);
-	}
-
-	pipeline.setTimingEnabled(config->timing_enabled);
-	if (!config->timing_enabled) {
-		logger.Info("Pipeline timing statistics DISABLED (--timing=off).", kcurrent_module_name);
-	}
+	pipeline.init(*config);
 	pipeline.run();
-
-	std::cout << "hello " << kcurrent_module_name << std::endl;
 
 	return 0;
 }

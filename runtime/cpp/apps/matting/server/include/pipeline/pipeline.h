@@ -36,23 +36,29 @@ enum class ModelType {
     kRVM,
 };
 
+// Pipeline runtime configuration — passed from the top-level entry point.
+struct PipelineConfig {
+    ModelType model_type = ModelType::kMODNet;
+    OutputMode output_mode = OutputMode::kMp4;
+    bool timing_enabled = true;
+    bool use_hardware_decoder = false;
+    bool is_video = false;
+    std::string input_path;
+    std::string model_path;
+    std::string output_bin_path;
+    std::string background_path;
+};
+
 class Pipeline {
 public:
     static Pipeline& GetInstance();
 
-    void init(std::unique_ptr<Frontend> frontend, const std::string& model_path,
-              const std::string& output_bin_path, const std::string& background_path = "",
-              ModelType model_type = ModelType::kRVM,
-              OutputMode output_mode = OutputMode::kMp4);
-
-    void init(const std::string& image_path, const std::string& model_path,
-              const std::string& output_bin_path, const std::string& background_path = "",
-              ModelType model_type = ModelType::kMODNet);
+    void init(const PipelineConfig& config);
 
     int run();
 
-    void setTimingEnabled(bool enabled) { timing_enabled_ = enabled; }
-    bool isTimingEnabled() const { return timing_enabled_; }
+    void setTimingEnabled(bool enabled) { config_.timing_enabled = enabled; }
+    bool isTimingEnabled() const { return config_.timing_enabled; }
 
 private:
     Pipeline();
@@ -63,16 +69,8 @@ private:
     static std::unique_ptr<InferenceEngine> make_engine();
 
 private:
-    std::string input_image_path_;
+    PipelineConfig config_;
     std::unique_ptr<Frontend> frontend_;
-    std::string model_path_;
-    std::string output_bin_path_;
-    std::string background_path_;
-    ModelType model_type_ = ModelType::kMODNet;
-    OutputMode output_mode_ = OutputMode::kMp4;
-
-    bool timing_enabled_ = true;
-
     std::unique_ptr<InferenceEngine> engine_;
 
     MODNetMode modnet_mode_;

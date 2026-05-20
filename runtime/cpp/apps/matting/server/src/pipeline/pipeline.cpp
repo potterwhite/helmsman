@@ -35,82 +35,92 @@ using helmsman::utils::timing::ScopedTimer;
 
 std::unique_ptr<InferenceEngine> Pipeline::make_engine() {
 #if defined(INFERENCE_BACKEND_RKNN_ZEROCOPY)
-    return std::make_unique<InferenceEngineRKNNZeroCP>();
+	return std::make_unique<InferenceEngineRKNNZeroCP>();
 #elif defined(INFERENCE_BACKEND_RKNN_NON_ZEROCOPY)
-    return std::make_unique<InferenceEngineRKNN>();
+	return std::make_unique<InferenceEngineRKNN>();
 #else
-    return std::make_unique<InferenceEngineONNX>();
+	return std::make_unique<InferenceEngineONNX>();
 #endif
 }
 
 Pipeline& Pipeline::GetInstance() {
-    static Pipeline instance;
-    return instance;
+	static Pipeline instance;
+	return instance;
 }
 
 Pipeline::Pipeline() {
-    helmsman::utils::Logger::GetInstance().Info("Pipeline object constructed.",
-                                                      kcurrent_module_name);
+	helmsman::utils::Logger::GetInstance().Info("Pipeline object constructed.",
+	                                            kcurrent_module_name);
 }
 
 Pipeline::~Pipeline() {
-    helmsman::utils::Logger::GetInstance().Info("Pipeline cleaned up.",
-                                                      kcurrent_module_name);
-}
-
-void Pipeline::init(std::unique_ptr<Frontend> frontend, const std::string& model_path,
-                    const std::string& output_bin_path, const std::string& background_path,
-                    ModelType model_type, OutputMode output_mode) {
-    this->frontend_        = std::move(frontend);
-    this->model_path_      = model_path;
-    this->output_bin_path_ = output_bin_path;
-    this->background_path_ = background_path;
-    this->model_type_      = model_type;
-    this->output_mode_     = output_mode;
-    this->engine_          = make_engine();
-}
-
-void Pipeline::init(const std::string& input_image_path, const std::string& model_path,
-                    const std::string& output_bin_path, const std::string& background_path,
-                    ModelType model_type) {
-    this->input_image_path_ = input_image_path;
-    this->model_path_       = model_path;
-    this->output_bin_path_  = output_bin_path;
-    this->background_path_  = background_path;
-    this->model_type_       = model_type;
-    this->engine_           = make_engine();
+	helmsman::utils::Logger::GetInstance().Info("Pipeline cleaned up.", kcurrent_module_name);
 }
 
 void Pipeline::verify_parameters_necessary() {
-    if (frontend_ == nullptr && input_image_path_.empty()) {
-        throw std::invalid_argument("No input source: neither video nor image provided.");
-    }
-    if (model_path_.empty()) {
-        throw std::invalid_argument("Model path is empty.");
-    }
-    if (output_bin_path_.empty()) {
-        throw std::invalid_argument("Output binary path is empty.");
-    }
+	if (!config_.is_video && config_.input_path.empty()) {
+		throw std::invalid_argument("No input source: neither video nor image provided.");
+	}
+	if (config_.model_path.empty()) {
+		throw std::invalid_argument("Model path is empty.");
+	}
+	if (config_.output_bin_path.empty()) {
+		throw std::invalid_argument("Output binary path is empty.");
+	}
+}
+
+void Pipeline::init(const PipelineConfig& config) {
+	auto& logger = helmsman::utils::Logger::GetInstance();
+
+	config_ = config;
+
+	if (config_.is_video) {
+		// Video path: construct Frontend (MPP hardware or OpenCV software)
+		try {
+			frontend_ =
+			    std::make_unique<Frontend>(config_.input_path, config_.use_hardware_decoder);
+		} catch (const std::exception& e) {
+			logger.Error(std::string("Failed to create Frontend: ") + e.what(),
+			             kcurrent_module_name);
+			throw;
+		}
+
+		logger.Info("Video source: " + std::to_string(frontend_->width()) + "x" +
+		                std::to_string(frontend_->height()) + " @ " +
+		                std::to_string(frontend_->fps()) + " fps",
+		            kcurrent_module_name);
+
+		// MODNet does not support video yet
+		if (config_.model_type == ModelType::kMODNet) {
+			logger.Error("MODNet does not support video input. Use --rvm for video.",
+			             kcurrent_module_name);
+			throw std::invalid_argument("MODNet does not support video input.");
+		}
+	}
+
+	engine_ = make_engine();
 }
 
 int Pipeline::run() {
-    verify_parameters_necessary();
+	verify_parameters_necessary();
 
-    auto& logger = helmsman::utils::Logger::GetInstance();
+	auto& logger = helmsman::utils::Logger::GetInstance();
 
-    ScopedTimer run_timer("Pipeline::run() total", timing_enabled_, logger, kcurrent_module_name);
+	ScopedTimer run_timer("Pipeline::run() total", config_.timing_enabled, logger,
+	                      kcurrent_module_name);
 
-    switch (model_type_) {
-        case ModelType::kMODNet:
-            logger.Info("Pipeline: running MODNet path (single-frame)", kcurrent_module_name);
-            return modnet_mode_.run(engine_.get(), input_image_path_, model_path_,
-                                     output_bin_path_, background_path_, timing_enabled_);
-        case ModelType::kRVM:
-            logger.Info("Pipeline: running RVM path (recurrent multi-frame)", kcurrent_module_name);
-            return rvm_mode_.run(engine_.get(), frontend_.get(), model_path_,
-                                   output_bin_path_, background_path_, timing_enabled_,
-                                   output_mode_);
-        default:
-            throw std::runtime_error("Unknown model type");
-    }
+	switch (config_.model_type) {
+		case ModelType::kMODNet:
+			logger.Info("Pipeline: running MODNet path (single-frame)", kcurrent_module_name);
+			return modnet_mode_.run(engine_.get(), config_.input_path, config_.model_path,
+			                        config_.output_bin_path, config_.background_path,
+			                        config_.timing_enabled);
+		case ModelType::kRVM:
+			logger.Info("Pipeline: running RVM path (recurrent multi-frame)", kcurrent_module_name);
+			return rvm_mode_.run(engine_.get(), frontend_.get(), config_.model_path,
+			                     config_.output_bin_path, config_.background_path,
+			                     config_.timing_enabled, config_.output_mode);
+		default:
+			throw std::runtime_error("Unknown model type");
+	}
 }

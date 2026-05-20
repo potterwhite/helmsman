@@ -29,8 +29,12 @@
 // =============================================================================
 
 #include "pipeline/stages/frontend/frontend.h"
+#include "pipeline/stages/frontend/decoder/mpp-frame-decoder.h"
+#include "pipeline/stages/frontend/input-source/ffmpeg-input-source.h"
+#include "MPPKit/mpp_codec.h"
 
 #include <cstdio>
+#include <stdexcept>
 
 // ---------------------------------------------------------------------------
 // MPP hardware path constructor
@@ -55,6 +59,52 @@ Frontend::Frontend(const std::string& video_path)
     if (!cv_cap_.open(video_path)) {
         fprintf(stderr, "[Frontend] failed to open video: %s\n",
                 video_path.c_str());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Config-based constructor — creates internal source + decoder
+// ---------------------------------------------------------------------------
+Frontend::Frontend(const std::string& input_path, bool use_hardware_decoder) {
+    if (use_hardware_decoder) {
+        use_hardware_ = true;
+
+        // Create and open FFmpeg input source
+        auto source = std::make_unique<_FFmpegInputSource>();
+        if (!source->open(input_path)) {
+            throw std::runtime_error("Failed to open video with FFmpeg: " + input_path);
+        }
+
+        // Detect codec from stream
+        helmsman::mppkit::CodecType codec = helmsman::mppkit::CodecType::kH264;
+        if (source->codecId() == 173) {
+            codec = helmsman::mppkit::CodecType::kH265;
+        }
+
+        // Create and init MPP hardware decoder
+        helmsman::mppkit::DecoderConfig decoder_cfg;
+        decoder_cfg.codec_type = codec;
+        decoder_cfg.width = source->width();
+        decoder_cfg.height = source->height();
+
+        auto decoder = std::make_unique<_MppFrameDecoder>(decoder_cfg);
+        if (!decoder->init()) {
+            throw std::runtime_error("Failed to init MPP decoder");
+        }
+
+        source_ = std::move(source);
+        decoder_ = std::move(decoder);
+
+        // Create RGA NV12→BGR converter
+        nv12_to_bgr_ = helmsman::rgakit::CreateOperation<helmsman::rgakit::RgaCvtColor>(
+            helmsman::rgakit::RgaPixelFormat::kNv12,
+            helmsman::rgakit::RgaPixelFormat::kBgr888,
+            helmsman::rgakit::RgaCscMode::kYuvToRgbBt601Limit);
+    } else {
+        use_hardware_ = false;
+        if (!cv_cap_.open(input_path)) {
+            throw std::runtime_error("Failed to open video: " + input_path);
+        }
     }
 }
 
