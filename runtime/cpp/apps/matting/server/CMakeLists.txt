@@ -50,7 +50,7 @@ set(INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_executable(${PROJECT_NAME})
 
 if(NOT DEFINED PROJECT_NAMESPACE)
-    set(PROJECT_NAMESPACE "ArcForge")
+    set(PROJECT_NAMESPACE "Helmsman")
 endif()
 add_executable(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
@@ -111,27 +111,39 @@ if(NOT TARGET ${PROJECT_NAMESPACE}::DRMKit)
     find_package(${PROJECT_NAMESPACE}_DRMKit REQUIRED)
 endif()
 
-# MPPKit: optional, only on RK3588
-set(_HAS_MPPKIT FALSE)
-if(TARGET ${PROJECT_NAMESPACE}::MPPKit)
-    set(_HAS_MPPKIT TRUE)
+if(NOT TARGET ${PROJECT_NAMESPACE}::MPPKit)
+    message(STATUS "Can`t find ${PROJECT_NAMESPACE}::MPPKit, start searching")
+    find_package(${PROJECT_NAMESPACE}_MPPKit REQUIRED)
 endif()
 
 # FFmpeg: optional, needed for MPP hardware decode path
-set(_HAS_FFMPEG FALSE)
 find_package(PkgConfig QUIET)
+
 if(PkgConfig_FOUND)
-    pkg_check_modules(AVFORMAT QUIET IMPORTED_TARGET libavformat)
-    pkg_check_modules(AVCODEC QUIET IMPORTED_TARGET libavcodec)
-    pkg_check_modules(AVUTIL QUIET IMPORTED_TARGET libavutil)
-    if(AVFORMAT_FOUND AND AVCODEC_FOUND AND AVUTIL_FOUND)
-        set(_HAS_FFMPEG TRUE)
-        message(STATUS "FFmpeg found via pkg-config")
+    pkg_check_modules(FFMPEG_AVFORMAT QUIET IMPORTED_TARGET libavformat)
+    pkg_check_modules(FFMPEG_AVCODEC QUIET IMPORTED_TARGET libavcodec)
+    pkg_check_modules(FFMPEG_AVUTIL QUIET IMPORTED_TARGET libavutil)
+
+    if(FFMPEG_AVFORMAT_FOUND)
+        message(NOTICE "FFmpeg(libavformat) found via pkg-config")
     else()
-        message(STATUS "FFmpeg not found (MPP hardware decode path disabled)")
+        message(FATAL_ERROR "FFmpeg(libavformat) not found (MPP hardware decode path disabled)")
     endif()
+
+    if(FFMPEG_AVCODEC_FOUND)
+        message(NOTICE "FFmpeg(libavcodec) found via pkg-config")
+    else()
+        message(FATAL_ERROR "FFmpeg(libavcodec) not found (MPP hardware decode path disabled)")
+    endif()
+
+    if(FFMPEG_AVUTIL_FOUND)
+        message(NOTICE "FFmpeg(libavutil) found via pkg-config")
+    else()
+        message(FATAL_ERROR "FFmpeg(libavutil) not found (MPP hardware decode path disabled)")
+    endif()
+
 else()
-    message(STATUS "pkg-config not found (FFmpeg detection skipped)")
+    message(FATAL_ERROR "pkg-config not found (FFmpeg detection skipped)")
 endif()
 
 target_link_libraries(${PROJECT_NAME}
@@ -143,18 +155,10 @@ target_link_libraries(${PROJECT_NAME}
         ${PROJECT_NAMESPACE}::RGAKit
         ${PROJECT_NAMESPACE}::DmaKit
         ${PROJECT_NAMESPACE}::DRMKit
+        FFMPEG_AVCODEC
+        FFMPEG_AVFORMAT
+        FFMPEG_AVUTIL
 )
-
-if(_HAS_MPPKIT)
-    target_link_libraries(${PROJECT_NAME} PUBLIC ${PROJECT_NAMESPACE}::MPPKit)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE HAS_MPP=1)
-endif()
-
-if(_HAS_FFMPEG)
-    target_link_libraries(${PROJECT_NAME}
-        PUBLIC PkgConfig::AVFORMAT PkgConfig::AVCODEC PkgConfig::AVUTIL)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE HAS_FFMPEG=1)
-endif()
 
 # ---------------------------------
 # VIII. installation rules

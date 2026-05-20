@@ -42,12 +42,8 @@
 #include "pipeline/pipeline.h"
 #include "pipeline/stages/frontend/frontend.h"
 
-#ifdef HAS_FFMPEG
-#include "pipeline/stages/frontend/input-source/ffmpeg-input-source.h"
-#endif
-#ifdef HAS_MPP
 #include "pipeline/stages/frontend/decoder/mpp-frame-decoder.h"
-#endif
+#include "pipeline/stages/frontend/input-source/ffmpeg-input-source.h"
 
 using namespace helmsman;
 
@@ -82,7 +78,8 @@ bool isRelease() {
 // Detect video files by extension
 static bool isVideoFile(const std::string& path) {
 	auto dot = path.rfind('.');
-	if (dot == std::string::npos) return false;
+	if (dot == std::string::npos)
+		return false;
 	std::string ext = path.substr(dot);
 	std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 	return (ext == ".mp4" || ext == ".avi" || ext == ".mkv" || ext == ".mov" || ext == ".webm");
@@ -139,18 +136,20 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
 	// Log dump status
 	if (isDumpEnabled()) {
-		logger.Info("[DEBUG] Binary dump ENABLED (HELMSMAN_DUMP is set). "
-		            "Unset to disable for production runs.", kcurrent_module_name);
+		logger.Info(
+		    "[DEBUG] Binary dump ENABLED (HELMSMAN_DUMP is set). "
+		    "Unset to disable for production runs.",
+		    kcurrent_module_name);
 	}
 
 	// -----------------------------------------------
 	// 2. Parse arguments
 	// -----------------------------------------------
 	// Scan for flags, then collect positional args.
-	ModelType model_type    = ModelType::kMODNet;
-	OutputMode output_mode  = OutputMode::kMp4;
-	bool      timing_enabled = true;  // default ON; --timing=off disables
-	bool      use_mpp       = false;  // --mpp: use MPP hardware decode path
+	ModelType model_type = ModelType::kMODNet;
+	OutputMode output_mode = OutputMode::kMp4;
+	bool timing_enabled = true;  // default ON; --timing=off disables
+	bool use_mpp = false;        // --mpp: use MPP hardware decode path
 	std::vector<std::string> positional_args;
 
 	for (int i = 1; i < argc; ++i) {
@@ -165,7 +164,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		} else if (std::strcmp(argv[i], "--timing=off") == 0) {
 			timing_enabled = false;
 		} else if (std::strcmp(argv[i], "--timing=on") == 0) {
-			timing_enabled = true;            // explicit enable (no-op: already default)
+			timing_enabled = true;  // explicit enable (no-op: already default)
 		} else if (std::strcmp(argv[i], "--mpp") == 0) {
 			use_mpp = true;
 		} else {
@@ -175,7 +174,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
 	if (positional_args.size() < 3 || positional_args.size() > 4) {
 		std::cerr << "Usage: " << argv[0]
-		          << " <image_path> <model_path> <output_dir> [background_path] [--rvm] [--output=mp4|drm] [--timing=off] [--mpp]\n"
+		          << " <image_path> <model_path> <output_dir> [background_path] [--rvm] "
+		             "[--output=mp4|drm] [--timing=off] [--mpp]\n"
 		          << "\n"
 		          << "Flags:\n"
 		          << "  --rvm          Use RVM (Robust Video Matting) with recurrent states\n"
@@ -188,8 +188,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		return 1;
 	}
 
-	const std::string input_path      = positional_args[0];
-	const std::string model_path      = positional_args[1];
+	const std::string input_path = positional_args[0];
+	const std::string model_path = positional_args[1];
 	const std::string output_bin_path = positional_args[2];
 	const std::string background_path = (positional_args.size() == 4) ? positional_args[3] : "";
 
@@ -209,7 +209,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	logger.Info("Model type: " + mode_str, kcurrent_module_name);
 	logger.Info("Output mode: " + output_str, kcurrent_module_name);
 	logger.Info("Decode path: " + decode_str, kcurrent_module_name);
-	logger.Info("Input:      " + input_path + (is_video ? " (video)" : " (image)"), kcurrent_module_name);
+	logger.Info("Input:      " + input_path + (is_video ? " (video)" : " (image)"),
+	            kcurrent_module_name);
 	logger.Info("Model:      " + model_path, kcurrent_module_name);
 	logger.Info("Output:     " + output_bin_path, kcurrent_module_name);
 	if (!background_path.empty()) {
@@ -223,11 +224,11 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		std::unique_ptr<Frontend> frontend;
 
 		if (use_mpp) {
-#if defined(HAS_FFMPEG) && defined(HAS_MPP)
 			// MPP hardware decode path: FFmpeg demux → MPP decode → RGA NV12→BGR
 			auto source = std::make_unique<_FFmpegInputSource>();
 			if (!source->open(input_path)) {
-				logger.Error("Failed to open video with FFmpeg: " + input_path, kcurrent_module_name);
+				logger.Error("Failed to open video with FFmpeg: " + input_path,
+				             kcurrent_module_name);
 				return 1;
 			}
 
@@ -251,26 +252,21 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
 			frontend = std::make_unique<Frontend>(std::move(source), std::move(decoder));
 			logger.Info("MPP hardware decode path enabled", kcurrent_module_name);
-#else
-			logger.Error("--mpp requires HAS_FFMPEG and HAS_MPP. "
-			             "Rebuild with FFmpeg and MPPKit available.", kcurrent_module_name);
-			return 1;
-#endif
 		} else {
 			// OpenCV shortcut path (default)
 			frontend = std::make_unique<Frontend>(input_path);
 		}
 
 		logger.Info("Video source: " + std::to_string(frontend->width()) + "x" +
-		            std::to_string(frontend->height()) + " @ " +
-		            std::to_string(frontend->fps()) + " fps", kcurrent_module_name);
+		                std::to_string(frontend->height()) + " @ " +
+		                std::to_string(frontend->fps()) + " fps",
+		            kcurrent_module_name);
 
-		pipeline.init(std::move(frontend), model_path, output_bin_path,
-		              background_path, model_type, output_mode);
+		pipeline.init(std::move(frontend), model_path, output_bin_path, background_path, model_type,
+		              output_mode);
 	} else {
 		// Single image mode (existing path)
-		pipeline.init(input_path, model_path, output_bin_path,
-		              background_path, model_type);
+		pipeline.init(input_path, model_path, output_bin_path, background_path, model_type);
 	}
 
 	pipeline.setTimingEnabled(timing_enabled);
