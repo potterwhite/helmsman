@@ -45,7 +45,7 @@
 #include <string>
 #include "DmaKit/dma_buffer.h"
 #include "RGAKit/rga_resize.h"
-#include "pipeline/common/recurrent-state-manager.h"
+#include "pipeline/infra/recurrent-state-manager.h"
 #include "pipeline/stages/backend/backend.h"
 #include "pipeline/stages/frontend/preprocess/preprocessor.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"

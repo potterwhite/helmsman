@@ -75,7 +75,7 @@ set(PIPELINE_MODES_SOURCES
 
 set(PIPELINE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/pipeline.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/common/recurrent-state-manager.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/infra/recurrent-state-manager.cpp"
     ${PIPELINE_MODES_SOURCES}
     ${PIPELINE_FRONTEND_SOURCES}
     ${PIPELINE_INFERENCE_ENGINE_SOURCES}

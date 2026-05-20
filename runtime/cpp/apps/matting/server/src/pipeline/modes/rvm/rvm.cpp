@@ -29,7 +29,7 @@
 #include "RGAKit/rga_operation.h"
 #include "Utils/timing/timer.h"
 #include "common/common-define.h"
-#include "pipeline/common/single-slot-channel.h"
+#include "pipeline/infra/single-slot-channel.h"
 #include "pipeline/stages/backend/post-processor/guided-filter-post-processor.h"
 
 using helmsman::rgakit::ImageDescriptor;
