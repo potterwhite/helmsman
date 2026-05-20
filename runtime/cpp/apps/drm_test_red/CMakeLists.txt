@@ -27,7 +27,7 @@ add_executable(${PROJECT_NAME}
 )
 
 if(NOT DEFINED PROJECT_NAMESPACE)
-    set(PROJECT_NAMESPACE "ArcForge")
+    set(PROJECT_NAMESPACE "Helmsman")
 endif()
 
 arc_setup_system_info(${PROJECT_NAME})

@@ -50,7 +50,7 @@ set(INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_library(${PROJECT_NAME})                  # Let ${BUILD_SHARED_LIBS} determine static or shared
 
 if(NOT DEFINED PROJECT_NAMESPACE)
-    set(PROJECT_NAMESPACE "ArcForge")
+    set(PROJECT_NAMESPACE "Helmsman")
 endif()
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
