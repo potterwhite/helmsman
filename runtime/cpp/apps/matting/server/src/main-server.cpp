@@ -33,6 +33,7 @@
 #include <cstring>  // For strcmp
 #include <iostream>
 #include <opencv2/opencv.hpp>
+#include <optional>
 #include <sstream>  // For std::ostringstream
 #include <string>
 #include <thread>
@@ -47,9 +48,11 @@
 
 using namespace helmsman;
 
-const std::string ksocket_path = "/tmp/soCket.paTh";
+// ============================================================================
+// Global singletons
+// ============================================================================
 
-// --- kill signal capture ---
+const std::string ksocket_path = "/tmp/soCket.paTh";
 std::atomic<bool> g_stop_signal_received(false);
 
 auto& logger = helmsman::utils::Logger::GetInstance();
@@ -58,24 +61,27 @@ auto& math_utils = helmsman::utils::MathUtils::GetInstance();
 auto& runtime = helmsman::runtime::RuntimeONNX::GetInstance();
 auto& pipeline = Pipeline::GetInstance();
 
-void SignalHandler(int signal_num) {
+// ============================================================================
+// Internal helpers
+// ============================================================================
+
+static void SignalHandler(int signal_num) {
 	g_stop_signal_received = true;
 	std::ostringstream oss;
 	oss << "\nInterrupt signal (" << signal_num << ") received. Shutting down...";
 	helmsman::utils::Logger::GetInstance().Warning(oss.str(), kcurrent_module_name);
 }
 
-bool isDebug() {
+static bool isDebug() {
 	constexpr std::string_view build_type = BUILD_TYPE;
 	return build_type == "Debug";
 }
 
-bool isRelease() {
+static bool isRelease() {
 	constexpr std::string_view build_type = BUILD_TYPE;
 	return build_type == "Release";
 }
 
-// Detect video files by extension
 static bool isVideoFile(const std::string& path) {
 	auto dot = path.rfind('.');
 	if (dot == std::string::npos)
@@ -83,6 +89,116 @@ static bool isVideoFile(const std::string& path) {
 	std::string ext = path.substr(dot);
 	std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 	return (ext == ".mp4" || ext == ".avi" || ext == ".mkv" || ext == ".mov" || ext == ".webm");
+}
+
+// ============================================================================
+// Server configuration & initialization
+// ============================================================================
+
+struct ServerConfig {
+	ModelType model_type = ModelType::kMODNet;
+	OutputMode output_mode = OutputMode::kMp4;
+	bool timing_enabled = true;
+	bool use_hardware_decoder = false;
+	bool is_video = false;
+	std::string input_path;
+	std::string model_path;
+	std::string output_bin_path;
+	std::string background_path;
+};
+
+// Configure logger, parse CLI arguments, and log the resulting configuration.
+// Returns nullopt when arguments are invalid (usage printed to stderr).
+static std::optional<ServerConfig> initServer(int argc, char* argv[]) {
+	// --- Logger ---
+	if (isRelease()) {
+		logger.setLevel(helmsman::utils::LoggerLevel::kinfo);
+	} else {
+		logger.setLevel(helmsman::utils::LoggerLevel::kdebug);
+	}
+
+	logger.ClearSinks();
+	logger.AddSink(std::make_shared<helmsman::utils::ConsoleSink>());
+
+	signal(SIGINT, SignalHandler);
+
+	if (isDumpEnabled()) {
+		logger.Info(
+		    "[DEBUG] Binary dump ENABLED (HELMSMAN_DUMP is set). "
+		    "Unset to disable for production runs.",
+		    kcurrent_module_name);
+	}
+
+	// --- Parse arguments ---
+	ServerConfig cfg;
+	std::vector<std::string> positional_args;
+
+	for (int i = 1; i < argc; ++i) {
+		if (std::strcmp(argv[i], "--rvm") == 0) {
+			cfg.model_type = ModelType::kRVM;
+		} else if (std::strcmp(argv[i], "--modnet") == 0) {
+			cfg.model_type = ModelType::kMODNet;
+		} else if (std::strcmp(argv[i], "--output=mp4") == 0) {
+			cfg.output_mode = OutputMode::kMp4;
+		} else if (std::strcmp(argv[i], "--output=drm") == 0) {
+			cfg.output_mode = OutputMode::kDrm;
+		} else if (std::strcmp(argv[i], "--timing=off") == 0) {
+			cfg.timing_enabled = false;
+		} else if (std::strcmp(argv[i], "--timing=on") == 0) {
+			cfg.timing_enabled = true;
+		} else if (std::strcmp(argv[i], "--hwdecoder") == 0) {
+			cfg.use_hardware_decoder = true;
+		} else {
+			positional_args.push_back(argv[i]);
+		}
+	}
+
+	if (positional_args.size() < 3 || positional_args.size() > 4) {
+		std::cerr << "Usage: " << argv[0]
+		          << " <image_path> <model_path> <output_dir> [background_path] [--rvm] "
+		             "[--output=mp4|drm] [--timing=off] [--hwdecoder]\n"
+		          << "\n"
+		          << "Flags:\n"
+		          << "  --rvm          Use RVM (Robust Video Matting) with recurrent states\n"
+		          << "  --modnet       Use MODNet single-frame matting (default)\n"
+		          << "  --output=mp4   Write composited video to mp4 file (default)\n"
+		          << "  --output=drm   Display on DRM/KMS panel (embedded only)\n"
+		          << "  --timing=off   Disable pipeline timing statistics (default: on)\n"
+		          << "  --timing=on    Enable pipeline timing statistics (default)\n"
+		          << "  --hwdecoder    Use hardware decode path (requires FFmpeg + MPPKit)\n";
+		return std::nullopt;
+	}
+
+	cfg.input_path = positional_args[0];
+	cfg.model_path = positional_args[1];
+	cfg.output_bin_path = positional_args[2];
+	cfg.background_path = (positional_args.size() == 4) ? positional_args[3] : "";
+
+	cfg.is_video = isVideoFile(cfg.input_path);
+	if (cfg.is_video && cfg.model_type == ModelType::kMODNet) {
+		logger.Info(
+		    "Video input detected, MODNet does not support video inferencing yet. Exit anyway.",
+		    kcurrent_module_name);
+		cfg.model_type = ModelType::kRVM;
+	}
+
+	// --- Log configuration ---
+	std::string mode_str = (cfg.model_type == ModelType::kRVM) ? "RVM" : "MODNet";
+	std::string output_str = (cfg.output_mode == OutputMode::kDrm) ? "DRM" : "MP4";
+	std::string decode_str =
+	    cfg.use_hardware_decoder ? "hardware decoder" : "software decoder (OpenCV)";
+	logger.Info("Model type: " + mode_str, kcurrent_module_name);
+	logger.Info("Output mode: " + output_str, kcurrent_module_name);
+	logger.Info("Decode path: " + decode_str, kcurrent_module_name);
+	logger.Info("Input:      " + cfg.input_path + (cfg.is_video ? " (video)" : " (image)"),
+	            kcurrent_module_name);
+	logger.Info("Model:      " + cfg.model_path, kcurrent_module_name);
+	logger.Info("Output:     " + cfg.output_bin_path, kcurrent_module_name);
+	if (!cfg.background_path.empty()) {
+		logger.Info("Background: " + cfg.background_path, kcurrent_module_name);
+	}
+
+	return cfg;
 }
 
 // ============================================================================
@@ -117,124 +233,25 @@ static bool isVideoFile(const std::string& path) {
 //   # RVM video with background compositing:
 //   Helmsman_Matting_Server video.mp4 rvm.rknn ./output/ bg.jpg
 // ============================================================================
-int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
-
-	// -----------------------------------------------
-	// 1. Configure logger
-	// -----------------------------------------------
-	if (isRelease()) {
-		logger.setLevel(helmsman::utils::LoggerLevel::kinfo);
-	} else {
-		logger.setLevel(helmsman::utils::LoggerLevel::kdebug);
-	}
-
-	logger.ClearSinks();
-	logger.AddSink(std::make_shared<helmsman::utils::ConsoleSink>());
-
-	// Setup signal handler
-	signal(SIGINT, SignalHandler);
-
-	// Log dump status
-	if (isDumpEnabled()) {
-		logger.Info(
-		    "[DEBUG] Binary dump ENABLED (HELMSMAN_DUMP is set). "
-		    "Unset to disable for production runs.",
-		    kcurrent_module_name);
-	}
-
-	// -----------------------------------------------
-	// 2. Parse arguments
-	// -----------------------------------------------
-	// Scan for flags, then collect positional args.
-	ModelType model_type = ModelType::kMODNet;
-	OutputMode output_mode = OutputMode::kMp4;
-	bool timing_enabled = true;  // default ON; --timing=off disables
-	bool use_mpp = false;        // --mpp: use MPP hardware decode path
-	std::vector<std::string> positional_args;
-
-	for (int i = 1; i < argc; ++i) {
-		if (std::strcmp(argv[i], "--rvm") == 0) {
-			model_type = ModelType::kRVM;
-		} else if (std::strcmp(argv[i], "--modnet") == 0) {
-			model_type = ModelType::kMODNet;  // explicit default
-		} else if (std::strcmp(argv[i], "--output=mp4") == 0) {
-			output_mode = OutputMode::kMp4;
-		} else if (std::strcmp(argv[i], "--output=drm") == 0) {
-			output_mode = OutputMode::kDrm;
-		} else if (std::strcmp(argv[i], "--timing=off") == 0) {
-			timing_enabled = false;
-		} else if (std::strcmp(argv[i], "--timing=on") == 0) {
-			timing_enabled = true;  // explicit enable (no-op: already default)
-		} else if (std::strcmp(argv[i], "--mpp") == 0) {
-			use_mpp = true;
-		} else {
-			positional_args.push_back(argv[i]);
-		}
-	}
-
-	if (positional_args.size() < 3 || positional_args.size() > 4) {
-		std::cerr << "Usage: " << argv[0]
-		          << " <image_path> <model_path> <output_dir> [background_path] [--rvm] "
-		             "[--output=mp4|drm] [--timing=off] [--mpp]\n"
-		          << "\n"
-		          << "Flags:\n"
-		          << "  --rvm          Use RVM (Robust Video Matting) with recurrent states\n"
-		          << "  --modnet       Use MODNet single-frame matting (default)\n"
-		          << "  --output=mp4   Write composited video to mp4 file (default)\n"
-		          << "  --output=drm   Display on DRM/KMS panel (embedded only)\n"
-		          << "  --timing=off   Disable pipeline timing statistics (default: on)\n"
-		          << "  --timing=on    Enable pipeline timing statistics (default)\n"
-		          << "  --mpp          Use MPP hardware decode path (requires FFmpeg + MPPKit)\n";
+int main(int argc, char* argv[]) {
+	auto config = initServer(argc, argv);
+	if (!config)
 		return 1;
-	}
 
-	const std::string input_path = positional_args[0];
-	const std::string model_path = positional_args[1];
-	const std::string output_bin_path = positional_args[2];
-	const std::string background_path = (positional_args.size() == 4) ? positional_args[3] : "";
-
-	// Auto-detect video input → force RVM mode
-	const bool is_video = isVideoFile(input_path);
-	if (is_video && model_type == ModelType::kMODNet) {
-		logger.Info("Video input detected, auto-switching to RVM mode.", kcurrent_module_name);
-		model_type = ModelType::kRVM;
-	}
-
-	// -----------------------------------------------
-	// 3. Log configuration
-	// -----------------------------------------------
-	std::string mode_str = (model_type == ModelType::kRVM) ? "RVM" : "MODNet";
-	std::string output_str = (output_mode == OutputMode::kDrm) ? "DRM" : "MP4";
-	std::string decode_str = use_mpp ? "MPP (hardware)" : "OpenCV (software)";
-	logger.Info("Model type: " + mode_str, kcurrent_module_name);
-	logger.Info("Output mode: " + output_str, kcurrent_module_name);
-	logger.Info("Decode path: " + decode_str, kcurrent_module_name);
-	logger.Info("Input:      " + input_path + (is_video ? " (video)" : " (image)"),
-	            kcurrent_module_name);
-	logger.Info("Model:      " + model_path, kcurrent_module_name);
-	logger.Info("Output:     " + output_bin_path, kcurrent_module_name);
-	if (!background_path.empty()) {
-		logger.Info("Background: " + background_path, kcurrent_module_name);
-	}
-
-	// -----------------------------------------------
-	// 4. Run pipeline
-	// -----------------------------------------------
-	if (is_video) {
+	// --- Run pipeline ---
+	if (config->is_video) {
 		std::unique_ptr<Frontend> frontend;
 
-		if (use_mpp) {
-			// MPP hardware decode path: FFmpeg demux → MPP decode → RGA NV12→BGR
+		if (config->use_hardware_decoder) {
+			// hardware decode path (FFmpeg + MPPKit)
 			auto source = std::make_unique<_FFmpegInputSource>();
-			if (!source->open(input_path)) {
-				logger.Error("Failed to open video with FFmpeg: " + input_path,
+			if (!source->open(config->input_path)) {
+				logger.Error("Failed to open video with FFmpeg: " + config->input_path,
 				             kcurrent_module_name);
 				return 1;
 			}
 
-			// Detect codec type from FFmpeg stream info
 			helmsman::mppkit::CodecType codec = helmsman::mppkit::CodecType::kH264;
-			// AV_CODEC_ID_HEVC = 173 in FFmpeg
 			if (source->codecId() == 173) {
 				codec = helmsman::mppkit::CodecType::kH265;
 			}
@@ -253,8 +270,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 			frontend = std::make_unique<Frontend>(std::move(source), std::move(decoder));
 			logger.Info("MPP hardware decode path enabled", kcurrent_module_name);
 		} else {
-			// OpenCV shortcut path (default)
-			frontend = std::make_unique<Frontend>(input_path);
+			// OpenCV path (software decode)
+			frontend = std::make_unique<Frontend>(config->input_path);
 		}
 
 		logger.Info("Video source: " + std::to_string(frontend->width()) + "x" +
@@ -262,15 +279,15 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 		                std::to_string(frontend->fps()) + " fps",
 		            kcurrent_module_name);
 
-		pipeline.init(std::move(frontend), model_path, output_bin_path, background_path, model_type,
-		              output_mode);
+		pipeline.init(std::move(frontend), config->model_path, config->output_bin_path,
+		              config->background_path, config->model_type, config->output_mode);
 	} else {
-		// Single image mode (existing path)
-		pipeline.init(input_path, model_path, output_bin_path, background_path, model_type);
+		pipeline.init(config->input_path, config->model_path, config->output_bin_path,
+		              config->background_path, config->model_type);
 	}
 
-	pipeline.setTimingEnabled(timing_enabled);
-	if (!timing_enabled) {
+	pipeline.setTimingEnabled(config->timing_enabled);
+	if (!config->timing_enabled) {
 		logger.Info("Pipeline timing statistics DISABLED (--timing=off).", kcurrent_module_name);
 	}
 	pipeline.run();
