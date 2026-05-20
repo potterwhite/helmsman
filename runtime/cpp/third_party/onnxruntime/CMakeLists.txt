@@ -63,6 +63,11 @@ FetchContent_Declare(
     # Download and Decompress unto the directory of "build/_deps/onnxruntime_pkg-src"
     # Default is FALSE
     # DOWNLOAD_NO_EXTRACT FALSE
+    # ----------
+    # Default is FALSE,
+    # if TRUE, CMake will add timestamp to the extracted directory to avoid conflict
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    # ----------
 )
 
 # ---------------------------------
