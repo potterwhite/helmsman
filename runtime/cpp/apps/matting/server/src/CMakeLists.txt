@@ -46,7 +46,10 @@ if(TARGET ${PROJECT_NAMESPACE}::MPPKit)
 endif()
 
 # 2.2 pipeline/stages/inference-engine/
+# Factory: one .cpp per backend — CMake selects which to compile.
+# INFERENCE_BACKEND is set by CMakePresets.json (backend-* mixin) or auto-defaulted.
 set(PIPELINE_INFERENCE_ENGINE_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/stages/inference-engine/factory/factory-${INFERENCE_BACKEND}.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/pipeline/stages/inference-engine/onnx/onnx.cpp"
 )
 

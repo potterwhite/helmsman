@@ -93,13 +93,13 @@ cv::Mat RVMMode::inferOneFrame(InferenceEngine* engine, const TensorData& src,
 	std::vector<TensorData> inputs = {src};
 	state_mgr_.inject(inputs);
 
-#if defined(INFERENCE_BACKEND_ONNX)
-	TensorData dsr;
-	dsr.name = "downsample_ratio";
-	dsr.shape = {1};
-	dsr.data = {dsr_};
-	inputs.push_back(std::move(dsr));
-#endif
+	if (engine->needsDownsampleRatio()) {
+		TensorData dsr;
+		dsr.name = "downsample_ratio";
+		dsr.shape = {1};
+		dsr.data = {dsr_};
+		inputs.push_back(std::move(dsr));
+	}
 
 	std::vector<TensorData> outputs;
 	auto t0 = std::chrono::high_resolution_clock::now();

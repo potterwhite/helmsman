@@ -29,6 +29,7 @@
 #include <unistd.h>
 #include "RGAKit/rga_operation.h"
 #include "common/common-define.h"
+#include "pipeline/stages/inference-engine/inference-engine-factory.h"
 
 using helmsman::rgakit::ImageDescriptor;
 using helmsman::rgakit::RgaPixelFormat;
@@ -87,13 +88,13 @@ int MattingServer::processFrame(int input_fd, int input_w, int input_h) {
 	std::vector<TensorData> inputs = {tensor};
 	state_mgr_.inject(inputs);
 
-#if defined(INFERENCE_BACKEND_ONNX)
-	TensorData dsr;
-	dsr.name = "downsample_ratio";
-	dsr.shape = {1};
-	dsr.data = {dsr_};
-	inputs.push_back(std::move(dsr));
-#endif
+	if (engine_->needsDownsampleRatio()) {
+		TensorData dsr;
+		dsr.name = "downsample_ratio";
+		dsr.shape = {1};
+		dsr.data = {dsr_};
+		inputs.push_back(std::move(dsr));
+	}
 
 	// 5. Run inference.
 	std::vector<TensorData> outputs;
@@ -176,18 +177,7 @@ bool MattingServer::initRga() {
 bool MattingServer::initModel(const std::string& model_path) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
-	// Create inference engine (backend selected at compile time).
-#if defined(INFERENCE_BACKEND_RKNN_ZERO_COPY)
-	engine_ = std::make_unique<RknnZeroCopyEngine>();
-#elif defined(INFERENCE_BACKEND_RKNN_NON_ZERO_COPY)
-	engine_ = std::make_unique<RknnNonZeroCopyEngine>();
-#elif defined(INFERENCE_BACKEND_ONNX)
-	engine_ = std::make_unique<OnnxEngine>();
-#else
-	logger.Warning("MattingServer: no inference backend defined", kMattingServerModule);
-	return false;
-#endif
-
+	engine_ = createInferenceEngine();
 	engine_->load(model_path);
 	model_h_ = engine_->getInputHeight() > 0 ? static_cast<int>(engine_->getInputHeight()) : 288;
 	model_w_ = engine_->getInputWidth() > 0 ? static_cast<int>(engine_->getInputWidth()) : 512;

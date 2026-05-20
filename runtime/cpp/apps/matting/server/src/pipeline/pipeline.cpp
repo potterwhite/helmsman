@@ -20,27 +20,13 @@
 
 #include "pipeline/pipeline.h"
 #include "common/common-define.h"
-
-#if defined(INFERENCE_BACKEND_RKNN_ZEROCOPY)
-#include "pipeline/stages/inference-engine/rknn/rknn-zero-copy.h"
-#elif defined(INFERENCE_BACKEND_RKNN_NON_ZEROCOPY)
-#include "pipeline/stages/inference-engine/rknn/rknn-non-zero-copy.h"
-#else
-#include "pipeline/stages/inference-engine/onnx/onnx.h"
-#endif
-
+#include "pipeline/stages/inference-engine/inference-engine-factory.h"
 #include "Utils/timing/timer.h"
 
 using helmsman::utils::timing::ScopedTimer;
 
 std::unique_ptr<InferenceEngine> Pipeline::make_engine() {
-#if defined(INFERENCE_BACKEND_RKNN_ZEROCOPY)
-	return std::make_unique<InferenceEngineRKNNZeroCP>();
-#elif defined(INFERENCE_BACKEND_RKNN_NON_ZEROCOPY)
-	return std::make_unique<InferenceEngineRKNN>();
-#else
-	return std::make_unique<InferenceEngineONNX>();
-#endif
+	return createInferenceEngine();
 }
 
 Pipeline& Pipeline::GetInstance() {

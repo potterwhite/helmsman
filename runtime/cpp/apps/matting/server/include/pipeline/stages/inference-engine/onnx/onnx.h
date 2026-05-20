@@ -47,6 +47,8 @@ class InferenceEngineONNX : public InferenceEngine {
 	          std::vector<TensorData>& outputs
 	) override;
 
+	bool needsDownsampleRatio() const override { return true; }
+
    private:
 	Ort::Env env_;
 	std::unique_ptr<Ort::Session> session_;

@@ -61,6 +61,10 @@ class InferenceEngine {
 	// Used by Pipeline to initialize RecurrentStateManager with correct shapes.
 	virtual std::vector<std::vector<int64_t>> getRecurrentStateShapes() const { return {}; }
 
+	// Whether the engine expects a "downsample_ratio" tensor appended to inputs.
+	// ONNX RVM models require it; RKNN models bake it into the graph.
+	virtual bool needsDownsampleRatio() const { return false; }
+
 	// Optional: path for debug binary dumps.
 	virtual void setOutputBinPath(const std::string& path) { output_bin_path_ = path; }
 
