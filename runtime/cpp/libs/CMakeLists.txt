@@ -22,14 +22,25 @@
 # ---------------------------------
 # I. Main Executes
 # ---------------------------------
+
+# Common libraries (all platforms)
 add_subdirectory(utils)
 add_subdirectory(network)
-
 add_subdirectory(cvkit)
-add_subdirectory(mppkit)
-add_subdirectory(rgakit)
-add_subdirectory(dmakit)
-add_subdirectory(drmkit)
+
+# Rockchip-specific libraries
+if("rockchip" IN_LIST CMAKE_PLATFORM)
+    add_subdirectory(mppkit)
+    add_subdirectory(rgakit)
+endif()
+
+# Linux-specific libraries
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_subdirectory(dmakit)
+    add_subdirectory(drmkit)
+endif()
+
+# Runtime (all platforms, internal RKNN condition control)
 add_subdirectory(runtime)
 
 # ---------------------------------

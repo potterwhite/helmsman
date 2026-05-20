@@ -19,7 +19,15 @@
 # SOFTWARE.
 
 # ---------------------------------
-# I. Protection for standalone Use
+# I. Platform Guard — Rockchip only
+# ---------------------------------
+if(NOT "rockchip" IN_LIST CMAKE_PLATFORM)
+    message(WARNING "RGAKit: Skipping build — not a Rockchip platform")
+    return()
+endif()
+
+# ---------------------------------
+# II. Protection for standalone Use
 # ---------------------------------
 if(NOT DEFINED GLOBAL_VERSION_STRING OR "${GLOBAL_VERSION_STRING}" STREQUAL "")
     set(GLOBAL_VERSION_STRING "99.99.99")

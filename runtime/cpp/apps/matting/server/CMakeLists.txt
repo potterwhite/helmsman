@@ -96,70 +96,89 @@ if(NOT TARGET ${PROJECT_NAMESPACE}::Runtime)
     find_package(${PROJECT_NAMESPACE}_Runtime REQUIRED)
 endif()
 
-if(NOT TARGET ${PROJECT_NAMESPACE}::RGAKit)
-    message(STATUS "Can`t find ${PROJECT_NAMESPACE}::RGAKit, start searching")
-    find_package(${PROJECT_NAMESPACE}_RGAKit REQUIRED)
-endif()
-
-if(NOT TARGET ${PROJECT_NAMESPACE}::DmaKit)
-    message(STATUS "Can`t find ${PROJECT_NAMESPACE}::DmaKit, start searching")
-    find_package(${PROJECT_NAMESPACE}_DmaKit REQUIRED)
-endif()
-
-if(NOT TARGET ${PROJECT_NAMESPACE}::DRMKit)
-    message(STATUS "Can`t find ${PROJECT_NAMESPACE}::DRMKit, start searching")
-    find_package(${PROJECT_NAMESPACE}_DRMKit REQUIRED)
-endif()
-
-if(NOT TARGET ${PROJECT_NAMESPACE}::MPPKit)
-    message(STATUS "Can`t find ${PROJECT_NAMESPACE}::MPPKit, start searching")
-    find_package(${PROJECT_NAMESPACE}_MPPKit REQUIRED)
-endif()
-
-# FFmpeg: optional, needed for MPP hardware decode path
-find_package(PkgConfig QUIET)
-
-if(PkgConfig_FOUND)
-    pkg_check_modules(FFMPEG_AVFORMAT QUIET IMPORTED_TARGET libavformat)
-    pkg_check_modules(FFMPEG_AVCODEC QUIET IMPORTED_TARGET libavcodec)
-    pkg_check_modules(FFMPEG_AVUTIL QUIET IMPORTED_TARGET libavutil)
-
-    if(FFMPEG_AVFORMAT_FOUND)
-        message(NOTICE "FFmpeg(libavformat) found via pkg-config")
-    else()
-        message(FATAL_ERROR "FFmpeg(libavformat) not found (MPP hardware decode path disabled)")
-    endif()
-
-    if(FFMPEG_AVCODEC_FOUND)
-        message(NOTICE "FFmpeg(libavcodec) found via pkg-config")
-    else()
-        message(FATAL_ERROR "FFmpeg(libavcodec) not found (MPP hardware decode path disabled)")
-    endif()
-
-    if(FFMPEG_AVUTIL_FOUND)
-        message(NOTICE "FFmpeg(libavutil) found via pkg-config")
-    else()
-        message(FATAL_ERROR "FFmpeg(libavutil) not found (MPP hardware decode path disabled)")
-    endif()
-
-else()
-    message(FATAL_ERROR "pkg-config not found (FFmpeg detection skipped)")
-endif()
-
+# Common dependencies (all platforms)
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
         ${PROJECT_NAMESPACE}::Utils
         ${PROJECT_NAMESPACE}::Network
         ${PROJECT_NAMESPACE}::CVKit
         ${PROJECT_NAMESPACE}::Runtime
-        ${PROJECT_NAMESPACE}::RGAKit
-        ${PROJECT_NAMESPACE}::DmaKit
-        ${PROJECT_NAMESPACE}::DRMKit
-        ${PROJECT_NAMESPACE}::MPPKit
-        PkgConfig::FFMPEG_AVCODEC
-        PkgConfig::FFMPEG_AVFORMAT
-        PkgConfig::FFMPEG_AVUTIL
 )
+
+# Rockchip-specific dependencies
+if("rockchip" IN_LIST CMAKE_PLATFORM)
+    if(NOT TARGET ${PROJECT_NAMESPACE}::RGAKit)
+        message(STATUS "Can`t find ${PROJECT_NAMESPACE}::RGAKit, start searching")
+        find_package(${PROJECT_NAMESPACE}_RGAKit REQUIRED)
+    endif()
+
+    if(NOT TARGET ${PROJECT_NAMESPACE}::MPPKit)
+        message(STATUS "Can`t find ${PROJECT_NAMESPACE}::MPPKit, start searching")
+        find_package(${PROJECT_NAMESPACE}_MPPKit REQUIRED)
+    endif()
+
+    target_link_libraries(${PROJECT_NAME}
+        PUBLIC
+            ${PROJECT_NAMESPACE}::RGAKit
+            ${PROJECT_NAMESPACE}::MPPKit
+    )
+
+    # FFmpeg: needed for MPP hardware decode path
+    find_package(PkgConfig QUIET)
+
+    if(PkgConfig_FOUND)
+        pkg_check_modules(FFMPEG_AVFORMAT QUIET IMPORTED_TARGET libavformat)
+        pkg_check_modules(FFMPEG_AVCODEC QUIET IMPORTED_TARGET libavcodec)
+        pkg_check_modules(FFMPEG_AVUTIL QUIET IMPORTED_TARGET libavutil)
+
+        if(FFMPEG_AVFORMAT_FOUND)
+            message(NOTICE "FFmpeg(libavformat) found via pkg-config")
+        else()
+            message(FATAL_ERROR "FFmpeg(libavformat) not found (MPP hardware decode path disabled)")
+        endif()
+
+        if(FFMPEG_AVCODEC_FOUND)
+            message(NOTICE "FFmpeg(libavcodec) found via pkg-config")
+        else()
+            message(FATAL_ERROR "FFmpeg(libavcodec) not found (MPP hardware decode path disabled)")
+        endif()
+
+        if(FFMPEG_AVUTIL_FOUND)
+            message(NOTICE "FFmpeg(libavutil) found via pkg-config")
+        else()
+            message(FATAL_ERROR "FFmpeg(libavutil) not found (MPP hardware decode path disabled)")
+        endif()
+
+    else()
+        message(FATAL_ERROR "pkg-config not found (FFmpeg detection skipped)")
+    endif()
+
+    target_link_libraries(${PROJECT_NAME}
+        PUBLIC
+            PkgConfig::FFMPEG_AVCODEC
+            PkgConfig::FFMPEG_AVFORMAT
+            PkgConfig::FFMPEG_AVUTIL
+    )
+endif()
+
+# Linux-specific dependencies
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    if(NOT TARGET ${PROJECT_NAMESPACE}::DmaKit)
+        message(STATUS "Can`t find ${PROJECT_NAMESPACE}::DmaKit, start searching")
+        find_package(${PROJECT_NAMESPACE}_DmaKit REQUIRED)
+    endif()
+
+    if(NOT TARGET ${PROJECT_NAMESPACE}::DRMKit)
+        message(STATUS "Can`t find ${PROJECT_NAMESPACE}::DRMKit, start searching")
+        find_package(${PROJECT_NAMESPACE}_DRMKit REQUIRED)
+    endif()
+
+    target_link_libraries(${PROJECT_NAME}
+        PUBLIC
+            ${PROJECT_NAMESPACE}::DmaKit
+            ${PROJECT_NAMESPACE}::DRMKit
+    )
+endif()
 
 # ---------------------------------
 # VIII. installation rules
