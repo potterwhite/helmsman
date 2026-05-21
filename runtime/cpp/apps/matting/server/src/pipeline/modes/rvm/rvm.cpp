@@ -584,10 +584,10 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 	//   acc_lv02_01_04_main_composite ≈ resize_alpha + resize_frame + blend + upscale + writer
 	// ------------------------------------------------------------------------- */
 	StageAccumulator acc_lv02_01_main_loop_total("Lv02-01::main::loop_total");
-	StageAccumulator acc_lv02_01_01_worker_preprocess("Lv02-01-01::worker::preprocess");
-	StageAccumulator acc_lv02_01_02_main_decode("Lv02-01-02::main::decode");
-	StageAccumulator acc_lv02_01_03_main_infer("Lv02-01-03::main::infer");
-	StageAccumulator acc_lv02_01_04_main_composite("Lv02-01-04::main::composite");
+	StageAccumulator acc_lv02_01_01_worker_preprocess("  Lv02-01-01::worker::preprocess");
+	StageAccumulator acc_lv02_01_02_main_decode("  Lv02-01-02::main::decode");
+	StageAccumulator acc_lv02_01_03_main_infer("  Lv02-01-03::main::infer");
+	StageAccumulator acc_lv02_01_04_main_composite("  Lv02-01-04::main::composite");
 
 	// --------------------
 	// Start the worker thread that runs the prefetch + preprocess loop, and
@@ -743,11 +743,11 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 	// Wait for the worker thread to finish before destroying the channels.
 	prefetch_worker.join();
 
+	acc_lv02_01_main_loop_total.report(config_.timing_enabled, logger, kRvmModuleName);
 	acc_lv02_01_01_worker_preprocess.report(config_.timing_enabled, logger, kRvmModuleName);
 	acc_lv02_01_02_main_decode.report(config_.timing_enabled, logger, kRvmModuleName);
 	acc_lv02_01_03_main_infer.report(config_.timing_enabled, logger, kRvmModuleName);
 	acc_lv02_01_04_main_composite.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_main_loop_total.report(config_.timing_enabled, logger, kRvmModuleName);
 
 	acc_lv02_01_04_01_resize_alpha_.report(config_.timing_enabled, logger, kRvmModuleName);
 	acc_lv02_01_04_02_resize_frame_.report(config_.timing_enabled, logger, kRvmModuleName);

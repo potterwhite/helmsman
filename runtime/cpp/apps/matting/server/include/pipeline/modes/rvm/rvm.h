@@ -25,8 +25,8 @@
 #include <opencv2/videoio.hpp>
 #include <string>
 #include <vector>
-#include "DmaKit/dma_buffer.h"
 #include "DRMKit/drm_display.h"
+#include "DmaKit/dma_buffer.h"
 #include "RGAKit/rga_resize.h"
 #include "Utils/timing/timer.h"
 #include "common/types.h"
@@ -63,12 +63,12 @@ class RVMMode {
 	cv::Mat loadOrCreateBackground(int width, int height);
 	cv::Mat inferOneFrame(InferenceEngine* engine, const TensorData& src, const cv::Mat& guide_bgr);
 	// Returns total composite time in ms (for per-frame logging).
-	double compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame, const cv::Mat& alpha_8u);
+	double compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
+	                         const cv::Mat& alpha_8u);
 
 	// DRM composite: blend + upscale + BGR→XRGB + ShowARGB.
 	// Returns total composite time in ms.
-	double compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u,
-	                      int panel_w, int panel_h);
+	double compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, int panel_w, int panel_h);
 
 	// DMA zero-copy composite: composites into a pre-allocated DMA buffer.
 	// Returns the DMA buffer fd (valid until next call or destruction).
@@ -90,12 +90,12 @@ class RVMMode {
 
    private:
 	// Member variables
-	float dsr_ = 0.25f;  ///< downsample_ratio, overwritten in run()
+	float dsr_ = 0.25f;             ///< downsample_ratio, overwritten in run()
 	Frontend* frontend_ = nullptr;  // Non-owning; owned by Pipeline
 	AppConfig config_;              // Copy of the app config, set at run() entry
 	MattingBackend backend_;
 	RecurrentStateManager state_mgr_;
-	cv::Mat bg_model_u8_;   // Pre-computed background at model resolution (CV_8UC3)
+	cv::Mat bg_model_u8_;  // Pre-computed background at model resolution (CV_8UC3)
 
 	// RGA hardware operations (stateless, created once, reused every frame)
 	std::unique_ptr<helmsman::rgakit::RgaResize> rga_resize_;
@@ -108,10 +108,16 @@ class RVMMode {
 	std::vector<uint8_t> argb_buf_;  // reusable buffer for BGR→XRGB conversion
 
 	// 5.8-s4 instrumentation: per-sub-operation timing in compositeAndWrite()
-	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_01_resize_alpha_{"comp::resize_alpha"};
-	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_02_resize_frame_{"comp::resize_frame"};
-	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_03_blend_{"comp::blend"};
-	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_04_upscale_{"comp::upscale"};
-	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_05_writer_{"comp::writer"};
-	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_06_drm_{"comp::drm_show"};
+	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_01_resize_alpha_{
+	    "    Lv02-01-04-01::comp::resize_alpha"};
+	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_02_resize_frame_{
+	    "    Lv02-01-04-02::comp::resize_frame"};
+	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_03_blend_{
+	    "    Lv02-01-04-03::comp::blend"};
+	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_04_upscale_{
+	    "    Lv02-01-04-04::comp::upscale"};
+	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_05_writer_{
+	    "    Lv02-01-04-05::comp::writer"};
+	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_06_drm_{
+	    "    Lv02-01-04-06::comp::drm_show"};
 };
