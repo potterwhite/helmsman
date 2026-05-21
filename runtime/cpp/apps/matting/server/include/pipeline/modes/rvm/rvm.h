@@ -90,7 +90,7 @@ class RVMMode {
 
    private:
 	// Member variables
-	float dsr_ = 0.25f;  ///< downsample_ratio, computed in run() as 512/max(src_w, src_h)
+	float dsr_ = 0.25f;  ///< downsample_ratio, overwritten in run()
 	Frontend* frontend_ = nullptr;  // Non-owning; owned by Pipeline
 	AppConfig config_;              // Copy of the app config, set at run() entry
 	MattingBackend backend_;

@@ -42,6 +42,16 @@ extern std::atomic<bool> g_stop_signal_received;
 
 inline constexpr std::string_view kRvmModuleName = "RVMMode";
 
+// Default model input dimensions (fallback when engine reports 0)
+inline constexpr int kDefaultModelInputHeight = 288;
+inline constexpr int kDefaultModelInputWidth = 512;
+
+// Default downsample ratio (overwritten at runtime as 512/max(src_w, src_h))
+inline constexpr float kDefaultDsr = 0.25f;
+
+// Default fallback background color: BGR(155,255,120) = RGB(120,255,155)
+inline const cv::Scalar kDefaultBgColor{155, 255, 120};
+
 void RVMMode::initRecurrentStates(InferenceEngine* engine) {
 	// Try to get recurrent state shapes from the engine (RKNN reports actual shapes).
 	auto shapes = engine->getRecurrentStateShapes();
@@ -82,7 +92,7 @@ cv::Mat RVMMode::loadOrCreateBackground(int width, int height) {
 		}
 	}
 	// Default fallback background: BGR(155,255,120) = RGB(120,255,155), matches e.py baseline
-	return cv::Mat(height, width, CV_8UC3, cv::Scalar(155, 255, 120));
+	return cv::Mat(height, width, CV_8UC3, kDefaultBgColor);
 }
 
 cv::Mat RVMMode::inferOneFrame(InferenceEngine* engine, const TensorData& src,
@@ -425,8 +435,8 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine) {
 	}
 
 	RvmRunSetup setup;
-	setup.model_input_height = engine->getInputHeight() > 0 ? engine->getInputHeight() : 288;
-	setup.model_input_width = engine->getInputWidth() > 0 ? engine->getInputWidth() : 512;
+	setup.model_input_height = engine->getInputHeight() > 0 ? engine->getInputHeight() : kDefaultModelInputHeight;
+	setup.model_input_width = engine->getInputWidth() > 0 ? engine->getInputWidth() : kDefaultModelInputWidth;
 
 	initRecurrentStates(engine);
 
@@ -469,7 +479,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 	// =========================================================================
 	const int src_width = frontend_->width();
 	const int src_height = frontend_->height();
-	dsr_ = 512.0f / static_cast<float>(std::max(src_width, src_height));
+	dsr_ = static_cast<float>(kDefaultModelInputWidth) / static_cast<float>(std::max(src_width, src_height));
 	// dance.mp4 1920×1080 → dsr_ = 512/1920 ≈ 0.2667
 	const double src_fps = frontend_->fps();
 	const double output_fps = (src_fps > 0) ? src_fps : 30.0;
