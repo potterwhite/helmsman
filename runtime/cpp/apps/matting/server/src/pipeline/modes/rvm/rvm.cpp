@@ -124,7 +124,7 @@ cv::Mat RVMMode::inferOneFrame(InferenceEngine* engine, const TensorData& src,
 
 void RVMMode::runPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChannel<cv::Mat>& raw_ch,
                                 SingleSlotChannel<TensorData>& tensor_ch,
-                                StageAccumulator& acc_1st_worker_preprocess) {
+                                StageAccumulator& acc_lv02_01_01_worker_preprocess) {
 	while (true) {
 		// Block until a raw frame is available, or the channel is closed (EOF).
 		auto frame_opt = raw_ch.pop();
@@ -136,7 +136,7 @@ void RVMMode::runPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChanne
 		// BGR frame → letterbox-resized float32 tensor ready for inference.
 		// frontend_->preprocess() is thread-safe (Preprocessor is stateless).
 		auto tensor = frontend_->preprocess(*frame_opt, model_w, model_h);
-		acc_1st_worker_preprocess.record(t.stop());
+		acc_lv02_01_01_worker_preprocess.record(t.stop());
 
 		tensor_ch.push(std::move(tensor));
 	}
@@ -163,7 +163,7 @@ double RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
 		alpha_model.create(model_h, model_w, CV_8UC1);
 		cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
 	}
-	acc_resize_alpha_.record(t.stop());
+	acc_lv02_01_04_01_resize_alpha_.record(t.stop());
 
 	// 2. Resize frame (RGA hardware)
 	cv::Mat frame_model;
@@ -176,7 +176,7 @@ double RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
 			cv::resize(frame, frame_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
 		}
 	}
-	acc_resize_frame_.record(t.stop());
+	acc_lv02_01_04_02_resize_frame_.record(t.stop());
 
 	// 3. CPU alpha blend: fg_bgr * alpha + bg_bgr * (1-alpha) → composed_bgr
 	cv::Mat composed_model(model_h, model_w, CV_8UC3);
@@ -204,7 +204,7 @@ double RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
 			out += 3;
 		}
 	}
-	acc_blend_.record(t.stop());
+	acc_lv02_01_04_03_blend_.record(t.stop());
 
 	// 5. Upscale (RGA hardware)
 	cv::Mat composed_full;
@@ -217,12 +217,12 @@ double RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
 			cv::resize(composed_model, composed_full, frame.size(), 0, 0, cv::INTER_LINEAR);
 		}
 	}
-	acc_upscale_.record(t.stop());
+	acc_lv02_01_04_04_upscale_.record(t.stop());
 
 	// 6. Write
 	t.start();
 	writer.write(composed_full);
-	acc_writer_.record(t.stop());
+	acc_lv02_01_04_05_writer_.record(t.stop());
 
 	return total_t.elapsed_ms();
 }
@@ -262,7 +262,7 @@ int RVMMode::compositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u) {
 		alpha_model.create(model_h, model_w, CV_8UC1);
 		cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
 	}
-	acc_resize_alpha_.record(t.stop());
+	acc_lv02_01_04_01_resize_alpha_.record(t.stop());
 
 	// 2. Resize frame (RGA hardware)
 	cv::Mat frame_model;
@@ -275,7 +275,7 @@ int RVMMode::compositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u) {
 			cv::resize(frame, frame_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
 		}
 	}
-	acc_resize_frame_.record(t.stop());
+	acc_lv02_01_04_02_resize_frame_.record(t.stop());
 
 	// 3. CPU alpha blend: fg_bgr * alpha + bg_bgr * (1-alpha) → composed_bgr
 	cv::Mat composed_model(model_h, model_w, CV_8UC3);
@@ -303,7 +303,7 @@ int RVMMode::compositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u) {
 			out += 3;
 		}
 	}
-	acc_blend_.record(t.stop());
+	acc_lv02_01_04_03_blend_.record(t.stop());
 
 	// 5. Upscale directly into DMA buffer (RGA hardware, zero-copy)
 	t.start();
@@ -322,7 +322,7 @@ int RVMMode::compositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u) {
 			}
 		}
 	}
-	acc_upscale_.record(t.stop());
+	acc_lv02_01_04_04_upscale_.record(t.stop());
 
 	return dma_output_buf_->fd();
 }
@@ -346,7 +346,7 @@ double RVMMode::compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, in
 		alpha_model.create(model_h, model_w, CV_8UC1);
 		cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
 	}
-	acc_resize_alpha_.record(t.stop());
+	acc_lv02_01_04_01_resize_alpha_.record(t.stop());
 
 	// 2. Resize frame (RGA hardware)
 	cv::Mat frame_model;
@@ -359,7 +359,7 @@ double RVMMode::compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, in
 			cv::resize(frame, frame_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
 		}
 	}
-	acc_resize_frame_.record(t.stop());
+	acc_lv02_01_04_02_resize_frame_.record(t.stop());
 
 	// 3. CPU alpha blend: fg_bgr * alpha + bg_bgr * (1-alpha) → composed_bgr
 	cv::Mat composed_model(model_h, model_w, CV_8UC3);
@@ -387,7 +387,7 @@ double RVMMode::compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, in
 			out += 3;
 		}
 	}
-	acc_blend_.record(t.stop());
+	acc_lv02_01_04_03_blend_.record(t.stop());
 
 	// 4. Upscale to panel size (RGA hardware)
 	cv::Mat composed_panel;
@@ -401,7 +401,7 @@ double RVMMode::compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, in
 			           cv::INTER_LINEAR);
 		}
 	}
-	acc_upscale_.record(t.stop());
+	acc_lv02_01_04_04_upscale_.record(t.stop());
 
 	// 5. BGR888 → XRGB8888 + ShowARGB
 	t.start();
@@ -420,7 +420,7 @@ double RVMMode::compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, in
 		}
 		drm_display_.ShowARGB(argb_buf_.data());
 	}
-	acc_drm_.record(t.stop());
+	acc_lv02_01_04_06_drm_.record(t.stop());
 
 	return total_t.elapsed_ms();
 }
@@ -429,14 +429,17 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	{
-		ScopedTimer t("runRVM: model load", config_.timing_enabled, logger, kRvmModuleName);
+		ScopedTimer t("Lv03::RVMMode::prepareRun() load", config_.timing_enabled, logger,
+		              kRvmModuleName);
 		engine->setOutputBinPath(config_.output_bin_path);
 		engine->load(config_.model_path);
 	}
 
 	RvmRunSetup setup;
-	setup.model_input_height = engine->getInputHeight() > 0 ? engine->getInputHeight() : kDefaultModelInputHeight;
-	setup.model_input_width = engine->getInputWidth() > 0 ? engine->getInputWidth() : kDefaultModelInputWidth;
+	setup.model_input_height =
+	    engine->getInputHeight() > 0 ? engine->getInputHeight() : kDefaultModelInputHeight;
+	setup.model_input_width =
+	    engine->getInputWidth() > 0 ? engine->getInputWidth() : kDefaultModelInputWidth;
 
 	initRecurrentStates(engine);
 
@@ -456,7 +459,8 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 	config_ = config;
 	frontend_ = frontend;
 
-	ScopedTimer run_rvm_timer("1st::RVMMode::run() total", config_.timing_enabled, logger, kRvmModuleName);
+	ScopedTimer run_rvm_timer("Lv02::RVMMode::run() total", config_.timing_enabled, logger,
+	                          kRvmModuleName);
 
 	// =========================================================================
 	// 1st — Setup phase
@@ -479,7 +483,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 	// =========================================================================
 	const int src_width = frontend_->width();
 	const int src_height = frontend_->height();
-	dsr_ = static_cast<float>(kDefaultModelInputWidth) / static_cast<float>(std::max(src_width, src_height));
+	dsr_ = 512.0f / static_cast<float>(std::max(src_width, src_height));
 	// dance.mp4 1920×1080 → dsr_ = 512/1920 ≈ 0.2667
 	const double src_fps = frontend_->fps();
 	const double output_fps = (src_fps > 0) ? src_fps : 30.0;
@@ -538,56 +542,58 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 	//      c. push the result onto tensor_ch for the main thread to consume
 	//      d. close tensor_ch when raw_ch is closed (signals EOF to main)
 	//
-	//    Timing is accumulated in acc_1st_worker_preprocess and reported after the loop.
+	//    Timing is accumulated in acc_lv02_01_01_worker_preprocess and reported after the loop.
 	// =========================================================================
 	SingleSlotChannel<cv::Mat> raw_ch;
 	SingleSlotChannel<TensorData> tensor_ch;
 
-	// -------------------------------------------------------------------------
+	/* -------------------------------------------------------------------------
 	// Pipeline timing layout (s10 — full coverage)
 	//
 	// Per-frame wall clock breakdown
 	//
-	//   [main thread]                          [worker thread]
-	//   acc_5th_main_loop_total  (whole iteration)
-	//     ├── tensor_ch.pop()    ◄────────────  acc_1st_worker_preprocess
-	//     │   (blocks if worker     pushes here   (run on worker:
+	//   [main thread]                            [worker thread]
+	//   acc_lv02_01_main_loop_total  (whole iteration)
+	//     ├── tensor_ch.pop()    ◄────────────   acc_lv02_01_01_worker_preprocess
+	//     │   (blocks if worker     pushes here  (run on worker:
 	//     │    not done yet)                       BGR→tensor resize+norm)
-	//     ├── acc_2nd_main_decode         ────────────►   raw_ch.pop()
-	//     │   (read next frame                     (worker waits here)
+	//     ├── acc_lv02_01_02_main_decode         ────────────►   raw_ch.pop()
+	//     │   (read next frame                   (worker waits here)
 	//     │    + push to raw_ch)
-	//     ├── acc_3rd_main_infer           (NPU inference, current frame)
-	//     └── acc_4th_main_composite            (composite + write, current frame)
+	//     ├── acc_lv02_01_03_main_infer          (NPU inference, current frame)
+	//     └── acc_lv02_01_04_main_composite      (composite + write, current frame)
 	//             │
-	//             ├── acc_resize_alpha_  (CPU resize alpha → model size)
-	//             ├── acc_resize_frame_  (RGA resize frame → model size)
-	//             ├── acc_blend_         (CPU alpha blend at model size)
-	//             ├── acc_upscale_       (RGA upscale composed → full size)
-	//             └── acc_writer_        (VideoWriter::write — see NOTE below)
+	//             ├── acc_lv02_01_04_01_resize_alpha_  (CPU resize alpha → model size)
+	//             ├── acc_lv02_01_04_02_resize_frame_  (RGA resize frame → model size)
+	//             ├── acc_lv02_01_04_03_blend_         (CPU alpha blend at model size)
+	//             ├── acc_lv02_01_04_04_upscale_       (RGA upscale composed → full size)
+	//             ├── acc_lv02_01_04_05_writer_        (VideoWriter::write — see NOTE below)
+	//             └── acc_lv02_01_04_06_drm_           ()
 	//
 	// Whole-run timers (overlap with the above; cheap, kept for context)
 	//
-	//   ScopedTimer "Pipeline::run() total"   (pipeline.cpp)  — outermost
-	//   ScopedTimer "runRVM total"            (this fn)        — wraps loop
-	//   ScopedTimer "runRVM: model load"      (this fn)        — model load only
-	//   [FPS]   line every 30 frames                            — moving fps
-	//   [PerFrame] line every frame                             — infer + comp
+	//   ScopedTimer "Lv01::main::pipeline.run() total"           (pipeline.cpp)   — outermost
+	//   ScopedTimer "Lv02::RVMMode::run() total"            (this fn)        — wraps loop
+	//   ScopedTimer "Lv03::RVMMode::prepareRun() load"      (this fn)        — model load only
+	//
+	//   [FPS]   line every 30 frames                                         — moving fps
+	//   [PerFrame] line every frame                                          — infer + comp
 	//
 	// Identity (approx, ignoring tiny logging overhead):
-	//   acc_5th_main_loop_total ≈ max(tensor_ch.pop wait, 0) + acc_2nd_main_decode + acc_3rd_main_infer + acc_4th_main_composite
-	//   acc_4th_main_composite ≈ resize_alpha + resize_frame + blend + upscale + writer
-	// -------------------------------------------------------------------------
-	StageAccumulator acc_1st_worker_preprocess("1/5::worker::preprocess");
-	StageAccumulator acc_2nd_main_decode("2/5::main::decode");
-	StageAccumulator acc_3rd_main_infer("3/5::main::infer");
-	StageAccumulator acc_4th_main_composite("4/5::main::composite");
-	StageAccumulator acc_5th_main_loop_total("5/5::main::loop_total");
+	//   acc_lv02_01_main_loop_total ≈ max(tensor_ch.pop wait, 0) + acc_lv02_01_02_main_decode + acc_lv02_01_03_main_infer + acc_lv02_01_04_main_composite
+	//   acc_lv02_01_04_main_composite ≈ resize_alpha + resize_frame + blend + upscale + writer
+	// ------------------------------------------------------------------------- */
+	StageAccumulator acc_lv02_01_main_loop_total("Lv02-01::main::loop_total");
+	StageAccumulator acc_lv02_01_01_worker_preprocess("Lv02-01-01::worker::preprocess");
+	StageAccumulator acc_lv02_01_02_main_decode("Lv02-01-02::main::decode");
+	StageAccumulator acc_lv02_01_03_main_infer("Lv02-01-03::main::infer");
+	StageAccumulator acc_lv02_01_04_main_composite("Lv02-01-04::main::composite");
 
 	// --------------------
 	// Start the worker thread that runs the prefetch + preprocess loop, and
 	std::thread prefetch_worker(&RVMMode::runPrefetchWorker, this, model_input_width,
 	                            model_input_height, std::ref(raw_ch), std::ref(tensor_ch),
-	                            std::ref(acc_1st_worker_preprocess));
+	                            std::ref(acc_lv02_01_01_worker_preprocess));
 
 	// --------------------
 	// obtain the first raw frame and push it into thread-safe raw_ch
@@ -621,8 +627,8 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 	while (true) {
 
 		// --------------------
-		// start acc_5th_main_loop_total acuumulation here
-		ManualTimer loop_t;  // accumulate for acc_5th_main_loop_total
+		// start acc_lv02_01_main_loop_total acuumulation here
+		ManualTimer loop_t;  // accumulate for acc_lv02_01_main_loop_total
 		loop_t.start();
 
 		// --------------------
@@ -666,7 +672,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 				raw_ch.close();  // no more frames — worker will drain and close tensor_ch
 			}
 
-			acc_2nd_main_decode.record(decode_t.stop());
+			acc_lv02_01_02_main_decode.record(decode_t.stop());
 		}
 
 		// --------------- infer one frame ---------------
@@ -676,7 +682,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 		infer_t.start();
 		cv::Mat alpha_8u = inferOneFrame(engine, *tensor_opt, current_frame);
 		const double infer_ms = infer_t.stop();
-		acc_3rd_main_infer.record(infer_ms);
+		acc_lv02_01_03_main_infer.record(infer_ms);
 
 		// --------------- composite one frame ---------------
 		double comp_ms;
@@ -693,7 +699,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 		} else {
 			comp_ms = compositeAndWrite(video_writer, current_frame, alpha_8u);
 		}
-		acc_4th_main_composite.record(comp_ms);
+		acc_lv02_01_04_main_composite.record(comp_ms);
 
 		// --------------- end of one frame processing ---------------
 		logger.Info("[PerFrame] frame=" + std::to_string(frame_count) +
@@ -715,7 +721,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 		// ---------------
 		// s10: record per-iteration wall clock — must be the last thing before
 		// loop exit / continue, so it covers everything done above.
-		acc_5th_main_loop_total.record(loop_t.stop());
+		acc_lv02_01_main_loop_total.record(loop_t.stop());
 
 		// ---------------
 		// echo the end message for current single frame
@@ -737,21 +743,21 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 	// Wait for the worker thread to finish before destroying the channels.
 	prefetch_worker.join();
 
-	acc_1st_worker_preprocess.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_2nd_main_decode.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_3rd_main_infer.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_4th_main_composite.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_5th_main_loop_total.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_01_worker_preprocess.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_02_main_decode.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_03_main_infer.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_04_main_composite.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_main_loop_total.report(config_.timing_enabled, logger, kRvmModuleName);
 
-	acc_resize_alpha_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_resize_frame_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_blend_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_upscale_.report(config_.timing_enabled, logger, kRvmModuleName);
-	// NOTE: acc_writer_ measures only the time VideoWriter::write() returns,
+	acc_lv02_01_04_01_resize_alpha_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_04_02_resize_frame_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_04_03_blend_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_04_04_upscale_.report(config_.timing_enabled, logger, kRvmModuleName);
+	// NOTE: acc_lv02_01_04_05_writer_ measures only the time VideoWriter::write() returns,
 	// NOT actual encoder completion (FFmpeg buffers internally). Treat this
 	// number as a lower bound for the true write cost.
-	acc_writer_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_drm_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_04_05_writer_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_04_06_drm_.report(config_.timing_enabled, logger, kRvmModuleName);
 
 	if (video_writer.isOpened()) {
 		video_writer.release();

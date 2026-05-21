@@ -108,10 +108,10 @@ class RVMMode {
 	std::vector<uint8_t> argb_buf_;  // reusable buffer for BGR→XRGB conversion
 
 	// 5.8-s4 instrumentation: per-sub-operation timing in compositeAndWrite()
-	helmsman::utils::timing::StageAccumulator acc_resize_alpha_{"comp::resize_alpha"};
-	helmsman::utils::timing::StageAccumulator acc_resize_frame_{"comp::resize_frame"};
-	helmsman::utils::timing::StageAccumulator acc_blend_{"comp::blend"};
-	helmsman::utils::timing::StageAccumulator acc_upscale_{"comp::upscale"};
-	helmsman::utils::timing::StageAccumulator acc_writer_{"comp::writer"};
-	helmsman::utils::timing::StageAccumulator acc_drm_{"comp::drm_show"};
+	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_01_resize_alpha_{"comp::resize_alpha"};
+	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_02_resize_frame_{"comp::resize_frame"};
+	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_03_blend_{"comp::blend"};
+	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_04_upscale_{"comp::upscale"};
+	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_05_writer_{"comp::writer"};
+	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_06_drm_{"comp::drm_show"};
 };

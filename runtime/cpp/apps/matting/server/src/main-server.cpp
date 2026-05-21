@@ -25,6 +25,7 @@
 #include "Utils/logger/worker/consolesink.h"
 #include "Utils/logger/worker/filesink.h"
 #include "Utils/math/math-utils.h"
+#include "Utils/timing/timer.h"
 
 #include <onnxruntime_cxx_api.h>
 #include <algorithm>
@@ -217,6 +218,10 @@ int main(int argc, char* argv[]) {
 		return 1;
 
 	pipeline.init(*config);
+
+	helmsman::utils::timing::ScopedTimer run_timer(
+	    "Lv01::main::pipeline.run() total", config->timing_enabled, logger, kcurrent_module_name);
+
 	pipeline.run();
 
 	return 0;

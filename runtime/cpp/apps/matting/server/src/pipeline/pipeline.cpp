@@ -21,7 +21,6 @@
 #include "pipeline/pipeline.h"
 #include "common/common-define.h"
 #include "pipeline/stages/inference-engine/inference-engine-factory.h"
-#include "Utils/timing/timer.h"
 
 using helmsman::utils::timing::ScopedTimer;
 
@@ -91,9 +90,6 @@ int Pipeline::run() {
 	verify_parameters_necessary();
 
 	auto& logger = helmsman::utils::Logger::GetInstance();
-
-	ScopedTimer run_timer("Pipeline::run() total", config_.timing_enabled, logger,
-	                      kcurrent_module_name);
 
 	switch (config_.model_type) {
 		case ModelType::kMODNet:
