@@ -25,7 +25,6 @@
 #include <memory>
 #include <string>
 #include "Utils/logger/logger.h"
-#include "common/common-define.h"
 #include "common/types.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
 #include "pipeline/stages/frontend/frontend.h"
