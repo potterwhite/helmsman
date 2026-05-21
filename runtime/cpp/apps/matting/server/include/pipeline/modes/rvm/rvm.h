@@ -94,6 +94,24 @@ class RVMMode {
 	                        helmsman::utils::timing::StageAccumulator& preprocess_acc);
 
 	/**
+	 * Process one frame: infer → composite → log. Shared by both prefetch and serial loops.
+	 */
+	void _processOneFrame(InferenceEngine* engine, const TensorData& tensor,
+	                       const cv::Mat& current_frame, size_t model_w, size_t model_h);
+
+	/**
+	 * Main inference loop with dual-buffer prefetch worker (default mode).
+	 * Worker preprocesses frame N+1 while main thread infers frame N.
+	 */
+	void _runMainLoopPrefetch(InferenceEngine* engine, const RvmRunSetup& setup);
+
+	/**
+	 * Main inference loop without prefetch (all work on main thread).
+	 * Useful for benchmarking to compare with/without the dual-buffer pipeline.
+	 */
+	void _runMainLoopSerial(InferenceEngine* engine, const RvmRunSetup& setup);
+
+	/**
 	* Report all accumulated timers via logger. Called at the end of run() after the main loop exits.
 	*/
 	void _report_all_accumulated_timers(void);
@@ -186,6 +204,7 @@ class RVMMode {
 	sa acc_lv02_01_04_06_drm_{"    Lv02-01-04-06::comp::drm_show"};
 
 	size_t frame_count_ = 0;
+	std::chrono::steady_clock::time_point fps_window_start_;
 
 	cv::VideoWriter video_writer_;
 
