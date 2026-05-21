@@ -25,6 +25,7 @@
 target_sources(${PROJECT_NAME}
     PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/rvm.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/thread_worker.cpp"
         # "${CMAKE_CURRENT_SOURCE_DIR}/matting-server.cpp"  # Disabled 2026-05-21
 )
 

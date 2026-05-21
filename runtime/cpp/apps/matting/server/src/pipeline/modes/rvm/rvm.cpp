@@ -123,28 +123,6 @@ cv::Mat RVMMode::_inferOneFrame(InferenceEngine* engine, const TensorData& src,
 	return backend_.postprocess(outputs, guide_bgr);
 }
 
-void RVMMode::_runPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChannel<cv::Mat>& raw_ch,
-                                SingleSlotChannel<TensorData>& tensor_ch,
-                                StageAccumulator& acc_preprocess) {
-	while (true) {
-		// Block until a raw frame is available, or the channel is closed (EOF).
-		auto frame_opt = raw_ch.pop();
-		if (!frame_opt)
-			break;  // raw_ch was closed by the main thread — no more frames
-
-		ManualTimer t;
-		t.start();
-		// BGR frame → letterbox-resized float32 tensor ready for inference.
-		// frontend_->preprocess() is thread-safe (Preprocessor is stateless).
-		auto tensor = frontend_->preprocess(*frame_opt, model_w, model_h);
-		acc_preprocess.record(t.stop());
-
-		tensor_ch.push(std::move(tensor));
-	}
-	// Signal EOF downstream: tensor_ch.pop() in the main loop returns nullopt.
-	tensor_ch.close();
-}
-
 double RVMMode::_compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
                                   const cv::Mat& alpha_8u) {
 	if (!writer.isOpened() || alpha_8u.empty())
