@@ -29,7 +29,7 @@
 #include "DRMKit/drm_display.h"
 #include "RGAKit/rga_resize.h"
 #include "Utils/timing/timer.h"
-#include "common/common-define.h"
+#include "common/types.h"
 #include "pipeline/infra/recurrent-state-manager.h"
 #include "pipeline/infra/single-slot-channel.h"
 #include "pipeline/stages/backend/backend.h"
@@ -47,10 +47,7 @@ struct RvmRunSetup {
 
 class RVMMode {
    public:
-	int run(InferenceEngine* engine, Frontend* frontend,
-	        const std::string& model_path, const std::string& output_bin_path,
-	        const std::string& background_path, bool timing_enabled,
-	        OutputMode output_mode = OutputMode::kMp4);
+	int run(InferenceEngine* engine, Frontend* frontend, const AppConfig& config);
 
    private:
 	/**
@@ -58,9 +55,7 @@ class RVMMode {
      * states, and wire up frontend / backend paths.
      * Returns the resolved model dimensions needed by the prefetch worker.
      */
-	RvmRunSetup prepareRun(InferenceEngine* engine, const std::string& model_path,
-	                       const std::string& output_bin_path, const std::string& background_path,
-	                       bool timing_enabled);
+	RvmRunSetup prepareRun(InferenceEngine* engine);
 
 	void initRecurrentStates(InferenceEngine* engine);
 	bool openVideoWriter(cv::VideoWriter& writer, const std::string& path, int width, int height,
@@ -97,10 +92,9 @@ class RVMMode {
 	// Member variables
 	float dsr_ = 0.25f;  ///< downsample_ratio, computed in run() as 512/max(src_w, src_h)
 	Frontend* frontend_ = nullptr;  // Non-owning; owned by Pipeline
+	AppConfig config_;              // Copy of the app config, set at run() entry
 	MattingBackend backend_;
 	RecurrentStateManager state_mgr_;
-	std::string background_path_;
-	std::string output_bin_path_;
 	cv::Mat bg_model_u8_;   // Pre-computed background at model resolution (CV_8UC3)
 
 	// RGA hardware operations (stateless, created once, reused every frame)

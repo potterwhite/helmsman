@@ -28,7 +28,6 @@
 #include <thread>
 #include "RGAKit/rga_operation.h"
 #include "Utils/timing/timer.h"
-#include "common/common-define.h"
 #include "pipeline/infra/single-slot-channel.h"
 #include "pipeline/stages/backend/post-processor/guided-filter-post-processor.h"
 
@@ -75,8 +74,8 @@ bool RVMMode::openVideoWriter(cv::VideoWriter& writer, const std::string& path, 
 
 cv::Mat RVMMode::loadOrCreateBackground(int width, int height) {
 	cv::Mat bg;
-	if (!background_path_.empty()) {
-		bg = cv::imread(background_path_, cv::IMREAD_COLOR);
+	if (!config_.background_path.empty()) {
+		bg = cv::imread(config_.background_path, cv::IMREAD_COLOR);
 		if (!bg.empty()) {
 			cv::resize(bg, bg, cv::Size(width, height));
 			return bg;
@@ -416,15 +415,13 @@ double RVMMode::compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, in
 	return total_t.elapsed_ms();
 }
 
-RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& model_path,
-                                const std::string& output_bin_path,
-                                const std::string& background_path, bool timing_enabled) {
+RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	{
-		ScopedTimer t("runRVM: model load", timing_enabled, logger, kRvmModuleName);
-		engine->setOutputBinPath(output_bin_path);
-		engine->load(model_path);
+		ScopedTimer t("runRVM: model load", config_.timing_enabled, logger, kRvmModuleName);
+		engine->setOutputBinPath(config_.output_bin_path);
+		engine->load(config_.model_path);
 	}
 
 	RvmRunSetup setup;
@@ -433,8 +430,8 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& mode
 
 	initRecurrentStates(engine);
 
-	backend_.setOutputPath(output_bin_path);
-	backend_.setBackgroundPath(background_path);
+	backend_.setOutputPath(config_.output_bin_path);
+	backend_.setBackgroundPath(config_.background_path);
 	// Post-processor: disabled to match PyTorch baseline (no post-processing).
 	// PyTorch inference: com = fgr * pha + bgr * (1 - pha) — raw model alpha, no GF.
 	// Re-enable after confirming raw alpha quality: setPostProcessor(make_shared<GuidedFilterPostProcessor>(...))
@@ -443,18 +440,13 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine, const std::string& mode
 	return setup;
 }
 
-int RVMMode::run(InferenceEngine* engine, Frontend* frontend,
-                 const std::string& model_path, const std::string& output_bin_path,
-                 const std::string& background_path, bool timing_enabled, OutputMode output_mode) {
+int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& config) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
-	// Stash paths as member variables so helper methods (e.g. future per-frame
-	// post-processing) can reach them without extra parameters.
-	output_bin_path_ = output_bin_path;
-	background_path_ = background_path;
+	config_ = config;
 	frontend_ = frontend;
 
-	ScopedTimer run_rvm_timer("runRVM total", timing_enabled, logger, kRvmModuleName);
+	ScopedTimer run_rvm_timer("runRVM total", config_.config_.timing_enabled, logger, kRvmModuleName);
 
 	// =========================================================================
 	// 1st — Setup phase
@@ -464,8 +456,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend,
 	//    - initialise the four RNN hidden-state tensors (r1i–r4i) to zero
 	//    - wire output / background paths into frontend and backend members
 	// =========================================================================
-	const RvmRunSetup setup =
-	    prepareRun(engine, model_path, output_bin_path, background_path, timing_enabled);
+	const RvmRunSetup setup = prepareRun(engine);
 	const size_t model_input_height = setup.model_input_height;
 	const size_t model_input_width = setup.model_input_width;
 
@@ -482,7 +473,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend,
 	// dance.mp4 1920×1080 → dsr_ = 512/1920 ≈ 0.2667
 	const double src_fps = frontend_->fps();
 	const double output_fps = (src_fps > 0) ? src_fps : 30.0;
-	const std::string output_video_path = output_bin_path + "/output_composited.mp4";
+	const std::string output_video_path = config_.output_bin_path + "/output_composited.mp4";
 
 	// DMA zero-copy output disabled: experiment phase needs video file for quality comparison.
 	// Re-enable after sweet-spot experiments: uncomment initOutputDma and restore the if-block.
@@ -490,7 +481,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend,
 	cv::VideoWriter video_writer;
 	int drm_panel_w = 0;
 	int drm_panel_h = 0;
-	if (output_mode == OutputMode::kDrm) {
+	if (config_.output_mode == OutputMode::kDrm) {
 		if (drm_display_.Init(src_width, src_height)) {
 			std::tie(drm_panel_w, drm_panel_h) = drm_display_.PanelSize();
 			logger.Info("DRM display initialized: panel " + std::to_string(drm_panel_w) + "x" +
@@ -498,10 +489,10 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend,
 			            kRvmModuleName);
 		} else {
 			logger.Warning("DRM init failed. Falling back to mp4.", kRvmModuleName);
-			output_mode = OutputMode::kMp4;
+			config_.output_mode = OutputMode::kMp4;
 		}
 	}
-	if (output_mode == OutputMode::kMp4) {
+	if (config_.output_mode == OutputMode::kMp4) {
 		openVideoWriter(video_writer, output_video_path, src_width, src_height, output_fps);
 	}
 
@@ -687,7 +678,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend,
 			if (frame_count == 0) {
 				logger.Info("DMA output fd=" + std::to_string(output_fd), kRvmModuleName);
 			}
-		} else if (output_mode == OutputMode::kDrm) {
+		} else if (config_.output_mode == OutputMode::kDrm) {
 			comp_ms = compositeToDrm(current_frame, alpha_8u, drm_panel_w, drm_panel_h);
 		} else {
 			comp_ms = compositeAndWrite(video_writer, current_frame, alpha_8u);
@@ -736,21 +727,21 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend,
 	// Wait for the worker thread to finish before destroying the channels.
 	prefetch_worker.join();
 
-	acc_1st_worker_preprocess.report(timing_enabled, logger, kRvmModuleName);
-	acc_2nd_main_decode.report(timing_enabled, logger, kRvmModuleName);
-	acc_3rd_main_infer.report(timing_enabled, logger, kRvmModuleName);
-	acc_4th_main_composite.report(timing_enabled, logger, kRvmModuleName);
-	acc_5th_main_loop_total.report(timing_enabled, logger, kRvmModuleName);
+	acc_1st_worker_preprocess.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_2nd_main_decode.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_3rd_main_infer.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_4th_main_composite.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_5th_main_loop_total.report(config_.timing_enabled, logger, kRvmModuleName);
 
-	acc_resize_alpha_.report(timing_enabled, logger, kRvmModuleName);
-	acc_resize_frame_.report(timing_enabled, logger, kRvmModuleName);
-	acc_blend_.report(timing_enabled, logger, kRvmModuleName);
-	acc_upscale_.report(timing_enabled, logger, kRvmModuleName);
+	acc_resize_alpha_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_resize_frame_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_blend_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_upscale_.report(config_.timing_enabled, logger, kRvmModuleName);
 	// NOTE: acc_writer_ measures only the time VideoWriter::write() returns,
 	// NOT actual encoder completion (FFmpeg buffers internally). Treat this
 	// number as a lower bound for the true write cost.
-	acc_writer_.report(timing_enabled, logger, kRvmModuleName);
-	acc_drm_.report(timing_enabled, logger, kRvmModuleName);
+	acc_writer_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_drm_.report(config_.timing_enabled, logger, kRvmModuleName);
 
 	if (video_writer.isOpened()) {
 		video_writer.release();

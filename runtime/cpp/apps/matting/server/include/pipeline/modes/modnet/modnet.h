@@ -22,18 +22,14 @@
 
 #include <memory>
 #include <string>
+#include "common/types.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
 #include "pipeline/stages/backend/backend.h"
 #include "pipeline/stages/frontend/preprocess/preprocessor.h"
 
 class MODNetMode {
 public:
-    int run(InferenceEngine* engine,
-           const std::string& input_image_path,
-           const std::string& model_path,
-           const std::string& output_bin_path,
-           const std::string& background_path,
-           bool timing_enabled);
+    int run(InferenceEngine* engine, const AppConfig& config);
 
 private:
     _Preprocessor frontend_;

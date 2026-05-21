@@ -26,34 +26,17 @@
 #include <string>
 #include "Utils/logger/logger.h"
 #include "common/common-define.h"
+#include "common/types.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
 #include "pipeline/stages/frontend/frontend.h"
 #include "pipeline/modes/modnet/modnet.h"
 #include "pipeline/modes/rvm/rvm.h"
 
-enum class ModelType {
-    kMODNet,
-    kRVM,
-};
-
-// Pipeline runtime configuration — passed from the top-level entry point.
-struct PipelineConfig {
-    ModelType model_type = ModelType::kMODNet;
-    OutputMode output_mode = OutputMode::kMp4;
-    bool timing_enabled = true;
-    bool use_hardware_decoder = false;
-    bool is_video = false;
-    std::string input_path;
-    std::string model_path;
-    std::string output_bin_path;
-    std::string background_path;
-};
-
 class Pipeline {
 public:
     static Pipeline& GetInstance();
 
-    void init(const PipelineConfig& config);
+    void init(const AppConfig& config);
 
     int run();
 
@@ -69,7 +52,7 @@ private:
     static std::unique_ptr<InferenceEngine> make_engine();
 
 private:
-    PipelineConfig config_;
+    AppConfig config_;
     std::unique_ptr<Frontend> frontend_;
     std::unique_ptr<InferenceEngine> engine_;
 

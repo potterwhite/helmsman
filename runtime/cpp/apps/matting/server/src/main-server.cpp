@@ -93,7 +93,7 @@ static bool isVideoFile(const std::string& path) {
 
 // Configure logger, parse CLI arguments, and log the resulting configuration.
 // Returns nullopt when arguments are invalid (usage printed to stderr).
-static std::optional<PipelineConfig> initServer(int argc, char* argv[]) {
+static std::optional<AppConfig> initServer(int argc, char* argv[]) {
 	// --- Logger ---
 	if (isRelease()) {
 		logger.setLevel(helmsman::utils::LoggerLevel::kinfo);
@@ -114,7 +114,7 @@ static std::optional<PipelineConfig> initServer(int argc, char* argv[]) {
 	}
 
 	// --- Parse arguments ---
-	PipelineConfig cfg;
+	AppConfig cfg;
 	std::vector<std::string> positional_args;
 
 	for (int i = 1; i < argc; ++i) {

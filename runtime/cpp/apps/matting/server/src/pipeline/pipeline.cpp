@@ -55,7 +55,7 @@ void Pipeline::verify_parameters_necessary() {
 	}
 }
 
-void Pipeline::init(const PipelineConfig& config) {
+void Pipeline::init(const AppConfig& config) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	config_ = config;
@@ -98,14 +98,10 @@ int Pipeline::run() {
 	switch (config_.model_type) {
 		case ModelType::kMODNet:
 			logger.Info("Pipeline: running MODNet path (single-frame)", kcurrent_module_name);
-			return modnet_mode_.run(engine_.get(), config_.input_path, config_.model_path,
-			                        config_.output_bin_path, config_.background_path,
-			                        config_.timing_enabled);
+			return modnet_mode_.run(engine_.get(), config_);
 		case ModelType::kRVM:
 			logger.Info("Pipeline: running RVM path (recurrent multi-frame)", kcurrent_module_name);
-			return rvm_mode_.run(engine_.get(), frontend_.get(), config_.model_path,
-			                     config_.output_bin_path, config_.background_path,
-			                     config_.timing_enabled, config_.output_mode);
+			return rvm_mode_.run(engine_.get(), frontend_.get(), config_);
 		default:
 			throw std::runtime_error("Unknown model type");
 	}
