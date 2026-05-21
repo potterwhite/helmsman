@@ -133,6 +133,8 @@ static std::optional<AppConfig> initServer(int argc, char* argv[]) {
 			cfg.timing_enabled = true;
 		} else if (std::strcmp(argv[i], "--hwdecoder") == 0) {
 			cfg.use_hardware_decoder = true;
+		} else if (std::strcmp(argv[i], "--no-prefetch") == 0) {
+			cfg.use_prefetch_thread = false;
 		} else {
 			positional_args.push_back(argv[i]);
 		}
@@ -141,7 +143,7 @@ static std::optional<AppConfig> initServer(int argc, char* argv[]) {
 	if (positional_args.size() < 3 || positional_args.size() > 4) {
 		std::cerr << "Usage: " << argv[0]
 		          << " <image_path> <model_path> <output_dir> [background_path] [--rvm] "
-		             "[--output=mp4|drm] [--timing=off] [--hwdecoder]\n"
+		             "[--output=mp4|drm] [--timing=off] [--hwdecoder] [--no-prefetch]\n"
 		          << "\n"
 		          << "Flags:\n"
 		          << "  --rvm          Use RVM (Robust Video Matting) with recurrent states\n"
@@ -150,7 +152,8 @@ static std::optional<AppConfig> initServer(int argc, char* argv[]) {
 		          << "  --output=drm   Display on DRM/KMS panel (embedded only)\n"
 		          << "  --timing=off   Disable pipeline timing statistics (default: on)\n"
 		          << "  --timing=on    Enable pipeline timing statistics (default)\n"
-		          << "  --hwdecoder    Use hardware decode path (requires FFmpeg + MPPKit)\n";
+		          << "  --hwdecoder    Use hardware decode path (requires FFmpeg + MPPKit)\n"
+		          << "  --no-prefetch  Disable prefetch worker thread (all work on main thread)\n";
 		return std::nullopt;
 	}
 
@@ -166,9 +169,11 @@ static std::optional<AppConfig> initServer(int argc, char* argv[]) {
 	std::string output_str = (cfg.output_mode == OutputMode::kDrm) ? "DRM" : "MP4";
 	std::string decode_str =
 	    cfg.use_hardware_decoder ? "hardware decoder" : "software decoder (OpenCV)";
+	std::string prefetch_str = cfg.use_prefetch_thread ? "enabled (dual-buffer)" : "disabled (main thread only)";
 	logger.Info("Model type: " + mode_str, kcurrent_module_name);
 	logger.Info("Output mode: " + output_str, kcurrent_module_name);
 	logger.Info("Decode path: " + decode_str, kcurrent_module_name);
+	logger.Info("Prefetch:   " + prefetch_str, kcurrent_module_name);
 	logger.Info("Input:      " + cfg.input_path + (cfg.is_video ? " (video)" : " (image)"),
 	            kcurrent_module_name);
 	logger.Info("Model:      " + cfg.model_path, kcurrent_module_name);

@@ -585,27 +585,45 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 	//      d. close tensor_ch when raw_ch is closed (signals EOF to main)
 	//
 	//    Timing is accumulated in acc_lv02_01_01_worker_preprocess_ and reported after the loop.
+	//
+	//    When --no-prefetch is set, all work runs on the main thread (no channels, no worker).
 	// =========================================================================
 	SingleSlotChannel<cv::Mat> raw_ch;
 	SingleSlotChannel<TensorData> tensor_ch;
+	std::thread prefetch_worker;
 
-	// --------------------
-	// Start the worker thread that runs the prefetch + preprocess loop, and
-	std::thread prefetch_worker(&RVMMode::_runPrefetchWorker, this, setup.model_input_width,
-	                            setup.model_input_height, std::ref(raw_ch), std::ref(tensor_ch),
-	                            std::ref(acc_lv02_01_01_worker_preprocess_));
+	if (config_.use_prefetch_thread) {
+		prefetch_worker = std::thread(&RVMMode::_runPrefetchWorker, this, setup.model_input_width,
+		                              setup.model_input_height, std::ref(raw_ch), std::ref(tensor_ch),
+		                              std::ref(acc_lv02_01_01_worker_preprocess_));
+	}
 
 	// --------------------
 	// obtain the first raw frame and push it into thread-safe raw_ch
 	cv::Mat current_frame;
+	cv::Mat next_frame;
 	HardwareFrame current_hw_frame;
+	HardwareFrame next_hw_frame;
+	TensorData current_tensor;
+	bool has_next;
 	if (!frontend_->readFrame(current_frame, current_hw_frame)) {
 		logger.Info("No frames to process.", kRvmModuleName);
-		raw_ch.close();  // unblock worker so it can exit cleanly
-		prefetch_worker.join();
+		if (config_.use_prefetch_thread) {
+			raw_ch.close();  // unblock worker so it can exit cleanly
+			prefetch_worker.join();
+		}
 		return 0;
 	}
-	raw_ch.push(current_frame);  // worker starts preprocessing frame 0 immediately
+	if (config_.use_prefetch_thread) {
+		raw_ch.push(current_frame);  // worker starts preprocessing frame 0 immediately
+	} else {
+		// No-prefetch mode: preprocess the first frame on the main thread before the loop.
+		ManualTimer t;
+		t.start();
+		current_tensor = frontend_->preprocess(current_frame, setup.model_input_width,
+		                                       setup.model_input_height);
+		acc_lv02_01_01_worker_preprocess_.record(t.stop());
+	}
 
 	// =========================================================================
 	// 4th — Main inference loop  (consumer side of the dual-buffer pipeline)
@@ -638,15 +656,21 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 			logger.Info("Stop signal received. Finishing video at frame " +
 			                std::to_string(frame_count_) + ".",
 			            kRvmModuleName);
-			raw_ch.close();
+			if (config_.use_prefetch_thread)
+				raw_ch.close();
 			break;
 		}
 
 		// --------------------
-		// Block until the worker has finished preprocessing the current frame.
-		auto tensor_opt = tensor_ch.pop();
-		if (!tensor_opt) {
-			break;  // channel closed (worker exited after last frame)
+		// Obtain the tensor for the current frame.
+		// Prefetch mode: block until the worker has finished preprocessing.
+		// No-prefetch mode: already preprocessed at the end of the previous iteration.
+		if (config_.use_prefetch_thread) {
+			auto tensor_opt = tensor_ch.pop();
+			if (!tensor_opt) {
+				break;  // channel closed (worker exited after last frame)
+			}
+			current_tensor = std::move(*tensor_opt);
 		}
 
 		// --------------------
@@ -658,18 +682,17 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 		// and hand it to the worker immediately so preprocessing overlaps with
 		// inference below (the dual-buffer trick).
 		// s18: decode now goes through Frontend (OpenCV or MPP path).
-		cv::Mat next_frame;
-		HardwareFrame next_hw_frame;
-		bool has_next;
 		{
 			ManualTimer decode_t;
 			decode_t.start();
 			has_next = frontend_->readFrame(next_frame, next_hw_frame);
 
-			if (has_next) {
-				raw_ch.push(next_frame);
-			} else {
-				raw_ch.close();  // no more frames — worker will drain and close tensor_ch
+			if (config_.use_prefetch_thread) {
+				if (has_next) {
+					raw_ch.push(next_frame);
+				} else {
+					raw_ch.close();  // no more frames — worker will drain and close tensor_ch
+				}
 			}
 
 			acc_lv02_01_02_main_decode_.record(decode_t.stop());
@@ -680,7 +703,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 		// and composite + write the output frame to the video file.
 		ManualTimer infer_t;
 		infer_t.start();
-		cv::Mat alpha_8u = _inferOneFrame(engine, *tensor_opt, current_frame);
+		cv::Mat alpha_8u = _inferOneFrame(engine, current_tensor, current_frame);
 		const double infer_ms = infer_t.stop();
 		acc_lv02_01_03_main_infer_.record(infer_ms);
 
@@ -733,6 +756,16 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 		current_frame = std::move(next_frame);  // advance sliding window
 		frame_count_++;
 
+		// No-prefetch mode: preprocess the next frame on the main thread now,
+		// so the tensor is ready at the top of the next iteration.
+		if (!config_.use_prefetch_thread && has_next) {
+			ManualTimer t;
+			t.start();
+			current_tensor = frontend_->preprocess(current_frame, setup.model_input_width,
+			                                       setup.model_input_height);
+			acc_lv02_01_01_worker_preprocess_.record(t.stop());
+		}
+
 		// ---------------
 		// exit loop if no next frame; the worker thread will see the raw_ch close and exit cleanly
 		if (!has_next) {
@@ -741,7 +774,9 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 	}
 
 	// Wait for the worker thread to finish before destroying the channels.
-	prefetch_worker.join();
+	if (prefetch_worker.joinable()) {
+		prefetch_worker.join();
+	}
 
 	_report_all_accumulated_timers();
 
