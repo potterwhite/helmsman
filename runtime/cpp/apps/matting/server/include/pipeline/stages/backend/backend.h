@@ -30,7 +30,7 @@
 #include "Utils/logger/worker/filesink.h"
 #include "Utils/math/math-utils.h"
 #include "pipeline/stages/backend/post-processor/i-post-processor.h"
-#include "common/data_structure.h"
+#include "common/types.h"
 
 class MattingBackend {
    public:

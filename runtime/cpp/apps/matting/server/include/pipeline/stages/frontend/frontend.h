@@ -40,7 +40,7 @@
 #include "pipeline/stages/frontend/decoder/i-frame-decoder.h"
 #include "pipeline/stages/frontend/preprocess/preprocessor.h"
 #include "RGAKit/rga_cvtcolor.h"
-#include "common/data_structure.h"
+#include "common/types.h"
 
 class Frontend {
 public:

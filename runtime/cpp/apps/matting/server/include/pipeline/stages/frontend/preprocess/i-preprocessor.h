@@ -29,7 +29,7 @@
 #pragma once
 
 #include <opencv2/core/mat.hpp>
-#include "common/data_structure.h"
+#include "common/types.h"
 
 // Abstract preprocessor interface (internal — do not use directly).
 class _IPreprocessor {

@@ -24,7 +24,7 @@
 #include <cstddef>
 #include <string>
 #include <vector>
-#include "common/data_structure.h"
+#include "common/types.h"
 
 // ---------------------------------------------------------------------------
 // InferenceEngine — abstract inference interface

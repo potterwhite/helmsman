@@ -28,7 +28,7 @@
 #include "Utils/file/file-utils.h"
 #include "Utils/logger/logger.h"
 #include "common/common-define.h"
-#include "common/data_structure.h"
+#include "common/types.h"
 
 _Preprocessor::_Preprocessor() {
     helmsman::utils::Logger::GetInstance().Info(

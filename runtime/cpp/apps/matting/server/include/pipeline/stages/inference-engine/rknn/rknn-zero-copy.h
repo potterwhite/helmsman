@@ -25,7 +25,6 @@
 #include <rknn_api.h>                                         // rknn_xxx APIs
 #include <string>                                             // for std::string
 #include <vector>                                             // for std::vector
-#include "common/common-define.h"                                    // TensorData
 #include "pipeline/stages/inference-engine/base/inference-engine.h"  // InferenceEngine
 
 // ---------------------------------------------------------------------------

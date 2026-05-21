@@ -28,7 +28,7 @@
 #include "Utils/logger/worker/consolesink.h"
 #include "Utils/logger/worker/filesink.h"
 #include "Utils/math/math-utils.h"
-#include "common/data_structure.h"
+#include "common/types.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
 
 class InferenceEngineONNX : public InferenceEngine {

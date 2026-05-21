@@ -57,7 +57,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include "common/data_structure.h"
+#include "common/types.h"
 
 class RecurrentStateManager {
    public:

@@ -27,10 +27,7 @@
 
 constexpr std::string_view kcurrent_module_name = "main-server";
 
-enum class OutputMode {
-    kMp4,
-    kDrm,
-};
+// OutputMode and other shared types are defined in common/types.h.
 
 // ---------------------------------------------------------------------------
 // Runtime debug dump switch — controlled by environment variable.
