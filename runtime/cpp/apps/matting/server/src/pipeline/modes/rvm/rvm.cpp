@@ -446,7 +446,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 	config_ = config;
 	frontend_ = frontend;
 
-	ScopedTimer run_rvm_timer("runRVM total", config_.config_.timing_enabled, logger, kRvmModuleName);
+	ScopedTimer run_rvm_timer("runRVM total", config_.timing_enabled, logger, kRvmModuleName);
 
 	// =========================================================================
 	// 1st — Setup phase
