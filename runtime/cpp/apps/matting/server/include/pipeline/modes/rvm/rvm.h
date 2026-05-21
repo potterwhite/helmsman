@@ -107,17 +107,54 @@ class RVMMode {
 	helmsman::drmkit::DrmDisplay drm_display_;
 	std::vector<uint8_t> argb_buf_;  // reusable buffer for BGR→XRGB conversion
 
-	// 5.8-s4 instrumentation: per-sub-operation timing in compositeAndWrite()
-	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_01_resize_alpha_{
-	    "    Lv02-01-04-01::comp::resize_alpha"};
-	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_02_resize_frame_{
-	    "    Lv02-01-04-02::comp::resize_frame"};
-	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_03_blend_{
-	    "    Lv02-01-04-03::comp::blend"};
-	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_04_upscale_{
-	    "    Lv02-01-04-04::comp::upscale"};
-	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_05_writer_{
-	    "    Lv02-01-04-05::comp::writer"};
-	helmsman::utils::timing::StageAccumulator acc_lv02_01_04_06_drm_{
-	    "    Lv02-01-04-06::comp::drm_show"};
+	/* -------------------------------------------------------------------------
+	// Pipeline timing layout (s10 — full coverage)
+	//
+	// Per-frame wall clock breakdown
+	//
+	//   [main thread]                            [worker thread]
+	//   acc_lv02_01_main_loop_total_  (whole iteration)
+	//     ├── tensor_ch.pop()    ◄────────────   acc_lv02_01_01_worker_preprocess_
+	//     │   (blocks if worker     pushes here  (run on worker:
+	//     │    not done yet)                       BGR→tensor resize+norm)
+	//     ├── acc_lv02_01_02_main_decode_         ────────────►   raw_ch.pop()
+	//     │   (read next frame                   (worker waits here)
+	//     │    + push to raw_ch)
+	//     ├── acc_lv02_01_03_main_infer_          (NPU inference, current frame)
+	//     └── acc_lv02_01_04_main_composite_      (composite + write, current frame)
+	//             │
+	//             ├── acc_lv02_01_04_01_resize_alpha_  (CPU resize alpha → model size)
+	//             ├── acc_lv02_01_04_02_resize_frame_  (RGA resize frame → model size)
+	//             ├── acc_lv02_01_04_03_blend_         (CPU alpha blend at model size)
+	//             ├── acc_lv02_01_04_04_upscale_       (RGA upscale composed → full size)
+	//             ├── acc_lv02_01_04_05_writer_        (VideoWriter::write — see NOTE below)
+	//             └── acc_lv02_01_04_06_drm_           ()
+	//
+	// Whole-run timers (overlap with the above; cheap, kept for context)
+	//
+	//   ScopedTimer "Lv01::main::pipeline.run() total"           (pipeline.cpp)   — outermost
+	//   ScopedTimer "Lv02::RVMMode::run() total"            (this fn)        — wraps loop
+	//   ScopedTimer "Lv03::RVMMode::prepareRun() load"      (this fn)        — model load only
+	//
+	//   [FPS]   line every 30 frames                                         — moving fps
+	//   [PerFrame] line every frame                                          — infer + comp
+	//
+	// Identity (approx, ignoring tiny logging overhead):
+	//   acc_lv02_01_main_loop_total_ ≈ max(tensor_ch.pop wait, 0) + acc_lv02_01_02_main_decode_ + acc_lv02_01_03_main_infer_ + acc_lv02_01_04_main_composite_
+	//   acc_lv02_01_04_main_composite_ ≈ resize_alpha + resize_frame + blend + upscale + writer
+	// ------------------------------------------------------------------------- */
+	using sa = helmsman::utils::timing::StageAccumulator;
+
+	sa acc_lv02_01_main_loop_total_{"Lv02-01::main::loop_total"};
+	sa acc_lv02_01_01_worker_preprocess_{"  Lv02-01-01::worker::preprocess"};
+	sa acc_lv02_01_02_main_decode_{"  Lv02-01-02::main::decode"};
+	sa acc_lv02_01_03_main_infer_{"  Lv02-01-03::main::infer"};
+	sa acc_lv02_01_04_main_composite_{"  Lv02-01-04::main::composite"};
+
+	sa acc_lv02_01_04_01_resize_alpha_{"    Lv02-01-04-01::comp::resize_alpha"};
+	sa acc_lv02_01_04_02_resize_frame_{"    Lv02-01-04-02::comp::resize_frame"};
+	sa acc_lv02_01_04_03_blend_{"    Lv02-01-04-03::comp::blend"};
+	sa acc_lv02_01_04_04_upscale_{"    Lv02-01-04-04::comp::upscale"};
+	sa acc_lv02_01_04_05_writer_{"    Lv02-01-04-05::comp::writer"};
+	sa acc_lv02_01_04_06_drm_{"    Lv02-01-04-06::comp::drm_show"};
 };
