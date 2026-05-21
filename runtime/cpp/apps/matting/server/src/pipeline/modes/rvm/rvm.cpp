@@ -52,7 +52,7 @@ inline constexpr float kDefaultDsr = 0.25f;
 // Default fallback background color: BGR(155,255,120) = RGB(120,255,155)
 inline const cv::Scalar kDefaultBgColor{155, 255, 120};
 
-void RVMMode::initRecurrentStates(InferenceEngine* engine) {
+void RVMMode::_initRecurrentStates(InferenceEngine* engine) {
 	// Try to get recurrent state shapes from the engine (RKNN reports actual shapes).
 	auto shapes = engine->getRecurrentStateShapes();
 	if (shapes.size() == 4) {
@@ -66,10 +66,11 @@ void RVMMode::initRecurrentStates(InferenceEngine* engine) {
 	}
 }
 
-bool RVMMode::openVideoWriter(cv::VideoWriter& writer, const std::string& path, int width,
-                              int height, double fps) {
+bool RVMMode::_openVideoWriter(cv::VideoWriter& writer, const std::string& path, size_t width,
+                              size_t height, double fps) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
-	writer.open(path, cv::VideoWriter::fourcc('m', 'p', '4', 'v'), fps, cv::Size(width, height));
+	writer.open(path, cv::VideoWriter::fourcc('m', 'p', '4', 'v'), fps,
+	            cv::Size(static_cast<int>(width), static_cast<int>(height)));
 	if (!writer.isOpened()) {
 		logger.Warning(
 		    "Failed to open VideoWriter: " + path + ". Composited video will NOT be saved.",
@@ -82,20 +83,20 @@ bool RVMMode::openVideoWriter(cv::VideoWriter& writer, const std::string& path, 
 	return true;
 }
 
-cv::Mat RVMMode::loadOrCreateBackground(int width, int height) {
+cv::Mat RVMMode::_loadOrCreateBackground(size_t width, size_t height) {
 	cv::Mat bg;
 	if (!config_.background_path.empty()) {
 		bg = cv::imread(config_.background_path, cv::IMREAD_COLOR);
 		if (!bg.empty()) {
-			cv::resize(bg, bg, cv::Size(width, height));
+			cv::resize(bg, bg, cv::Size(static_cast<int>(width), static_cast<int>(height)));
 			return bg;
 		}
 	}
 	// Default fallback background: BGR(155,255,120) = RGB(120,255,155), matches e.py baseline
-	return cv::Mat(height, width, CV_8UC3, kDefaultBgColor);
+	return cv::Mat(static_cast<int>(height), static_cast<int>(width), CV_8UC3, kDefaultBgColor);
 }
 
-cv::Mat RVMMode::inferOneFrame(InferenceEngine* engine, const TensorData& src,
+cv::Mat RVMMode::_inferOneFrame(InferenceEngine* engine, const TensorData& src,
                                const cv::Mat& guide_bgr) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
@@ -122,7 +123,7 @@ cv::Mat RVMMode::inferOneFrame(InferenceEngine* engine, const TensorData& src,
 	return backend_.postprocess(outputs, guide_bgr);
 }
 
-void RVMMode::runPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChannel<cv::Mat>& raw_ch,
+void RVMMode::_runPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChannel<cv::Mat>& raw_ch,
                                 SingleSlotChannel<TensorData>& tensor_ch,
                                 StageAccumulator& acc_preprocess) {
 	while (true) {
@@ -144,7 +145,7 @@ void RVMMode::runPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChanne
 	tensor_ch.close();
 }
 
-double RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
+double RVMMode::_compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
                                   const cv::Mat& alpha_8u) {
 	if (!writer.isOpened() || alpha_8u.empty())
 		return 0.0;
@@ -227,7 +228,7 @@ double RVMMode::compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
 	return total_t.elapsed_ms();
 }
 
-bool RVMMode::initOutputDma(int src_width, int src_height) {
+bool RVMMode::_initOutputDma(int src_width, int src_height) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 	const size_t buf_bytes =
 	    static_cast<size_t>(src_width) * static_cast<size_t>(src_height) * 3;  // BGR888
@@ -247,7 +248,7 @@ bool RVMMode::initOutputDma(int src_width, int src_height) {
 	return true;
 }
 
-int RVMMode::compositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u) {
+int RVMMode::_compositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u) {
 	if (!dma_output_buf_ || alpha_8u.empty())
 		return -1;
 
@@ -327,7 +328,7 @@ int RVMMode::compositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u) {
 	return dma_output_buf_->fd();
 }
 
-double RVMMode::compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, int panel_w,
+double RVMMode::_compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, int panel_w,
                                int panel_h) {
 	if (!drm_display_.IsOpen() || alpha_8u.empty())
 		return 0.0;
@@ -425,11 +426,11 @@ double RVMMode::compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, in
 	return total_t.elapsed_ms();
 }
 
-RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine) {
+RvmRunSetup RVMMode::_prepareRun(InferenceEngine* engine) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	{
-		ScopedTimer t("Lv03::RVMMode::prepareRun() load", config_.timing_enabled, logger,
+		ScopedTimer t("Lv03::RVMMode::_prepareRun() load", config_.timing_enabled, logger,
 		              kRvmModuleName);
 		engine->setOutputBinPath(config_.output_bin_path);
 		engine->load(config_.model_path);
@@ -441,7 +442,7 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine) {
 	setup.model_input_width =
 	    engine->getInputWidth() > 0 ? engine->getInputWidth() : kDefaultModelInputWidth;
 
-	initRecurrentStates(engine);
+	_initRecurrentStates(engine);
 
 	backend_.setOutputPath(config_.output_bin_path);
 	backend_.setBackgroundPath(config_.background_path);
@@ -510,6 +511,46 @@ void RVMMode::_do_cleaning_things(const std::chrono::steady_clock::time_point& p
 	            kRvmModuleName);
 }
 
+void RVMMode::_output_mode_process(const size_t src_width, const size_t src_height,
+                                   const double src_fps, const std::string& output_video_path,
+                                   const OutputMode output_mode) {
+	auto& logger = helmsman::utils::Logger::GetInstance();
+
+	// const int src_width = frontend_->width();
+	// const int src_height = frontend_->height();
+	dsr_ = 512.0f / static_cast<float>(std::max(src_width, src_height));
+	// dance.mp4 1920×1080 → dsr_ = 512/1920 ≈ 0.2667
+	// const double src_fps = frontend_->fps();
+	const double output_fps = (src_fps > 0) ? src_fps : 30.0;
+
+	if (output_mode == OutputMode::kDrm) {
+		if (drm_display_.Init(static_cast<int>(src_width), static_cast<int>(src_height))) {
+			std::tie(drm_panel_w_, drm_panel_h_) = drm_display_.PanelSize();
+			logger.Info("DRM display initialized: panel " + std::to_string(drm_panel_w_) + "x" +
+			                std::to_string(drm_panel_h_),
+			            kRvmModuleName);
+		} else {
+			logger.Warning("DRM init failed. Falling back to mp4.", kRvmModuleName);
+			config_.output_mode = OutputMode::kMp4;
+		}
+	}
+	if (output_mode == OutputMode::kMp4) {
+		_openVideoWriter(video_writer_, output_video_path, src_width, src_height, output_fps);
+	}
+}
+
+void RVMMode::_preprocess_bg_uint8(cv::Mat bg_bgr, const size_t src_width,
+                                   const size_t src_height) {
+	// Pre-compute background at model resolution for fast compositing in _compositeAndWrite().
+	// Avoids converting bg from uint8→float32 at full resolution every frame.
+
+	cv::Mat bg_model;
+	cv::resize(bg_bgr, bg_model,
+	           cv::Size(static_cast<int>(src_width), static_cast<int>(src_height)), 0, 0,
+	           cv::INTER_LINEAR);
+	bg_model_u8_ = bg_model.clone();  // uint8 copy for fast compositing
+}
+
 int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& config) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
@@ -527,54 +568,24 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 	//    - initialise the four RNN hidden-state tensors (r1i–r4i) to zero
 	//    - wire output / background paths into frontend and backend members
 	// =========================================================================
-	const RvmRunSetup setup = prepareRun(engine);
-	const size_t model_input_height = setup.model_input_height;
-	const size_t model_input_width = setup.model_input_width;
+	const RvmRunSetup setup = _prepareRun(engine);
 
 	// =========================================================================
 	// 2nd — Video I/O setup
 	//    - read source dimensions and fps from the InputSource abstraction
 	//      (works for both Mp4InputSource and any future camera/IPC source)
-	//    - open the VideoWriter; if it fails, compositeAndWrite() is a no-op
+	//    - open the VideoWriter; if it fails, _compositeAndWrite() is a no-op
 	//    - load or synthesise a solid-colour background for alpha compositing
 	// =========================================================================
-	const int src_width = frontend_->width();
-	const int src_height = frontend_->height();
-	dsr_ = 512.0f / static_cast<float>(std::max(src_width, src_height));
-	// dance.mp4 1920×1080 → dsr_ = 512/1920 ≈ 0.2667
-	const double src_fps = frontend_->fps();
-	const double output_fps = (src_fps > 0) ? src_fps : 30.0;
-	const std::string output_video_path = config_.output_bin_path + "/output_composited.mp4";
+	_output_mode_process(setup.model_input_width, setup.model_input_height, frontend_->fps(),
+	                     config_.output_bin_path + "/output_composited.mp4", config_.output_mode);
 
-	int drm_panel_w = 0;
-	int drm_panel_h = 0;
-	if (config_.output_mode == OutputMode::kDrm) {
-		if (drm_display_.Init(src_width, src_height)) {
-			std::tie(drm_panel_w, drm_panel_h) = drm_display_.PanelSize();
-			logger.Info("DRM display initialized: panel " + std::to_string(drm_panel_w) + "x" +
-			                std::to_string(drm_panel_h),
-			            kRvmModuleName);
-		} else {
-			logger.Warning("DRM init failed. Falling back to mp4.", kRvmModuleName);
-			config_.output_mode = OutputMode::kMp4;
-		}
-	}
-	if (config_.output_mode == OutputMode::kMp4) {
-		openVideoWriter(video_writer_, output_video_path, src_width, src_height, output_fps);
-	}
+	cv::Mat bg_bgr = _loadOrCreateBackground(setup.model_input_width, setup.model_input_height);
 
-	cv::Mat bg_bgr = loadOrCreateBackground(src_width, src_height);
-
-	// Pre-compute background at model resolution for fast compositing in compositeAndWrite().
-	// Avoids converting bg from uint8→float32 at full resolution every frame.
-	{
-		cv::Mat bg_model;
-		cv::resize(
-		    bg_bgr, bg_model,
-		    cv::Size(static_cast<int>(model_input_width), static_cast<int>(model_input_height)), 0,
-		    0, cv::INTER_LINEAR);
-		bg_model_u8_ = bg_model.clone();  // uint8 copy for fast compositing
-	}
+	// Preprocess the background once at model resolution,
+	// so we can skip this step in the main loop and save time on the CPU→GPU path.
+	// The background is static so we only need
+	_preprocess_bg_uint8(bg_bgr, setup.model_input_width, setup.model_input_height);
 
 	// Create RGA hardware operations (stateless, reused every frame).
 	// RGA resize replaces cv::resize for the downscale/upscale steps.
@@ -602,8 +613,8 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 
 	// --------------------
 	// Start the worker thread that runs the prefetch + preprocess loop, and
-	std::thread prefetch_worker(&RVMMode::runPrefetchWorker, this, model_input_width,
-	                            model_input_height, std::ref(raw_ch), std::ref(tensor_ch),
+	std::thread prefetch_worker(&RVMMode::_runPrefetchWorker, this, setup.model_input_width,
+	                            setup.model_input_height, std::ref(raw_ch), std::ref(tensor_ch),
 	                            std::ref(acc_lv02_01_01_worker_preprocess_));
 
 	// --------------------
@@ -691,7 +702,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 		// and composite + write the output frame to the video file.
 		ManualTimer infer_t;
 		infer_t.start();
-		cv::Mat alpha_8u = inferOneFrame(engine, *tensor_opt, current_frame);
+		cv::Mat alpha_8u = _inferOneFrame(engine, *tensor_opt, current_frame);
 		const double infer_ms = infer_t.stop();
 		acc_lv02_01_03_main_infer_.record(infer_ms);
 
@@ -700,15 +711,15 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 		if (use_dma_output_) {
 			ManualTimer dma_t;
 			dma_t.start();
-			const int output_fd = compositeToDma(current_frame, alpha_8u);
+			const int output_fd = _compositeToDma(current_frame, alpha_8u);
 			comp_ms = dma_t.stop();
 			if (frame_count_ == 0) {
 				logger.Info("DMA output fd=" + std::to_string(output_fd), kRvmModuleName);
 			}
 		} else if (config_.output_mode == OutputMode::kDrm) {
-			comp_ms = compositeToDrm(current_frame, alpha_8u, drm_panel_w, drm_panel_h);
+			comp_ms = _compositeToDrm(current_frame, alpha_8u, drm_panel_w_, drm_panel_h_);
 		} else {
-			comp_ms = compositeAndWrite(video_writer_, current_frame, alpha_8u);
+			comp_ms = _compositeAndWrite(video_writer_, current_frame, alpha_8u);
 		}
 		acc_lv02_01_04_main_composite_.record(comp_ms);
 
@@ -756,6 +767,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 
 	_report_all_accumulated_timers();
 
+	const std::string output_video_path = config_.output_bin_path + "/output_composited.mp4";
 	_do_cleaning_things(pipeline_start, output_video_path);
 
 	return 0;
