@@ -88,6 +88,17 @@ class RVMMode {
 	                       SingleSlotChannel<TensorData>& tensor_ch,
 	                       helmsman::utils::timing::StageAccumulator& preprocess_acc);
 
+	/**
+	* Report all accumulated timers via logger. Called at the end of run() after the main loop exits.
+	*/
+	void _report_all_accumulated_timers(void);
+
+	/**
+	 * Perform any necessary cleanup of resources (e.g. DRM buffer release) before exiting run().
+	 */
+	void _do_cleaning_things(const std::chrono::steady_clock::time_point& pipeline_start,
+	                         const std::string& output_video_path);
+
    private:
 	// Member variables
 	float dsr_ = 0.25f;             ///< downsample_ratio, overwritten in run()
@@ -157,4 +168,12 @@ class RVMMode {
 	sa acc_lv02_01_04_04_upscale_{"    Lv02-01-04-04::comp::upscale"};
 	sa acc_lv02_01_04_05_writer_{"    Lv02-01-04-05::comp::writer"};
 	sa acc_lv02_01_04_06_drm_{"    Lv02-01-04-06::comp::drm_show"};
+
+	size_t frame_count_ = 0;
+
+	cv::VideoWriter video_writer_;
+
+	// DMA zero-copy output disabled: experiment phase needs video file for quality comparison.
+	// Re-enable after sweet-spot experiments: uncomment initOutputDma and restore the if-block.
+	const bool use_dma_output_ = false;  // was: initOutputDma(src_width, src_height)
 };

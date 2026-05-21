@@ -453,6 +453,63 @@ RvmRunSetup RVMMode::prepareRun(InferenceEngine* engine) {
 	return setup;
 }
 
+void RVMMode::_report_all_accumulated_timers(void) {
+	auto& logger = helmsman::utils::Logger::GetInstance();
+
+	acc_lv02_01_main_loop_total_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_01_worker_preprocess_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_02_main_decode_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_03_main_infer_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_04_main_composite_.report(config_.timing_enabled, logger, kRvmModuleName);
+
+	acc_lv02_01_04_01_resize_alpha_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_04_02_resize_frame_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_04_03_blend_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_04_04_upscale_.report(config_.timing_enabled, logger, kRvmModuleName);
+	// NOTE: acc_lv02_01_04_05_writer_ measures only the time VideoWriter::write() returns,
+	// NOT actual encoder completion (FFmpeg buffers internally). Treat this
+	// number as a lower bound for the true write cost.
+	acc_lv02_01_04_05_writer_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_04_06_drm_.report(config_.timing_enabled, logger, kRvmModuleName);
+}
+
+void RVMMode::_do_cleaning_things(const std::chrono::steady_clock::time_point& pipeline_start,
+                                  const std::string& output_video_path) {
+	auto& logger = helmsman::utils::Logger::GetInstance();
+
+	if (video_writer_.isOpened()) {
+		video_writer_.release();
+		logger.Info("Video compositing complete: " + std::to_string(frame_count_) +
+		                " frames written to " + output_video_path,
+		            kRvmModuleName);
+	}
+
+	if (drm_display_.IsOpen()) {
+		drm_display_.Close();
+		logger.Info("DRM display closed after " + std::to_string(frame_count_) + " frames.",
+		            kRvmModuleName);
+	}
+
+	if (use_dma_output_) {
+		logger.Info("DMA output: " + std::to_string(frame_count_) +
+		                " frames composited to DMA fd=" + std::to_string(dma_output_buf_->fd()),
+		            kRvmModuleName);
+	}
+
+	if (frame_count_ > 0) {
+		const double total_elapsed =
+		    std::chrono::duration<double>(std::chrono::steady_clock::now() - pipeline_start)
+		        .count();
+		const double avg_fps = static_cast<double>(frame_count_) / total_elapsed;
+		logger.Info("[FPS] Total: " + std::to_string(frame_count_) + " frames in " +
+		                std::to_string(total_elapsed) + "s = " + std::to_string(avg_fps) + " fps",
+		            kRvmModuleName);
+	}
+
+	logger.Info("RVM video pipeline finished. Total frames: " + std::to_string(frame_count_),
+	            kRvmModuleName);
+}
+
 int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& config) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
@@ -489,10 +546,6 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 	const double output_fps = (src_fps > 0) ? src_fps : 30.0;
 	const std::string output_video_path = config_.output_bin_path + "/output_composited.mp4";
 
-	// DMA zero-copy output disabled: experiment phase needs video file for quality comparison.
-	// Re-enable after sweet-spot experiments: uncomment initOutputDma and restore the if-block.
-	const bool use_dma_output = false;  // was: initOutputDma(src_width, src_height)
-	cv::VideoWriter video_writer;
 	int drm_panel_w = 0;
 	int drm_panel_h = 0;
 	if (config_.output_mode == OutputMode::kDrm) {
@@ -507,7 +560,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 		}
 	}
 	if (config_.output_mode == OutputMode::kMp4) {
-		openVideoWriter(video_writer, output_video_path, src_width, src_height, output_fps);
+		openVideoWriter(video_writer_, output_video_path, src_width, src_height, output_fps);
 	}
 
 	cv::Mat bg_bgr = loadOrCreateBackground(src_width, src_height);
@@ -576,9 +629,9 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 	//         so the worker can preprocess it while we run inference on the
 	//         current tensor (this is the overlap that hides decode latency)
 	//      d. run inference → postprocess → composite → write to video
-	//      e. advance current_frame and frame_count; stop when no next frame
+	//      e. advance current_frame and frame_count_; stop when no next frame
 	// =========================================================================
-	int frame_count = 0;
+
 	auto fps_window_start = std::chrono::steady_clock::now();
 	auto pipeline_start = fps_window_start;
 
@@ -594,7 +647,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 		// can exit, then break out — the main thread will join and flush below.
 		if (g_stop_signal_received.load()) {
 			logger.Info("Stop signal received. Finishing video at frame " +
-			                std::to_string(frame_count) + ".",
+			                std::to_string(frame_count_) + ".",
 			            kRvmModuleName);
 			raw_ch.close();
 			break;
@@ -609,7 +662,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 
 		// --------------------
 		// If we executes this far, we have the tensor data and the processing will be started imminently
-		logger.Info("=== RVM Frame " + std::to_string(frame_count + 1) + " ===", kRvmModuleName);
+		logger.Info("=== RVM Frame " + std::to_string(frame_count_ + 1) + " ===", kRvmModuleName);
 
 		// --------------------
 		// Read the frame that comes *after* the one we are about to infer,
@@ -644,30 +697,30 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 
 		// --------------- composite one frame ---------------
 		double comp_ms;
-		if (use_dma_output) {
+		if (use_dma_output_) {
 			ManualTimer dma_t;
 			dma_t.start();
 			const int output_fd = compositeToDma(current_frame, alpha_8u);
 			comp_ms = dma_t.stop();
-			if (frame_count == 0) {
+			if (frame_count_ == 0) {
 				logger.Info("DMA output fd=" + std::to_string(output_fd), kRvmModuleName);
 			}
 		} else if (config_.output_mode == OutputMode::kDrm) {
 			comp_ms = compositeToDrm(current_frame, alpha_8u, drm_panel_w, drm_panel_h);
 		} else {
-			comp_ms = compositeAndWrite(video_writer, current_frame, alpha_8u);
+			comp_ms = compositeAndWrite(video_writer_, current_frame, alpha_8u);
 		}
 		acc_lv02_01_04_main_composite_.record(comp_ms);
 
 		// --------------- end of one frame processing ---------------
-		logger.Info("[PerFrame] frame=" + std::to_string(frame_count) +
+		logger.Info("[PerFrame] frame=" + std::to_string(frame_count_) +
 		                "  infer=" + std::to_string(infer_ms) + "ms" +
 		                "  composite=" + std::to_string(comp_ms) + "ms",
 		            kRvmModuleName);
 
 		// ---------------
 		// FPS measurement: report every 30 frames
-		if (frame_count % 30 == 0) {
+		if (frame_count_ % 30 == 0) {
 			auto now = std::chrono::steady_clock::now();
 			double elapsed = std::chrono::duration<double>(now - fps_window_start).count();
 			logger.Info("[FPS] " + std::to_string(30.0 / elapsed) + " fps (last 30 frames in " +
@@ -683,13 +736,13 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 
 		// ---------------
 		// echo the end message for current single frame
-		logger.Info(" --- End of RVM Frame " + std::to_string(frame_count + 1) + " ---" + "\n",
+		logger.Info(" --- End of RVM Frame " + std::to_string(frame_count_ + 1) + " ---" + "\n",
 		            kRvmModuleName);
 
 		// ---------------
 		// prepare for next frame(iteration)
 		current_frame = std::move(next_frame);  // advance sliding window
-		frame_count++;
+		frame_count_++;
 
 		// ---------------
 		// exit loop if no next frame; the worker thread will see the raw_ch close and exit cleanly
@@ -701,48 +754,9 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 	// Wait for the worker thread to finish before destroying the channels.
 	prefetch_worker.join();
 
-	acc_lv02_01_main_loop_total_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_01_worker_preprocess_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_02_main_decode_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_03_main_infer_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_04_main_composite_.report(config_.timing_enabled, logger, kRvmModuleName);
+	_report_all_accumulated_timers();
 
-	acc_lv02_01_04_01_resize_alpha_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_04_02_resize_frame_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_04_03_blend_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_04_04_upscale_.report(config_.timing_enabled, logger, kRvmModuleName);
-	// NOTE: acc_lv02_01_04_05_writer_ measures only the time VideoWriter::write() returns,
-	// NOT actual encoder completion (FFmpeg buffers internally). Treat this
-	// number as a lower bound for the true write cost.
-	acc_lv02_01_04_05_writer_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_04_06_drm_.report(config_.timing_enabled, logger, kRvmModuleName);
+	_do_cleaning_things(pipeline_start, output_video_path);
 
-	if (video_writer.isOpened()) {
-		video_writer.release();
-		logger.Info("Video compositing complete: " + std::to_string(frame_count) +
-		                " frames written to " + output_video_path,
-		            kRvmModuleName);
-	}
-	if (drm_display_.IsOpen()) {
-		drm_display_.Close();
-		logger.Info("DRM display closed after " + std::to_string(frame_count) + " frames.",
-		            kRvmModuleName);
-	}
-	if (use_dma_output) {
-		logger.Info("DMA output: " + std::to_string(frame_count) +
-		                " frames composited to DMA fd=" + std::to_string(dma_output_buf_->fd()),
-		            kRvmModuleName);
-	}
-	if (frame_count > 0) {
-		const double total_elapsed =
-		    std::chrono::duration<double>(std::chrono::steady_clock::now() - pipeline_start)
-		        .count();
-		const double avg_fps = static_cast<double>(frame_count) / total_elapsed;
-		logger.Info("[FPS] Total: " + std::to_string(frame_count) + " frames in " +
-		                std::to_string(total_elapsed) + "s = " + std::to_string(avg_fps) + " fps",
-		            kRvmModuleName);
-	}
-	logger.Info("RVM video pipeline finished. Total frames: " + std::to_string(frame_count),
-	            kRvmModuleName);
 	return 0;
 }
