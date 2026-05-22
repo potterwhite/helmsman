@@ -18,19 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+// =============================================================================
+// rockchip-frontend-factory.h — Rockchip platform Frontend factory
+//
+// Creates a hardware-decode Frontend using:
+//   - FfmpegInputSource (demux)
+//   - MppFrameDecoder (VPU decode)
+//   - RgaNv12ToBgr (RGA color conversion)
+//
+// =============================================================================
+
 #pragma once
 
-#include <memory>
-#include <string>
-#include "common/types.h"
-#include "pipeline/stages/inference-engine/base/inference-engine.h"
-#include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/frontend/04-preprocess/preprocessor.h"
+#include "pipeline/stages/frontend/05-factory/base-frontend-factory.h"
 
-class MODNetMode {
+class RockchipFrontendFactory : public BaseFrontendFactory {
 public:
-    int run(InferenceEngine* engine, const AppConfig& config);
-
-private:
-    Preprocessor frontend_;
+    std::unique_ptr<Frontend> create(const std::string& input_path) override;
 };

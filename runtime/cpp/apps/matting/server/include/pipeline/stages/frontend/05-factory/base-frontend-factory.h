@@ -18,19 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+// =============================================================================
+// base-frontend-factory.h — Frontend factory interface
+//
+// Each SoC vendor provides its own implementation (e.g., RockchipFrontendFactory)
+// that wires the appropriate input source, decoder, and color converter.
+//
+// =============================================================================
+
 #pragma once
 
 #include <memory>
 #include <string>
-#include "common/types.h"
-#include "pipeline/stages/inference-engine/base/inference-engine.h"
-#include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/frontend/04-preprocess/preprocessor.h"
 
-class MODNetMode {
+class Frontend;
+
+class BaseFrontendFactory {
 public:
-    int run(InferenceEngine* engine, const AppConfig& config);
+    virtual ~BaseFrontendFactory() = default;
 
-private:
-    Preprocessor frontend_;
+    // Create a hardware-decode Frontend for the given input path.
+    // Throws std::runtime_error on failure.
+    virtual std::unique_ptr<Frontend> create(const std::string& input_path) = 0;
 };
+
+// Creates a Frontend for the given input path.
+// If use_hardware is true, uses the platform-specific hardware decode factory
+// selected at build time. Otherwise, uses OpenCV software decode.
+// Throws std::runtime_error on failure.
+std::unique_ptr<Frontend> create_frontend(const std::string& input_path,
+                                          bool use_hardware);

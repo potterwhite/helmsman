@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "pipeline/stages/backend/post-processor/i-post-processor.h"
+#include "pipeline/stages/backend/post-processor/base-post-processor.h"
 
 /**
  * @brief Guided Filter post-processor.
@@ -53,7 +53,7 @@
  *   erode_iters    — post-threshold erosion iterations (3×3 kernel); 0 = disabled
  *   src_blur_ksize — Gaussian blur kernel size for src after erode (must be odd); 0 = disabled
  */
-class GuidedFilterPostProcessor : public IPostProcessor {
+class GuidedFilterPostProcessor : public BasePostProcessor {
    public:
     /**
      * @param radius         Filter radius in pixels (default: 4)

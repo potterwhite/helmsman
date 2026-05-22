@@ -18,19 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#pragma once
+// =============================================================================
+// no-hw-frontend-factory.cpp — Fallback when no hardware decoder is available
+//
+// =============================================================================
 
-#include <memory>
-#include <string>
-#include "common/types.h"
-#include "pipeline/stages/inference-engine/base/inference-engine.h"
-#include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/frontend/04-preprocess/preprocessor.h"
+#include "pipeline/stages/frontend/05-factory/base-frontend-factory.h"
+#include "pipeline/stages/frontend/frontend.h"
 
-class MODNetMode {
-public:
-    int run(InferenceEngine* engine, const AppConfig& config);
+#include <stdexcept>
 
-private:
-    Preprocessor frontend_;
-};
+std::unique_ptr<Frontend> create_frontend(const std::string& input_path, bool use_hardware) {
+	if (use_hardware) {
+		throw std::runtime_error("Hardware decoder not supported on this build");
+	}
+	return std::make_unique<Frontend>(input_path);
+}

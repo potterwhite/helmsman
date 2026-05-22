@@ -656,7 +656,7 @@ void RVMMode::_runMainLoopPrefetch(InferenceEngine* engine, const RvmRunSetup& s
 	// Read the first frame and hand it to the worker for preprocessing.
 	cv::Mat current_frame;
 	HardwareFrame current_hw_frame;
-	if (!frontend_->readFrame(current_frame, current_hw_frame)) {
+	if (!frontend_->read_frame(current_frame, current_hw_frame)) {
 		logger.Info("No frames to process.", kRvmModuleName);
 		raw_ch.close();
 		worker.join();
@@ -691,7 +691,7 @@ void RVMMode::_runMainLoopPrefetch(InferenceEngine* engine, const RvmRunSetup& s
 		{
 			ManualTimer decode_t;
 			decode_t.start();
-			has_next = frontend_->readFrame(next_frame, next_hw_frame);
+			has_next = frontend_->read_frame(next_frame, next_hw_frame);
 
 			if (has_next) {
 				raw_ch.push(next_frame);
@@ -735,7 +735,7 @@ void RVMMode::_runMainLoopSerial(InferenceEngine* engine, const RvmRunSetup& set
 	// Read and preprocess the first frame before entering the loop.
 	cv::Mat current_frame;
 	HardwareFrame current_hw_frame;
-	if (!frontend_->readFrame(current_frame, current_hw_frame)) {
+	if (!frontend_->read_frame(current_frame, current_hw_frame)) {
 		logger.Info("No frames to process.", kRvmModuleName);
 		return;
 	}
@@ -769,7 +769,7 @@ void RVMMode::_runMainLoopSerial(InferenceEngine* engine, const RvmRunSetup& set
 		{
 			ManualTimer decode_t;
 			decode_t.start();
-			has_next = frontend_->readFrame(next_frame, next_hw_frame);
+			has_next = frontend_->read_frame(next_frame, next_hw_frame);
 			acc_lv02_01_02_main_decode_.record(decode_t.stop());
 		}
 

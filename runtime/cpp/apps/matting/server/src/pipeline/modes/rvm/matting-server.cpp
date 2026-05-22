@@ -193,7 +193,7 @@ bool MattingServer::initModel(const std::string& model_path) {
 	}
 
 	// Initialize frontend (preprocessing) and backend (postprocessing).
-	frontend_.setOutputBinPath("/tmp/matting-server-dump");
+	frontend_.set_output_bin_path("/tmp/matting-server-dump");
 	backend_.setOutputPath("/tmp/matting-server-dump");
 
 	logger.Info("MattingServer: model loaded, input=" + std::to_string(model_w_) + "x" +

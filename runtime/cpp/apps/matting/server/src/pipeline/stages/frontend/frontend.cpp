@@ -19,22 +19,18 @@
 // SOFTWARE.
 
 // =============================================================================
-// frontend.cpp — Frontend router for the matting pipeline
+// frontend.cpp — Frontend for the matting pipeline
 //
 // Two paths:
-//   MPP path:    _IInputSource::readRaw → _IFrameDecoder::decode → NV12 fd
-//                → RGA NV12→BGR → cpu_frame (cv::Mat)
-//   OpenCV path: cv::VideoCapture::read → cv::Mat (software decode)
+//   Hardware path: BaseInputSource::read_raw → BaseFrameDecoder::decode
+//                → BaseColorConverter::convert → cpu_frame (cv::Mat)
+//   OpenCV path:   cv::VideoCapture::read → cv::Mat (software decode)
 //
 // =============================================================================
 
 #include "pipeline/stages/frontend/frontend.h"
-#include "MPPKit/mpp_codec.h"
-#include "pipeline/stages/frontend/decoder/mpp-frame-decoder.h"
-#include "pipeline/stages/frontend/input-source/ffmpeg-input-source.h"
 
 #include <cstdio>
-#include <stdexcept>
 
 // ---------------------------------------------------------------------------
 // deconstructor
@@ -42,14 +38,12 @@
 Frontend::~Frontend() = default;
 
 // ---------------------------------------------------------------------------
-// MPP hardware path constructor
+// Hardware decode path constructor (DI)
 // ---------------------------------------------------------------------------
-Frontend::Frontend(std::unique_ptr<_IInputSource> source, std::unique_ptr<_IFrameDecoder> decoder)
-    : use_hardware_(true), source_(std::move(source)), decoder_(std::move(decoder)) {
-	// Create RGA NV12→BGR converter for hardware path
-	nv12_to_bgr_ = helmsman::rgakit::CreateOperation<helmsman::rgakit::RgaCvtColor>(
-	    helmsman::rgakit::RgaPixelFormat::kNv12, helmsman::rgakit::RgaPixelFormat::kBgr888,
-	    helmsman::rgakit::RgaCscMode::kYuvToRgbBt601Limit);
+Frontend::Frontend(std::unique_ptr<BaseInputSource> source, std::unique_ptr<BaseFrameDecoder> decoder,
+                   std::unique_ptr<BaseColorConverter> converter)
+    : use_hardware_(true), source_(std::move(source)), decoder_(std::move(decoder)),
+      color_converter_(std::move(converter)) {
 }
 
 // ---------------------------------------------------------------------------
@@ -62,69 +56,24 @@ Frontend::Frontend(const std::string& video_path) : use_hardware_(false) {
 }
 
 // ---------------------------------------------------------------------------
-// Config-based constructor — creates internal source + decoder
+// read_frame — read the next decoded frame
 // ---------------------------------------------------------------------------
-Frontend::Frontend(const std::string& input_path, bool use_hardware_decoder) {
-	if (use_hardware_decoder) {
-		use_hardware_ = true;
-
-		// Create and open FFmpeg input source
-		auto source = std::make_unique<_FFmpegInputSource>();
-		if (!source->open(input_path)) {
-			throw std::runtime_error("Failed to open video with FFmpeg: " + input_path);
-		}
-
-		// Detect codec from stream
-		helmsman::mppkit::CodecType codec = helmsman::mppkit::CodecType::kH264;
-		if (source->codecId() == 173) {
-			codec = helmsman::mppkit::CodecType::kH265;
-		}
-
-		// Create and init MPP hardware decoder
-		helmsman::mppkit::DecoderConfig decoder_cfg;
-		decoder_cfg.codec_type = codec;
-		decoder_cfg.width = source->width();
-		decoder_cfg.height = source->height();
-
-		auto decoder = std::make_unique<_MppFrameDecoder>(decoder_cfg);
-		if (!decoder->init()) {
-			throw std::runtime_error("Failed to init MPP decoder");
-		}
-
-		source_ = std::move(source);
-		decoder_ = std::move(decoder);
-
-		// Create RGA NV12→BGR converter
-		nv12_to_bgr_ = helmsman::rgakit::CreateOperation<helmsman::rgakit::RgaCvtColor>(
-		    helmsman::rgakit::RgaPixelFormat::kNv12, helmsman::rgakit::RgaPixelFormat::kBgr888,
-		    helmsman::rgakit::RgaCscMode::kYuvToRgbBt601Limit);
-	} else {
-		use_hardware_ = false;
-		if (!cv_cap_.open(input_path)) {
-			throw std::runtime_error("Failed to open video: " + input_path);
-		}
-	}
-}
-
-// ---------------------------------------------------------------------------
-// readFrame — read the next decoded frame
-// ---------------------------------------------------------------------------
-bool Frontend::readFrame(cv::Mat& cpu_frame, HardwareFrame& hw_frame) {
+bool Frontend::read_frame(cv::Mat& cpu_frame, HardwareFrame& hw_frame) {
 	cpu_frame.release();
 	hw_frame = HardwareFrame{};
 
 	if (use_hardware_) {
-		if (!source_ || !decoder_) {
+		if (!source_ || !decoder_ || !color_converter_) {
 			return false;
 		}
 
 		// Feed packets until the decoder produces a frame or we hit EOF.
-		// Hardware decoders (MPP) may need multiple packets before the first
+		// Hardware decoders may need multiple packets before the first
 		// frame appears (e.g. SPS/PPS in H.264), so a single failed
-		// decode_get_frame does not mean end-of-stream.
+		// decode does not mean end-of-stream.
 		RawPacket pkt;
 		while (true) {
-			if (!source_->readRaw(pkt) || pkt.is_eof) {
+			if (!source_->read_raw(pkt) || pkt.is_eof) {
 				return false;
 			}
 
@@ -134,29 +83,8 @@ bool Frontend::readFrame(cv::Mat& cpu_frame, HardwareFrame& hw_frame) {
 			// decode returned false — decoder needs more data, keep feeding
 		}
 
-		// Convert NV12 → BGR via RGA hardware
-		if (hw_frame.fd >= 0 && nv12_to_bgr_) {
-			// Allocate BGR buffer on first frame (or dimension change)
-			if (bgr_buf_.empty() || bgr_buf_.cols != hw_frame.width ||
-			    bgr_buf_.rows != hw_frame.height) {
-				bgr_buf_ = cv::Mat(hw_frame.height, hw_frame.width, CV_8UC3);
-			}
-
-			auto src = helmsman::rgakit::ImageDescriptor::FromFd(
-			    hw_frame.fd, hw_frame.width, hw_frame.height,
-			    helmsman::rgakit::RgaPixelFormat::kNv12);
-			auto dst =
-			    helmsman::rgakit::ImageDescriptor(bgr_buf_.data, bgr_buf_.cols, bgr_buf_.rows,
-			                                      helmsman::rgakit::RgaPixelFormat::kBgr888);
-
-			if (nv12_to_bgr_->Execute(src, dst)) {
-				cpu_frame = bgr_buf_;
-				return true;
-			}
-			fprintf(stderr, "[Frontend] RGA NV12→BGR conversion failed\n");
-			return false;
-		}
-		return false;
+		// Convert hardware frame to BGR via color converter
+		return color_converter_->convert(hw_frame, cpu_frame);
 	}
 
 	if (!cv_cap_.isOpened()) {

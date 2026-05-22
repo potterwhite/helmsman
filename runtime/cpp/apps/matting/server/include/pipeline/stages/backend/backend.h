@@ -29,7 +29,7 @@
 #include "Utils/logger/worker/consolesink.h"
 #include "Utils/logger/worker/filesink.h"
 #include "Utils/math/math-utils.h"
-#include "pipeline/stages/backend/post-processor/i-post-processor.h"
+#include "pipeline/stages/backend/post-processor/base-post-processor.h"
 #include "common/types.h"
 
 class MattingBackend {
@@ -45,7 +45,7 @@ class MattingBackend {
 	 * Attach an optional post-processor (e.g. GuidedFilterPostProcessor).
 	 * Pass nullptr to disable post-processing and use the raw alpha mask.
 	 */
-	void setPostProcessor(std::shared_ptr<IPostProcessor> processor);
+	void setPostProcessor(std::shared_ptr<BasePostProcessor> processor);
 
 	// Accept multi-tensor output from InferenceEngine.
 	// Selects the pha (alpha matte) tensor by name or position:
@@ -65,7 +65,7 @@ class MattingBackend {
 	std::string background_path_;
 	std::string foreground_image_path_;
 
-	std::shared_ptr<IPostProcessor> post_processor_;  // nullptr = no post-processing
+	std::shared_ptr<BasePostProcessor> post_processor_;  // nullptr = no post-processing
 	int process_count_ = 0;  // counts postprocess() calls; used for per-frame debug dump
 
 	cv::Mat nchwToHwc(const TensorData& tensor);

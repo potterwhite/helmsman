@@ -36,9 +36,9 @@
  * Attach/detach processors via MattingBackend::setPostProcessor().
  * If no processor is attached the raw alpha is used as-is.
  */
-class IPostProcessor {
+class BasePostProcessor {
    public:
-    virtual ~IPostProcessor() = default;
+    virtual ~BasePostProcessor() = default;
 
     /**
      * @param alpha_f32  Input alpha mask  (CV_32FC1, [0,1], original resolution)

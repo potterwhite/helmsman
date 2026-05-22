@@ -18,19 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+// =============================================================================
+// base-color-converter.h — Abstract color converter interface (internal to Frontend)
+//
+// Converts a hardware-decoded frame (e.g. NV12 DMA buffer) into a BGR cv::Mat.
+//
+// =============================================================================
+
 #pragma once
 
-#include <memory>
-#include <string>
-#include "common/types.h"
-#include "pipeline/stages/inference-engine/base/inference-engine.h"
-#include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/frontend/04-preprocess/preprocessor.h"
+#include <opencv2/core.hpp>
+#include "pipeline/stages/frontend/02-decoder/base-frame-decoder.h"
 
-class MODNetMode {
+// Abstract color converter interface (internal — do not use directly).
+class BaseColorConverter {
 public:
-    int run(InferenceEngine* engine, const AppConfig& config);
+    virtual ~BaseColorConverter() = default;
 
-private:
-    Preprocessor frontend_;
+    // Convert a hardware frame to a BGR cv::Mat.
+    // Returns true on success.
+    virtual bool convert(const HardwareFrame& hw_frame, cv::Mat& cpu_frame) = 0;
 };

@@ -21,6 +21,7 @@
 #include "pipeline/pipeline.h"
 #include "common/common-define.h"
 #include "pipeline/stages/inference-engine/inference-engine-factory.h"
+#include "pipeline/stages/frontend/05-factory/base-frontend-factory.h"
 
 using helmsman::utils::timing::ScopedTimer;
 
@@ -60,10 +61,9 @@ void Pipeline::init(const AppConfig& config) {
 	config_ = config;
 
 	if (config_.is_video) {
-		// Video path: construct Frontend (MPP hardware or OpenCV software)
+		// Video path: construct Frontend (hardware decode or OpenCV software)
 		try {
-			frontend_ =
-			    std::make_unique<Frontend>(config_.input_path, config_.use_hardware_decoder);
+			frontend_ = create_frontend(config_.input_path, config_.use_hardware_decoder);
 		} catch (const std::exception& e) {
 			logger.Error(std::string("Failed to create Frontend: ") + e.what(),
 			             kcurrent_module_name);

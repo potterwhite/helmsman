@@ -46,7 +46,7 @@ void MattingBackend::setForegroundImagePath(const std::string& path) {
 	foreground_image_path_ = path;
 }
 
-void MattingBackend::setPostProcessor(std::shared_ptr<IPostProcessor> processor) {
+void MattingBackend::setPostProcessor(std::shared_ptr<BasePostProcessor> processor) {
 	post_processor_ = std::move(processor);
 }
 
