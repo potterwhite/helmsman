@@ -205,7 +205,7 @@ void InferenceEngineONNX::Infer(
 	}
 
 	// Debug dump for primary output (index 0)
-	if (isDumpEnabled() && !output_bin_path_.empty()) {
+	if (IsDumpEnabled() && !output_bin_path_.empty()) {
 		file_utils.dumpBinary(outputs[0].data,
 		    output_bin_path_ + "cpp_08_inference-Output.bin");
 	}

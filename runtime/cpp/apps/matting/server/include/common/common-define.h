@@ -35,7 +35,7 @@ constexpr std::string_view kcurrent_module_name = "main-server";
 // Usage:   HELMSMAN_DUMP=1 ./Helmsman_Matting_Server ...
 // Default: OFF (no binary dumps, zero I/O overhead)
 // ---------------------------------------------------------------------------
-inline bool isDumpEnabled() {
+inline bool IsDumpEnabled() {
 	static const bool enabled = (std::getenv("HELMSMAN_DUMP") != nullptr);
 	return enabled;
 }

@@ -69,17 +69,17 @@ static void SignalHandler(int signal_num) {
 	helmsman::utils::Logger::GetInstance().Warning(oss.str(), kcurrent_module_name);
 }
 
-[[maybe_unused]] static bool isDebug() {
+[[maybe_unused]] static bool IsDebug() {
 	constexpr std::string_view build_type = BUILD_TYPE;
 	return build_type == "Debug";
 }
 
-[[maybe_unused]] static bool isRelease() {
+[[maybe_unused]] static bool IsRelease() {
 	constexpr std::string_view build_type = BUILD_TYPE;
 	return build_type == "Release";
 }
 
-static bool isVideoFile(const std::string& path) {
+static bool IsVideoFile(const std::string& path) {
 	auto dot = path.rfind('.');
 	if (dot == std::string::npos)
 		return false;
@@ -94,9 +94,9 @@ static bool isVideoFile(const std::string& path) {
 
 // Configure logger, parse CLI arguments, and log the resulting configuration.
 // Returns nullopt when arguments are invalid (usage printed to stderr).
-static std::optional<AppConfig> initServer(int argc, char* argv[]) {
+static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 	// --- Logger ---
-	if (isRelease()) {
+	if (IsRelease()) {
 		logger.setLevel(helmsman::utils::LoggerLevel::kinfo);
 	} else {
 		logger.setLevel(helmsman::utils::LoggerLevel::kdebug);
@@ -107,7 +107,7 @@ static std::optional<AppConfig> initServer(int argc, char* argv[]) {
 
 	signal(SIGINT, SignalHandler);
 
-	if (isDumpEnabled()) {
+	if (IsDumpEnabled()) {
 		logger.Info(
 		    "[DEBUG] Binary dump ENABLED (HELMSMAN_DUMP is set). "
 		    "Unset to disable for production runs.",
@@ -162,7 +162,7 @@ static std::optional<AppConfig> initServer(int argc, char* argv[]) {
 	cfg.output_bin_path = positional_args[2];
 	cfg.background_path = (positional_args.size() == 4) ? positional_args[3] : "";
 
-	cfg.is_video = isVideoFile(cfg.input_path);
+	cfg.is_video = IsVideoFile(cfg.input_path);
 
 	// --- Log configuration ---
 	std::string mode_str = (cfg.model_type == ModelType::kRVM) ? "RVM" : "MODNet";
@@ -218,7 +218,7 @@ static std::optional<AppConfig> initServer(int argc, char* argv[]) {
 //   Helmsman_Matting_Server video.mp4 rvm.rknn ./output/ bg.jpg
 // ============================================================================
 int main(int argc, char* argv[]) {
-	auto config = initServer(argc, argv);
+	auto config = InitServer(argc, argv);
 	if (!config)
 		return 1;
 

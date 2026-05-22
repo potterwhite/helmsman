@@ -107,7 +107,7 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 
 	// -------------------------
 	// dump raw output for debug
-	if (isDumpEnabled()) {
+	if (IsDumpEnabled()) {
 		file_utils.dumpBinary(output.data, output_path_ + "/cpp_09_backend_input.bin");
 	}
 
@@ -201,7 +201,7 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 		}
 	}
 
-	if (isDumpEnabled()) {
+	if (IsDumpEnabled()) {
 		const size_t total = static_cast<size_t>(H) * static_cast<size_t>(W) * static_cast<size_t>(C);
 		file_utils.dumpBinary(std::vector<float>((float*)clamped.data, (float*)clamped.data + total),
 		                      output_path_ + "/cpp_10_clamped.bin");
@@ -213,7 +213,7 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 	// clamped.convertTo(output_8u, (C_int == 1 ? CV_8UC1 : CV_8UC3), 255.0);
 	restored_mat.convertTo(output_8u, (C_int == 1 ? CV_8UC1 : CV_8UC3), 255.0);
 
-	if (isDumpEnabled()) {
+	if (IsDumpEnabled()) {
 		cv::imwrite(output_path_ + "/cpp_11_result.png", output_8u);
 	}
 
