@@ -37,7 +37,7 @@
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
 
 /**
- * Holds the resolved model input dimensions returned by RVMMode::_prepareRun().
+ * Holds the resolved model input dimensions returned by RVMMode::_PrepareRun().
  * Kept outside the class — no need to nest a plain data struct inside a class.
  */
 struct RvmRunSetup {
@@ -55,83 +55,83 @@ class RVMMode {
      * states, and wire up frontend / backend paths.
      * Returns the resolved model dimensions needed by the prefetch worker.
      */
-	RvmRunSetup _prepareRun(InferenceEngine* engine);
+	RvmRunSetup _PrepareRun(InferenceEngine* engine);
 
-	void _initRecurrentStates(InferenceEngine* engine);
+	void _InitRecurrentStates(InferenceEngine* engine);
 
-	bool _openVideoWriter(cv::VideoWriter& writer, const std::string& path, size_t width,
+	bool _OpenVideoWriter(cv::VideoWriter& writer, const std::string& path, size_t width,
 	                      size_t height, double fps);
 
-	cv::Mat _loadOrCreateBackground(size_t width, size_t height);
+	cv::Mat _LoadOrCreateBackground(size_t width, size_t height);
 
-	cv::Mat _inferOneFrame(InferenceEngine* engine, const TensorData& src,
+	cv::Mat _InferOneFrame(InferenceEngine* engine, const TensorData& src,
 	                       const cv::Mat& guide_bgr);
 
 	// Returns total composite time in ms (for per-frame logging).
-	double _compositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
+	double _CompositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
 	                          const cv::Mat& alpha_8u);
 
 	// DRM composite: blend + upscale + BGR→XRGB + ShowARGB.
 	// Returns total composite time in ms.
-	double _compositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, int panel_w, int panel_h);
+	double _CompositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, int panel_w, int panel_h);
 
 	// DMA zero-copy composite: composites into a pre-allocated DMA buffer.
 	// Returns the DMA buffer fd (valid until next call or destruction).
-	// The buffer is allocated once at _initOutputDma() and reused every frame.
-	int _compositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u);
+	// The buffer is allocated once at _InitOutputDma() and reused every frame.
+	int _CompositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u);
 
 	// Allocate the output DMA buffer for the given source dimensions.
-	// Must be called before _compositeToDma(). Returns false on failure.
-	bool _initOutputDma(int src_width, int src_height);
+	// Must be called before _CompositeToDma(). Returns false on failure.
+	bool _InitOutputDma(int src_width, int src_height);
 
 	/**
      * Body of the prefetch worker thread.
      * Loops: pop raw frame from raw_ch → preprocess → push tensor to tensor_ch.
      * Closes tensor_ch on exit to signal EOF to the main inference loop.
      */
-	void _runPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChannel<cv::Mat>& raw_ch,
+	void _RunPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChannel<cv::Mat>& raw_ch,
 	                        SingleSlotChannel<TensorData>& tensor_ch,
 	                        helmsman::utils::timing::StageAccumulator& preprocess_acc);
 
 	/**
 	 * Process one frame: infer → composite → log. Shared by both prefetch and serial loops.
 	 */
-	void _processOneFrame(InferenceEngine* engine, const TensorData& tensor,
+	void _ProcessOneFrame(InferenceEngine* engine, const TensorData& tensor,
 	                       const cv::Mat& current_frame, size_t model_w, size_t model_h);
 
 	/**
 	 * Main inference loop with dual-buffer prefetch worker (default mode).
 	 * Worker preprocesses frame N+1 while main thread infers frame N.
 	 */
-	void _runMainLoopPrefetch(InferenceEngine* engine, const RvmRunSetup& setup);
+	void _RunMainLoopPrefetch(InferenceEngine* engine, const RvmRunSetup& setup);
 
 	/**
 	 * Main inference loop without prefetch (all work on main thread).
 	 * Useful for benchmarking to compare with/without the dual-buffer pipeline.
 	 */
-	void _runMainLoopSerial(InferenceEngine* engine, const RvmRunSetup& setup);
+	void _RunMainLoopSerial(InferenceEngine* engine, const RvmRunSetup& setup);
 
 	/**
 	* Report all accumulated timers via logger. Called at the end of run() after the main loop exits.
 	*/
-	void _report_all_accumulated_timers(void);
+	void _ReportAllAccumulatedTimers(void);
 
 	/**
 	 * Perform any necessary cleanup of resources (e.g. DRM buffer release) before exiting run().
 	 */
-	void _do_cleaning_things(const std::chrono::steady_clock::time_point& pipeline_start,
+	void _DoCleaningThings(const std::chrono::steady_clock::time_point& pipeline_start,
 	                         const std::string& output_video_path);
 
 	/**
 	 * Shared output path for both output modes (MP4 file or DRM display). Sets up the VideoWriter if needed.
 	 */
-	void _output_mode_process(const size_t src_width, const size_t src_height, const double src_fps,
+	void _OutputModeProcess(const size_t src_width, const size_t src_height, const double src_fps,
 	                          const std::string& output_video_path, const OutputMode output_mode);
 
 	/**
 	 * Preprocess the background image into a uint8 BGR cv::Mat at model resolution for fast compositing.
 	 */
-	void _preprocess_bg_uint8(cv::Mat bg_bgr, const size_t src_width, const size_t src_height);
+	void _PreprocessBgUint8(cv::Mat bg_bgr, const size_t src_width, const size_t src_height);
 
    private:
 	// Member variables
@@ -179,7 +179,7 @@ class RVMMode {
 	//
 	//   ScopedTimer "Lv01::main::pipeline.run() total"           (pipeline.cpp)   — outermost
 	//   ScopedTimer "Lv02::RVMMode::run() total"            (this fn)        — wraps loop
-	//   ScopedTimer "Lv03::RVMMode::_prepareRun() load"      (this fn)        — model load only
+	//   ScopedTimer "Lv03::RVMMode::_PrepareRun() load"      (this fn)        — model load only
 	//
 	//   [FPS]   line every 30 frames                                         — moving fps
 	//   [PerFrame] line every frame                                          — infer + comp
@@ -209,8 +209,8 @@ class RVMMode {
 	cv::VideoWriter video_writer_;
 
 	// DMA zero-copy output disabled: experiment phase needs video file for quality comparison.
-	// Re-enable after sweet-spot experiments: uncomment _initOutputDma and restore the if-block.
-	const bool use_dma_output_ = false;  // was: _initOutputDma(src_width, src_height)
+	// Re-enable after sweet-spot experiments: uncomment _InitOutputDma and restore the if-block.
+	const bool use_dma_output_ = false;  // was: _InitOutputDma(src_width, src_height)
 
 	int drm_panel_w_ = 0;
 	int drm_panel_h_ = 0;

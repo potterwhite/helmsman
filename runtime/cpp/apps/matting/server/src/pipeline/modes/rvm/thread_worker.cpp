@@ -15,7 +15,7 @@ using helmsman::utils::timing::ManualTimer;
 using helmsman::utils::timing::ScopedTimer;
 using helmsman::utils::timing::StageAccumulator;
 
-void RVMMode::_runPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChannel<cv::Mat>& raw_ch,
+void RVMMode::_RunPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChannel<cv::Mat>& raw_ch,
                                  SingleSlotChannel<TensorData>& tensor_ch,
                                  StageAccumulator& acc_preprocess) {
 	while (true) {
