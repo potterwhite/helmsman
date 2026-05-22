@@ -47,7 +47,7 @@ int MODNetMode::run(InferenceEngine* engine, const AppConfig& config) {
 	TensorData src;
 	{
 		ScopedTimer t("runMODNet: preprocess", config.timing_enabled, logger, kModnetModuleName);
-		frontend_.set_output_bin_path(config.output_bin_path);
+		frontend_.SetOutputBinPath(config.output_bin_path);
 		cv::Mat img = cv::imread(config.input_path, cv::IMREAD_COLOR);
 		src = frontend_.preprocess(img, model_input_width, model_input_height);
 	}

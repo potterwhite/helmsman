@@ -46,5 +46,5 @@ public:
 // If use_hardware is true, uses the platform-specific hardware decode factory
 // selected at build time. Otherwise, uses OpenCV software decode.
 // Throws std::runtime_error on failure.
-std::unique_ptr<Frontend> create_frontend(const std::string& input_path,
-                                          bool use_hardware);
+std::unique_ptr<Frontend> CreateFrontend(const std::string& input_path,
+                                         bool use_hardware);

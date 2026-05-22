@@ -23,7 +23,7 @@
 //
 // Flow:
 //   open() → avformat_open_input + avformat_find_stream_info
-//   read_raw() → av_read_frame → extract video packet → RawPacket
+//   ReadRaw() → av_read_frame → extract video packet → RawPacket
 //   close() → avformat_close_input
 //
 // =============================================================================
@@ -134,7 +134,7 @@ bool FfmpegInputSource::open(const std::string& uri) {
     return true;
 }
 
-bool FfmpegInputSource::read_raw(RawPacket& pkt) {
+bool FfmpegInputSource::ReadRaw(RawPacket& pkt) {
     if (!fmt_ctx_ || !av_packet_) {
         pkt = {};
         pkt.is_eof = true;
@@ -166,7 +166,7 @@ bool FfmpegInputSource::read_raw(RawPacket& pkt) {
 int FfmpegInputSource::width() const { return width_; }
 int FfmpegInputSource::height() const { return height_; }
 double FfmpegInputSource::fps() const { return fps_; }
-int FfmpegInputSource::codec_id() const { return codec_id_; }
+int FfmpegInputSource::CodecId() const { return codec_id_; }
 
 void FfmpegInputSource::close() {
     if (av_packet_) {

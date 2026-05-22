@@ -63,7 +63,7 @@ void Pipeline::init(const AppConfig& config) {
 	if (config_.is_video) {
 		// Video path: construct Frontend (hardware decode or OpenCV software)
 		try {
-			frontend_ = create_frontend(config_.input_path, config_.use_hardware_decoder);
+			frontend_ = CreateFrontend(config_.input_path, config_.use_hardware_decoder);
 		} catch (const std::exception& e) {
 			logger.Error(std::string("Failed to create Frontend: ") + e.what(),
 			             kcurrent_module_name);

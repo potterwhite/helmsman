@@ -41,7 +41,7 @@ std::unique_ptr<Frontend> RockchipFrontendFactory::create(const std::string& inp
 
 	// Detect codec from stream
 	helmsman::mppkit::CodecType codec = helmsman::mppkit::CodecType::kH264;
-	if (source->codec_id() == 173) {
+	if (source->CodecId() == 173) {
 		codec = helmsman::mppkit::CodecType::kH265;
 	}
 
@@ -62,7 +62,7 @@ std::unique_ptr<Frontend> RockchipFrontendFactory::create(const std::string& inp
 	    std::make_unique<RgaNv12ToBgr>());
 }
 
-std::unique_ptr<Frontend> create_frontend(const std::string& input_path, bool use_hardware) {
+std::unique_ptr<Frontend> CreateFrontend(const std::string& input_path, bool use_hardware) {
 	if (use_hardware) {
 		RockchipFrontendFactory factory;
 		return factory.create(input_path);

@@ -22,7 +22,7 @@
 // frontend.cpp — Frontend for the matting pipeline
 //
 // Two paths:
-//   Hardware path: BaseInputSource::read_raw → BaseFrameDecoder::decode
+//   Hardware path: BaseInputSource::ReadRaw → BaseFrameDecoder::decode
 //                → BaseColorConverter::convert → cpu_frame (cv::Mat)
 //   OpenCV path:   cv::VideoCapture::read → cv::Mat (software decode)
 //
@@ -56,9 +56,9 @@ Frontend::Frontend(const std::string& video_path) : use_hardware_(false) {
 }
 
 // ---------------------------------------------------------------------------
-// read_frame — read the next decoded frame
+// ReadFrame — read the next decoded frame
 // ---------------------------------------------------------------------------
-bool Frontend::read_frame(cv::Mat& cpu_frame, HardwareFrame& hw_frame) {
+bool Frontend::ReadFrame(cv::Mat& cpu_frame, HardwareFrame& hw_frame) {
 	cpu_frame.release();
 	hw_frame = HardwareFrame{};
 
@@ -73,7 +73,7 @@ bool Frontend::read_frame(cv::Mat& cpu_frame, HardwareFrame& hw_frame) {
 		// decode does not mean end-of-stream.
 		RawPacket pkt;
 		while (true) {
-			if (!source_->read_raw(pkt) || pkt.is_eof) {
+			if (!source_->ReadRaw(pkt) || pkt.is_eof) {
 				return false;
 			}
 

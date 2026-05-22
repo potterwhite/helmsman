@@ -48,7 +48,7 @@ public:
     FfmpegInputSource& operator=(FfmpegInputSource&&) noexcept;
 
     bool open(const std::string& uri) override;
-    bool read_raw(RawPacket& pkt) override;
+    bool ReadRaw(RawPacket& pkt) override;
     int width() const override;
     int height() const override;
     double fps() const override;
@@ -56,7 +56,7 @@ public:
 
     // Codec ID from the video stream (AV_CODEC_ID_H264 or AV_CODEC_ID_HEVC).
     // Only valid after open() returns true.
-    int codec_id() const;
+    int CodecId() const;
 
 private:
     AVFormatContext* fmt_ctx_ = nullptr;

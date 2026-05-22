@@ -28,7 +28,7 @@
 
 #include <stdexcept>
 
-std::unique_ptr<Frontend> create_frontend(const std::string& input_path, bool use_hardware) {
+std::unique_ptr<Frontend> CreateFrontend(const std::string& input_path, bool use_hardware) {
 	if (use_hardware) {
 		throw std::runtime_error("Hardware decoder not supported on this build");
 	}

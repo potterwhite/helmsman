@@ -51,8 +51,8 @@ public:
 
     // Read the next raw compressed packet.
     // Returns true if a packet is available (check pkt.is_eof for EOF).
-    // The packet data pointer is valid until the next read_raw() or close() call.
-    virtual bool read_raw(RawPacket& pkt) = 0;
+    // The packet data pointer is valid until the next ReadRaw() or close() call.
+    virtual bool ReadRaw(RawPacket& pkt) = 0;
 
     // Source properties (available after open()).
     virtual int width() const = 0;

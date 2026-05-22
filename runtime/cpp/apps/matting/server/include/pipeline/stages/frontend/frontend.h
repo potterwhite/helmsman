@@ -64,13 +64,13 @@ public:
     // For hardware path: fills cpu_frame via color converter.
     // For OpenCV path: fills cpu_frame directly.
     // Returns false on EOF or error.
-    bool read_frame(cv::Mat& cpu_frame, HardwareFrame& hw_frame);
+    bool ReadFrame(cv::Mat& cpu_frame, HardwareFrame& hw_frame);
 
     // Preprocess a CPU frame into TensorData.
     TensorData preprocess(const cv::Mat& frame, size_t model_w, size_t model_h);
 
     // Whether the hardware decode path is active.
-    bool is_hardware_path() const { return use_hardware_; }
+    bool IsHardwarePath() const { return use_hardware_; }
 
     // Source properties (available after construction).
     int width() const;

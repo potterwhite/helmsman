@@ -43,12 +43,12 @@ public:
                           size_t model_height) override;
 
     // Configure output binary dump directory.
-    void set_output_bin_path(const std::string& path);
+    void SetOutputBinPath(const std::string& path);
 
 private:
-    TensorData preprocess_core(cv::Mat img, size_t model_width, size_t model_height);
+    TensorData PreprocessCore(cv::Mat img, size_t model_width, size_t model_height);
 
-    bool is_dump_enabled() const { return !output_bin_path_.empty(); }
+    bool IsDumpEnabled() const { return !output_bin_path_.empty(); }
 
     std::string output_bin_path_;
     helmsman::cvkit::Base cvkit_;
