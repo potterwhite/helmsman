@@ -35,20 +35,20 @@ class Pipeline {
 public:
     static Pipeline& GetInstance();
 
-    void init(const AppConfig& config);
+    void Init(const AppConfig& config);
 
-    int run();
+    int Run();
 
-    void setTimingEnabled(bool enabled) { config_.timing_enabled = enabled; }
-    bool isTimingEnabled() const { return config_.timing_enabled; }
+    void SetTimingEnabled(bool enabled) { config_.timing_enabled = enabled; }
+    bool IsTimingEnabled() const { return config_.timing_enabled; }
 
 private:
     Pipeline();
     ~Pipeline();
 
-    void verify_parameters_necessary();
+    void VerifyParametersNecessary();
 
-    static std::unique_ptr<InferenceEngine> make_engine();
+    static std::unique_ptr<InferenceEngine> MakeEngine();
 
 private:
     AppConfig config_;

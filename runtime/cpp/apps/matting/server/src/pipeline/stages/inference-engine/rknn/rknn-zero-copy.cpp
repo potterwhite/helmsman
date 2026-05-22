@@ -45,7 +45,7 @@ InferenceEngineRKNNZeroCP::InferenceEngineRKNNZeroCP() {
 }
 
 InferenceEngineRKNNZeroCP::~InferenceEngineRKNNZeroCP() {
-	releaseBuffers();
+	ReleaseBuffers();
 	if (ctx_) {
 		rknn_destroy(ctx_);
 	}
@@ -54,7 +54,7 @@ InferenceEngineRKNNZeroCP::~InferenceEngineRKNNZeroCP() {
 // ============================================================================
 // Release all zero-copy buffers
 // ============================================================================
-void InferenceEngineRKNNZeroCP::releaseBuffers() {
+void InferenceEngineRKNNZeroCP::ReleaseBuffers() {
 	for (auto* mem : input_mems_) {
 		if (mem) rknn_destroy_mem(ctx_, mem);
 	}
@@ -75,7 +75,7 @@ void InferenceEngineRKNNZeroCP::releaseBuffers() {
 // Phase IV  - Bind memory to tensors
 // Phase V   - Set NPU core mask
 // ============================================================================
-void InferenceEngineRKNNZeroCP::load(const std::string& model_path) {
+void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	// ----------------------------------------------------------------
@@ -185,7 +185,7 @@ void InferenceEngineRKNNZeroCP::load(const std::string& model_path) {
 //   - FP16:  FLOAT32 → __fp16
 //   - FP32:  direct memcpy
 // ============================================================================
-void InferenceEngineRKNNZeroCP::infer(
+void InferenceEngineRKNNZeroCP::Infer(
     const std::vector<TensorData>& inputs,
           std::vector<TensorData>& outputs)
 {

@@ -37,17 +37,17 @@ class InferenceEngineONNX : public InferenceEngine {
 	InferenceEngineONNX();
 	~InferenceEngineONNX();
 
-	void load(const std::string& model_path) override;
+	void Load(const std::string& model_path) override;
 
 	// N-input / M-output inference (general interface).
 	// For MODNet: inputs.size()==1, outputs will have 1 element.
 	// For RVM:    inputs.size()==5, outputs will have 6 elements.
-	void infer(
+	void Infer(
 	    const std::vector<TensorData>& inputs,
 	          std::vector<TensorData>& outputs
 	) override;
 
-	bool needsDownsampleRatio() const override { return true; }
+	bool NeedsDownsampleRatio() const override { return true; }
 
    private:
 	Ort::Env env_;

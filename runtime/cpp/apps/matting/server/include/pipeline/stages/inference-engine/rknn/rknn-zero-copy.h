@@ -43,27 +43,27 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 	InferenceEngineRKNNZeroCP();
 	~InferenceEngineRKNNZeroCP();
 
-	void load(const std::string& model_path) override;
+	void Load(const std::string& model_path) override;
 
 	// N-input / M-output inference (general interface).
-	void infer(
+	void Infer(
 	    const std::vector<TensorData>& inputs,
 	          std::vector<TensorData>& outputs
 	) override;
 
 	// Get model input dimensions from the FIRST input tensor (image/src).
 	// RKNN reports NHWC layout: dims[0]=batch, dims[1]=height, dims[2]=width, dims[3]=channels
-	size_t getInputHeight() const override {
+	size_t GetInputHeight() const override {
 		return input_attrs_.empty() ? 0 : static_cast<size_t>(input_attrs_[0].dims[1]);
 	}
-	size_t getInputWidth() const override {
+	size_t GetInputWidth() const override {
 		return input_attrs_.empty() ? 0 : static_cast<size_t>(input_attrs_[0].dims[2]);
 	}
 
 	// Return the shapes of recurrent state inputs (inputs 1..N).
 	// For RVM: inputs[1]=r1i, inputs[2]=r2i, inputs[3]=r3i, inputs[4]=r4i.
 	// Returns shapes in the model's native layout (NHWC for RKNN).
-	std::vector<std::vector<int64_t>> getRecurrentStateShapes() const override {
+	std::vector<std::vector<int64_t>> GetRecurrentStateShapes() const override {
 		std::vector<std::vector<int64_t>> shapes;
 		// Skip input 0 (image/src), return shapes for inputs 1..N-1
 		for (size_t i = 1; i < input_attrs_.size(); ++i) {
@@ -78,7 +78,7 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 
    private:
 	// member functions
-	void releaseBuffers();
+	void ReleaseBuffers();
 
    private:
 	// member variables

@@ -25,7 +25,7 @@
 
 using helmsman::utils::timing::ScopedTimer;
 
-std::unique_ptr<InferenceEngine> Pipeline::make_engine() {
+std::unique_ptr<InferenceEngine> Pipeline::MakeEngine() {
 	return createInferenceEngine();
 }
 
@@ -43,7 +43,7 @@ Pipeline::~Pipeline() {
 	helmsman::utils::Logger::GetInstance().Info("Pipeline cleaned up.", kcurrent_module_name);
 }
 
-void Pipeline::verify_parameters_necessary() {
+void Pipeline::VerifyParametersNecessary() {
 	if (!config_.is_video && config_.input_path.empty()) {
 		throw std::invalid_argument("No input source: neither video nor image provided.");
 	}
@@ -55,7 +55,7 @@ void Pipeline::verify_parameters_necessary() {
 	}
 }
 
-void Pipeline::init(const AppConfig& config) {
+void Pipeline::Init(const AppConfig& config) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	config_ = config;
@@ -83,11 +83,11 @@ void Pipeline::init(const AppConfig& config) {
 		}
 	}
 
-	engine_ = make_engine();
+	engine_ = MakeEngine();
 }
 
-int Pipeline::run() {
-	verify_parameters_necessary();
+int Pipeline::Run() {
+	VerifyParametersNecessary();
 
 	auto& logger = helmsman::utils::Logger::GetInstance();
 

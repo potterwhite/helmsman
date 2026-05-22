@@ -42,31 +42,31 @@ class InferenceEngine {
    public:
 	virtual ~InferenceEngine() = default;
 
-	virtual void load(const std::string& model_path) = 0;
+	virtual void Load(const std::string& model_path) = 0;
 
 	// Run inference: N inputs → M outputs.
 	// Caller is responsible for pre-sizing `outputs` or leaving it empty
 	// (implementations must resize outputs to match model output count).
-	virtual void infer(
+	virtual void Infer(
 	    const std::vector<TensorData>& inputs,
 	          std::vector<TensorData>& outputs
 	) = 0;
 
 	// Getters for model input dimensions (used by Pipeline to configure frontend).
-	virtual std::size_t getInputHeight() const { return 0; }
-	virtual std::size_t getInputWidth()  const { return 0; }
+	virtual std::size_t GetInputHeight() const { return 0; }
+	virtual std::size_t GetInputWidth()  const { return 0; }
 
 	// Get the shapes of recurrent state inputs (inputs 1..4 for RVM).
 	// Returns empty vector if not available (e.g. ONNX engine).
 	// Used by Pipeline to initialize RecurrentStateManager with correct shapes.
-	virtual std::vector<std::vector<int64_t>> getRecurrentStateShapes() const { return {}; }
+	virtual std::vector<std::vector<int64_t>> GetRecurrentStateShapes() const { return {}; }
 
 	// Whether the engine expects a "downsample_ratio" tensor appended to inputs.
 	// ONNX RVM models require it; RKNN models bake it into the graph.
-	virtual bool needsDownsampleRatio() const { return false; }
+	virtual bool NeedsDownsampleRatio() const { return false; }
 
 	// Optional: path for debug binary dumps.
-	virtual void setOutputBinPath(const std::string& path) { output_bin_path_ = path; }
+	virtual void SetOutputBinPath(const std::string& path) { output_bin_path_ = path; }
 
    protected:
 	std::string output_bin_path_;

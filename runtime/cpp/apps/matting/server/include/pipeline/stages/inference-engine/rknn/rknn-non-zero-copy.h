@@ -45,10 +45,10 @@ public:
     InferenceEngineRKNN();
     ~InferenceEngineRKNN() override;
 
-    void load(const std::string& model_path) override;
+    void Load(const std::string& model_path) override;
 
     // N-input / M-output inference (general interface).
-    void infer(
+    void Infer(
         const std::vector<TensorData>& inputs,
               std::vector<TensorData>& outputs
     ) override;

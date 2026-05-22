@@ -36,12 +36,12 @@ int MODNetMode::run(InferenceEngine* engine, const AppConfig& config) {
 	// 1. Load model
 	{
 		ScopedTimer t("runMODNet: model load", config.timing_enabled, logger, kModnetModuleName);
-		engine->setOutputBinPath(config.output_bin_path);
-		engine->load(config.model_path);
+		engine->SetOutputBinPath(config.output_bin_path);
+		engine->Load(config.model_path);
 	}
 
-	const size_t model_input_height = engine->getInputHeight() > 0 ? engine->getInputHeight() : 512;
-	const size_t model_input_width = engine->getInputWidth() > 0 ? engine->getInputWidth() : 512;
+	const size_t model_input_height = engine->GetInputHeight() > 0 ? engine->GetInputHeight() : 512;
+	const size_t model_input_width = engine->GetInputWidth() > 0 ? engine->GetInputWidth() : 512;
 
 	// 2. Frontend: preprocess image
 	TensorData src;
@@ -61,7 +61,7 @@ int MODNetMode::run(InferenceEngine* engine, const AppConfig& config) {
 		                        kModnetModuleName);
 		for (int i = 0; i < 10; ++i) {
 			auto start = std::chrono::high_resolution_clock::now();
-			engine->infer(inputs, outputs);
+			engine->Infer(inputs, outputs);
 			auto end = std::chrono::high_resolution_clock::now();
 
 			std::chrono::duration<double, std::milli> dur = end - start;
@@ -75,11 +75,11 @@ int MODNetMode::run(InferenceEngine* engine, const AppConfig& config) {
 	// 4. Backend: postprocess
 	{
 		ScopedTimer t("runMODNet: postprocess", config.timing_enabled, logger, kModnetModuleName);
-		backend.setOutputPath(config.output_bin_path);
-		backend.setBackgroundPath(config.background_path);
-		backend.setForegroundImagePath(config.input_path);
-		backend.setPostProcessor(std::make_shared<GuidedFilterPostProcessor>(2, 1e-4, 0.2f, 1));
-		backend.postprocess(outputs);
+		backend.SetOutputPath(config.output_bin_path);
+		backend.SetBackgroundPath(config.background_path);
+		backend.SetForegroundImagePath(config.input_path);
+		backend.SetPostProcessor(std::make_shared<GuidedFilterPostProcessor>(2, 1e-4, 0.2f, 1));
+		backend.Postprocess(outputs);
 	}
 
 	return 0;

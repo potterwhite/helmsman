@@ -60,7 +60,7 @@ InferenceEngineONNX::~InferenceEngineONNX() {
 // ============================================================================
 // Step 1 - Load ONNX Model and Create Session
 // ============================================================================
-void InferenceEngineONNX::load(const std::string& model_path) {
+void InferenceEngineONNX::Load(const std::string& model_path) {
 
 	auto& logger  = helmsman::utils::Logger::GetInstance();
 	auto& runtime = helmsman::runtime::RuntimeONNX::GetInstance();
@@ -102,7 +102,7 @@ void InferenceEngineONNX::load(const std::string& model_path) {
 // Output layout:
 //   - all outputs are NCHW float32 as returned by ORT
 // ============================================================================
-void InferenceEngineONNX::infer(
+void InferenceEngineONNX::Infer(
     const std::vector<TensorData>& inputs,
           std::vector<TensorData>& outputs)
 {

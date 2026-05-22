@@ -45,9 +45,9 @@ bool MattingServer::init(const std::string& model_path, const std::string& bg_pa
 	output_w_ = output_w;
 	output_h_ = output_h;
 
-	if (!initModel(model_path)) return false;
-	if (!initRga()) return false;
-	if (!initBackground(bg_path, output_w, output_h)) return false;
+	if (!InitModel(model_path)) return false;
+	if (!InitRga()) return false;
+	if (!InitBackground(bg_path, output_w, output_h)) return false;
 
 	// Allocate output DMA buffer (BGR888 at output resolution).
 	const size_t buf_bytes = static_cast<size_t>(output_w) * static_cast<size_t>(output_h) * 3;
@@ -65,7 +65,7 @@ bool MattingServer::init(const std::string& model_path, const std::string& bg_pa
 	return true;
 }
 
-int MattingServer::processFrame(int input_fd, int input_w, int input_h) {
+int MattingServer::ProcessFrame(int input_fd, int input_w, int input_h) {
 	if (!initialized_ || input_fd < 0) return -1;
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
@@ -88,7 +88,7 @@ int MattingServer::processFrame(int input_fd, int input_w, int input_h) {
 	std::vector<TensorData> inputs = {tensor};
 	state_mgr_.inject(inputs);
 
-	if (engine_->needsDownsampleRatio()) {
+	if (engine_->NeedsDownsampleRatio()) {
 		TensorData dsr;
 		dsr.name = "downsample_ratio";
 		dsr.shape = {1};
@@ -98,13 +98,13 @@ int MattingServer::processFrame(int input_fd, int input_w, int input_h) {
 
 	// 5. Run inference.
 	std::vector<TensorData> outputs;
-	engine_->infer(inputs, outputs);
+	engine_->Infer(inputs, outputs);
 
 	// 6. Update recurrent states.
 	state_mgr_.update(outputs);
 
 	// 7. Post-process → alpha matte.
-	cv::Mat alpha_8u = backend_.postprocess(outputs, input_frame);
+	cv::Mat alpha_8u = backend_.Postprocess(outputs, input_frame);
 
 	// 8. Composite into DMA output buffer.
 	//    Steps: resize alpha (CPU) → resize frame (RGA) → merge → composite → upscale to DMA.
@@ -169,22 +169,22 @@ void MattingServer::shutdown() {
 // Private helpers
 // ---------------------------------------------------------------------------
 
-bool MattingServer::initRga() {
+bool MattingServer::InitRga() {
 	rga_resize_ = helmsman::rgakit::CreateOperation<helmsman::rgakit::RgaResize>();
 	return rga_resize_ != nullptr;
 }
 
-bool MattingServer::initModel(const std::string& model_path) {
+bool MattingServer::InitModel(const std::string& model_path) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	engine_ = createInferenceEngine();
-	engine_->load(model_path);
-	model_h_ = engine_->getInputHeight() > 0 ? static_cast<int>(engine_->getInputHeight()) : 288;
-	model_w_ = engine_->getInputWidth() > 0 ? static_cast<int>(engine_->getInputWidth()) : 512;
+	engine_->Load(model_path);
+	model_h_ = engine_->GetInputHeight() > 0 ? static_cast<int>(engine_->GetInputHeight()) : 288;
+	model_w_ = engine_->GetInputWidth() > 0 ? static_cast<int>(engine_->GetInputWidth()) : 512;
 	dsr_ = 512.0f / static_cast<float>(std::max(output_w_, output_h_));
 
 	// Initialize recurrent states (r1i-r4i) — use model-reported shapes if available.
-	auto shapes = engine_->getRecurrentStateShapes();
+	auto shapes = engine_->GetRecurrentStateShapes();
 	if (shapes.size() == 4) {
 		state_mgr_.init(shapes, {"r1i", "r2i", "r3i", "r4i"});
 	} else {
@@ -194,7 +194,7 @@ bool MattingServer::initModel(const std::string& model_path) {
 
 	// Initialize frontend (preprocessing) and backend (postprocessing).
 	frontend_.SetOutputBinPath("/tmp/matting-server-dump");
-	backend_.setOutputPath("/tmp/matting-server-dump");
+	backend_.SetOutputPath("/tmp/matting-server-dump");
 
 	logger.Info("MattingServer: model loaded, input=" + std::to_string(model_w_) + "x" +
 	                std::to_string(model_h_),
@@ -202,7 +202,7 @@ bool MattingServer::initModel(const std::string& model_path) {
 	return true;
 }
 
-bool MattingServer::initBackground(const std::string& bg_path, int w, int h) {
+bool MattingServer::InitBackground(const std::string& bg_path, int w, int h) {
 	cv::Mat bg_bgr;
 	if (!bg_path.empty()) {
 		bg_bgr = cv::imread(bg_path, cv::IMREAD_COLOR);

@@ -54,7 +54,7 @@ inline const cv::Scalar kDefaultBgColor{155, 255, 120};
 
 void RVMMode::_initRecurrentStates(InferenceEngine* engine) {
 	// Try to get recurrent state shapes from the engine (RKNN reports actual shapes).
-	auto shapes = engine->getRecurrentStateShapes();
+	auto shapes = engine->GetRecurrentStateShapes();
 	if (shapes.size() == 4) {
 		auto& logger = helmsman::utils::Logger::GetInstance();
 		logger.Info("Using model-reported recurrent state shapes", kRvmModuleName);
@@ -103,7 +103,7 @@ cv::Mat RVMMode::_inferOneFrame(InferenceEngine* engine, const TensorData& src,
 	std::vector<TensorData> inputs = {src};
 	state_mgr_.inject(inputs);
 
-	if (engine->needsDownsampleRatio()) {
+	if (engine->NeedsDownsampleRatio()) {
 		TensorData dsr;
 		dsr.name = "downsample_ratio";
 		dsr.shape = {1};
@@ -113,14 +113,14 @@ cv::Mat RVMMode::_inferOneFrame(InferenceEngine* engine, const TensorData& src,
 
 	std::vector<TensorData> outputs;
 	auto t0 = std::chrono::high_resolution_clock::now();
-	engine->infer(inputs, outputs);
+	engine->Infer(inputs, outputs);
 	auto t1 = std::chrono::high_resolution_clock::now();
 
 	std::chrono::duration<double, std::milli> dur = t1 - t0;
 	logger.Info("infer() cost: " + std::to_string(dur.count()) + " ms.", kRvmModuleName);
 
 	state_mgr_.update(outputs);
-	return backend_.postprocess(outputs, guide_bgr);
+	return backend_.Postprocess(outputs, guide_bgr);
 }
 
 void RVMMode::_processOneFrame(InferenceEngine* engine, const TensorData& tensor,
@@ -455,24 +455,24 @@ RvmRunSetup RVMMode::_prepareRun(InferenceEngine* engine) {
 	{
 		ScopedTimer t("Lv03::RVMMode::_prepareRun() load", config_.timing_enabled, logger,
 		              kRvmModuleName);
-		engine->setOutputBinPath(config_.output_bin_path);
-		engine->load(config_.model_path);
+		engine->SetOutputBinPath(config_.output_bin_path);
+		engine->Load(config_.model_path);
 	}
 
 	RvmRunSetup setup;
 	setup.model_input_height =
-	    engine->getInputHeight() > 0 ? engine->getInputHeight() : kDefaultModelInputHeight;
+	    engine->GetInputHeight() > 0 ? engine->GetInputHeight() : kDefaultModelInputHeight;
 	setup.model_input_width =
-	    engine->getInputWidth() > 0 ? engine->getInputWidth() : kDefaultModelInputWidth;
+	    engine->GetInputWidth() > 0 ? engine->GetInputWidth() : kDefaultModelInputWidth;
 
 	_initRecurrentStates(engine);
 
-	backend_.setOutputPath(config_.output_bin_path);
-	backend_.setBackgroundPath(config_.background_path);
+	backend_.SetOutputPath(config_.output_bin_path);
+	backend_.SetBackgroundPath(config_.background_path);
 	// Post-processor: disabled to match PyTorch baseline (no post-processing).
 	// PyTorch inference: com = fgr * pha + bgr * (1 - pha) — raw model alpha, no GF.
-	// Re-enable after confirming raw alpha quality: setPostProcessor(make_shared<GuidedFilterPostProcessor>(...))
-	// backend_.setPostProcessor(std::make_shared<GuidedFilterPostProcessor>(8, 1e-4, 0.4f, 2, 5));
+	// Re-enable after confirming raw alpha quality: SetPostProcessor(make_shared<GuidedFilterPostProcessor>(...))
+	// backend_.SetPostProcessor(std::make_shared<GuidedFilterPostProcessor>(8, 1e-4, 0.4f, 2, 5));
 
 	return setup;
 }

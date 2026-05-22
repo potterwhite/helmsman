@@ -222,12 +222,12 @@ int main(int argc, char* argv[]) {
 	if (!config)
 		return 1;
 
-	pipeline.init(*config);
+	pipeline.Init(*config);
 
 	helmsman::utils::timing::ScopedTimer run_timer(
 	    "Lv01::main::pipeline.run() total", config->timing_enabled, logger, kcurrent_module_name);
 
-	pipeline.run();
+	pipeline.Run();
 
 	return 0;
 }

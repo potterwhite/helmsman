@@ -34,27 +34,27 @@ MattingBackend::~MattingBackend() {
 	                                                      kcurrent_module_name);
 }
 
-void MattingBackend::setOutputPath(const std::string& path) {
+void MattingBackend::SetOutputPath(const std::string& path) {
 	output_path_ = path;
 }
 
-void MattingBackend::setBackgroundPath(const std::string& path) {
+void MattingBackend::SetBackgroundPath(const std::string& path) {
 	background_path_ = path;
 }
 
-void MattingBackend::setForegroundImagePath(const std::string& path) {
+void MattingBackend::SetForegroundImagePath(const std::string& path) {
 	foreground_image_path_ = path;
 }
 
-void MattingBackend::setPostProcessor(std::shared_ptr<BasePostProcessor> processor) {
+void MattingBackend::SetPostProcessor(std::shared_ptr<BasePostProcessor> processor) {
 	post_processor_ = std::move(processor);
 }
 
-cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs) {
-	return postprocess(outputs, cv::Mat{});
+cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs) {
+	return Postprocess(outputs, cv::Mat{});
 }
 
-cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs,
+cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
                                     const cv::Mat& guide_bgr_override) {
 
 	const int current_frame = process_count_++;  // 0-indexed frame number
@@ -167,7 +167,7 @@ cv::Mat MattingBackend::postprocess(const std::vector<TensorData>& outputs,
 	                               // ------------------------------------------------
 
 	// Step C: Optional post-processing (e.g. Guided Filter edge refinement).
-	// Attach a processor via setPostProcessor(); leave nullptr to skip.
+	// Attach a processor via SetPostProcessor(); leave nullptr to skip.
 	// guide priority: caller-supplied frame (video mode) > imread from path (image mode).
 
 	// --- Diagnostics §10: per-frame pha mean log + frame 50-70 PNG dump ---

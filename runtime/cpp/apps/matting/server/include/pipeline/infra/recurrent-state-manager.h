@@ -47,9 +47,9 @@
 //   for (frame : frames) {
 //       auto inputs = { frontend.preprocess(frame) };
 //       state_mgr.inject(inputs);        // appends r1i~r4i
-//       engine.infer(inputs, outputs);
+//       engine.Infer(inputs, outputs);
 //       state_mgr.update(outputs);       // captures r1o~r4o
-//       backend.postprocess(outputs);
+//       backend.Postprocess(outputs);
 //   }
 // ============================================================================
 

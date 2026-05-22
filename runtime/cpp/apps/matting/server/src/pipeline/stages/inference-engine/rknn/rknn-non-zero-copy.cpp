@@ -50,7 +50,7 @@ void InferenceEngineRKNN::release() {
 // ============================================================================
 // Load Model — same as original (already supports multi-tensor query)
 // ============================================================================
-void InferenceEngineRKNN::load(const std::string& model_path) {
+void InferenceEngineRKNN::Load(const std::string& model_path) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	// Step 1: Read RKNN model file into memory
@@ -113,7 +113,7 @@ void InferenceEngineRKNN::load(const std::string& model_path) {
 // ============================================================================
 // Inference — N inputs → M outputs (Non-Zero-Copy)
 // ============================================================================
-void InferenceEngineRKNN::infer(
+void InferenceEngineRKNN::Infer(
     const std::vector<TensorData>& inputs,
           std::vector<TensorData>& outputs)
 {

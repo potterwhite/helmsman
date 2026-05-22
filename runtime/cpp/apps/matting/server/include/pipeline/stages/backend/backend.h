@@ -37,28 +37,28 @@ class MattingBackend {
 	MattingBackend();
 	~MattingBackend();
 
-	void setOutputPath(const std::string& path);
-	void setBackgroundPath(const std::string& path);
-	void setForegroundImagePath(const std::string& path);
+	void SetOutputPath(const std::string& path);
+	void SetBackgroundPath(const std::string& path);
+	void SetForegroundImagePath(const std::string& path);
 
 	/**
 	 * Attach an optional post-processor (e.g. GuidedFilterPostProcessor).
 	 * Pass nullptr to disable post-processing and use the raw alpha mask.
 	 */
-	void setPostProcessor(std::shared_ptr<BasePostProcessor> processor);
+	void SetPostProcessor(std::shared_ptr<BasePostProcessor> processor);
 
 	// Accept multi-tensor output from InferenceEngine.
 	// Selects the pha (alpha matte) tensor by name or position:
 	//   - MODNet: outputs[0] = pha
 	//   - RVM:    outputs[1] = pha (outputs[0] = fgr)
-	cv::Mat postprocess(const std::vector<TensorData>& outputs);
+	cv::Mat Postprocess(const std::vector<TensorData>& outputs);
 
 	/**
 	 * Video-mode overload: caller supplies the original BGR frame directly
 	 * so the post-processor can use it as a guide without a filesystem round-trip.
 	 * When guide_bgr is non-empty it takes priority over foreground_image_path_.
 	 */
-	cv::Mat postprocess(const std::vector<TensorData>& outputs, const cv::Mat& guide_bgr);
+	cv::Mat Postprocess(const std::vector<TensorData>& outputs, const cv::Mat& guide_bgr);
 
    private:
 	std::string output_path_;

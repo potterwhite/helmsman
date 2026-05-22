@@ -22,8 +22,8 @@
 // MattingServer — DMA buffer fd-based API for per-frame inference
 //
 // Provides a zero-copy interface for real-time video pipelines:
-//   1. init(model_path, bg_path, output_w, output_h) — load model, allocate buffers
-//   2. processFrame(input_fd, input_w, input_h) → output_fd — per-frame inference
+//   1. Init(model_path, bg_path, output_w, output_h) — load model, allocate buffers
+//   2. ProcessFrame(input_fd, input_w, input_h) → output_fd — per-frame inference
 //   3. shutdown() — release resources
 //
 // The input fd comes from V4L2 camera or another process (via SCM_RIGHTS).
@@ -33,7 +33,7 @@
 // Usage:
 //   MattingServer server;
 //   server.init("/path/to/model.rknn", "", 1920, 1080);
-//   int out_fd = server.processFrame(v4l2_fd, 1920, 1080);
+//   int out_fd = server.ProcessFrame(v4l2_fd, 1920, 1080);
 //   // pass out_fd to DRM display or another process
 //   server.shutdown();
 //
@@ -61,23 +61,23 @@ class MattingServer {
 
 	// Load model, allocate output DMA buffer, prepare background.
 	// output_w/output_h = desired output resolution (typically same as input).
-	bool init(const std::string& model_path, const std::string& bg_path,
+	bool Init(const std::string& model_path, const std::string& bg_path,
 	          int output_w, int output_h);
 
 	// Process a single frame via DMA buffer fds.
 	// input_fd: DMA buffer containing BGR888 pixels at (input_w × input_h).
 	// Returns: DMA buffer fd containing composited BGR888 at (output_w × output_h).
 	//          Returns -1 on failure.
-	// The returned fd is valid until the next processFrame() call or shutdown().
-	int processFrame(int input_fd, int input_w, int input_h);
+	// The returned fd is valid until the next ProcessFrame() call or shutdown().
+	int ProcessFrame(int input_fd, int input_w, int input_h);
 
 	// Release all resources.
 	void shutdown();
 
    private:
-	bool initRga();
-	bool initModel(const std::string& model_path);
-	bool initBackground(const std::string& bg_path, int w, int h);
+	bool InitRga();
+	bool InitModel(const std::string& model_path);
+	bool InitBackground(const std::string& bg_path, int w, int h);
 
 	std::unique_ptr<InferenceEngine> engine_;
 	Preprocessor frontend_;
