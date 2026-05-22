@@ -19,16 +19,16 @@
 // SOFTWARE.
 
 // =============================================================================
-// ffmpeg-input-source.cpp — FFmpeg demuxer (Phase 2, internal)
+// ffmpeg-input-source.cpp — FFmpeg demuxer (internal)
 //
 // Flow:
 //   open() → avformat_open_input + avformat_find_stream_info
-//   readRaw() → av_read_frame → extract video packet → RawPacket
+//   read_raw() → av_read_frame → extract video packet → RawPacket
 //   close() → avformat_close_input
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/input-source/ffmpeg-input-source.h"
+#include "pipeline/stages/frontend/01-input-source/ffmpeg-input-source.h"
 
 #include <cstdio>
 
@@ -37,13 +37,13 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 }
 
-_FFmpegInputSource::_FFmpegInputSource() = default;
+FfmpegInputSource::FfmpegInputSource() = default;
 
-_FFmpegInputSource::~_FFmpegInputSource() {
+FfmpegInputSource::~FfmpegInputSource() {
     close();
 }
 
-_FFmpegInputSource::_FFmpegInputSource(_FFmpegInputSource&& other) noexcept
+FfmpegInputSource::FfmpegInputSource(FfmpegInputSource&& other) noexcept
     : fmt_ctx_(other.fmt_ctx_),
       av_packet_(other.av_packet_),
       video_stream_idx_(other.video_stream_idx_),
@@ -56,7 +56,7 @@ _FFmpegInputSource::_FFmpegInputSource(_FFmpegInputSource&& other) noexcept
     other.video_stream_idx_ = -1;
 }
 
-_FFmpegInputSource& _FFmpegInputSource::operator=(_FFmpegInputSource&& other) noexcept {
+FfmpegInputSource& FfmpegInputSource::operator=(FfmpegInputSource&& other) noexcept {
     if (this != &other) {
         close();
         fmt_ctx_ = other.fmt_ctx_;
@@ -73,7 +73,7 @@ _FFmpegInputSource& _FFmpegInputSource::operator=(_FFmpegInputSource&& other) no
     return *this;
 }
 
-bool _FFmpegInputSource::open(const std::string& uri) {
+bool FfmpegInputSource::open(const std::string& uri) {
     if (fmt_ctx_) {
         fprintf(stderr, "[FFmpegInputSource] already open\n");
         return false;
@@ -134,7 +134,7 @@ bool _FFmpegInputSource::open(const std::string& uri) {
     return true;
 }
 
-bool _FFmpegInputSource::readRaw(RawPacket& pkt) {
+bool FfmpegInputSource::read_raw(RawPacket& pkt) {
     if (!fmt_ctx_ || !av_packet_) {
         pkt = {};
         pkt.is_eof = true;
@@ -163,12 +163,12 @@ bool _FFmpegInputSource::readRaw(RawPacket& pkt) {
     }
 }
 
-int _FFmpegInputSource::width() const { return width_; }
-int _FFmpegInputSource::height() const { return height_; }
-double _FFmpegInputSource::fps() const { return fps_; }
-int _FFmpegInputSource::codecId() const { return codec_id_; }
+int FfmpegInputSource::width() const { return width_; }
+int FfmpegInputSource::height() const { return height_; }
+double FfmpegInputSource::fps() const { return fps_; }
+int FfmpegInputSource::codec_id() const { return codec_id_; }
 
-void _FFmpegInputSource::close() {
+void FfmpegInputSource::close() {
     if (av_packet_) {
         av_packet_free(&av_packet_);
         av_packet_ = nullptr;

@@ -30,25 +30,25 @@
 
 #pragma once
 
-#include "pipeline/stages/frontend/input-source/i-input-source.h"
+#include "pipeline/stages/frontend/01-input-source/base-input-source.h"
 
 // Forward declarations for FFmpeg types (avoids exposing FFmpeg headers)
 struct AVFormatContext;
 struct AVPacket;
 
-class _FFmpegInputSource : public _IInputSource {
+class FfmpegInputSource : public BaseInputSource {
 public:
-    _FFmpegInputSource();
-    ~_FFmpegInputSource() override;
+    FfmpegInputSource();
+    ~FfmpegInputSource() override;
 
     // Non-copyable, movable
-    _FFmpegInputSource(const _FFmpegInputSource&) = delete;
-    _FFmpegInputSource& operator=(const _FFmpegInputSource&) = delete;
-    _FFmpegInputSource(_FFmpegInputSource&&) noexcept;
-    _FFmpegInputSource& operator=(_FFmpegInputSource&&) noexcept;
+    FfmpegInputSource(const FfmpegInputSource&) = delete;
+    FfmpegInputSource& operator=(const FfmpegInputSource&) = delete;
+    FfmpegInputSource(FfmpegInputSource&&) noexcept;
+    FfmpegInputSource& operator=(FfmpegInputSource&&) noexcept;
 
     bool open(const std::string& uri) override;
-    bool readRaw(RawPacket& pkt) override;
+    bool read_raw(RawPacket& pkt) override;
     int width() const override;
     int height() const override;
     double fps() const override;
@@ -56,7 +56,7 @@ public:
 
     // Codec ID from the video stream (AV_CODEC_ID_H264 or AV_CODEC_ID_HEVC).
     // Only valid after open() returns true.
-    int codecId() const;
+    int codec_id() const;
 
 private:
     AVFormatContext* fmt_ctx_ = nullptr;

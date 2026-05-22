@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 // =============================================================================
-// i-input-source.h — Abstract input source interface (internal to Frontend)
+// base-input-source.h — Abstract input source interface (internal to Frontend)
 //
 // An InputSource is responsible for reading raw compressed data from a signal
 // source (mp4 file, camera, IPC stream). It does NOT decode — that is the
@@ -42,17 +42,17 @@ struct RawPacket {
 };
 
 // Abstract input source interface (internal — do not use directly).
-class _IInputSource {
+class BaseInputSource {
 public:
-    virtual ~_IInputSource() = default;
+    virtual ~BaseInputSource() = default;
 
     // Open the source. Returns true on success.
     virtual bool open(const std::string& uri) = 0;
 
     // Read the next raw compressed packet.
     // Returns true if a packet is available (check pkt.is_eof for EOF).
-    // The packet data pointer is valid until the next readRaw() or close() call.
-    virtual bool readRaw(RawPacket& pkt) = 0;
+    // The packet data pointer is valid until the next read_raw() or close() call.
+    virtual bool read_raw(RawPacket& pkt) = 0;
 
     // Source properties (available after open()).
     virtual int width() const = 0;

@@ -19,9 +19,9 @@
 // SOFTWARE.
 
 // =============================================================================
-// mpp-frame-decoder.h — RK3588 VPU hardware frame decoder (internal)
+// mpp-frame-decoder.h — Rockchip VPU hardware frame decoder (internal)
 //
-// Wraps MppDecoder from mppkit to implement _IFrameDecoder.
+// Wraps MppDecoder from mppkit to implement BaseFrameDecoder.
 // Decodes H.264/H.265 compressed packets into NV12 dmabuf frames.
 //
 // =============================================================================
@@ -29,7 +29,7 @@
 #pragma once
 
 #include <memory>
-#include "pipeline/stages/frontend/decoder/i-frame-decoder.h"
+#include "pipeline/stages/frontend/02-decoder/base-frame-decoder.h"
 #include "MPPKit/mpp_codec.h"
 
 namespace helmsman {
@@ -38,16 +38,16 @@ class MppDecoder;
 }  // namespace mppkit
 }  // namespace helmsman
 
-class _MppFrameDecoder : public _IFrameDecoder {
+class MppFrameDecoder : public BaseFrameDecoder {
 public:
-    explicit _MppFrameDecoder(helmsman::mppkit::DecoderConfig config);
-    ~_MppFrameDecoder() override;
+    explicit MppFrameDecoder(helmsman::mppkit::DecoderConfig config);
+    ~MppFrameDecoder() override;
 
     // Non-copyable, movable.
-    _MppFrameDecoder(const _MppFrameDecoder&) = delete;
-    _MppFrameDecoder& operator=(const _MppFrameDecoder&) = delete;
-    _MppFrameDecoder(_MppFrameDecoder&&) noexcept;
-    _MppFrameDecoder& operator=(_MppFrameDecoder&&) noexcept;
+    MppFrameDecoder(const MppFrameDecoder&) = delete;
+    MppFrameDecoder& operator=(const MppFrameDecoder&) = delete;
+    MppFrameDecoder(MppFrameDecoder&&) noexcept;
+    MppFrameDecoder& operator=(MppFrameDecoder&&) noexcept;
 
     // Initialize the hardware decoder. Must be called before decode().
     bool init();

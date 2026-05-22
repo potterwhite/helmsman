@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 // =============================================================================
-// i-preprocessor.h — Abstract preprocessor interface (internal to Frontend)
+// base-preprocessor.h — Abstract preprocessor interface (internal to Frontend)
 //
 // A Preprocessor converts a decoded frame (cv::Mat BGR) into a TensorData
 // structure ready for the inference engine.
@@ -32,9 +32,9 @@
 #include "common/types.h"
 
 // Abstract preprocessor interface (internal — do not use directly).
-class _IPreprocessor {
+class BasePreprocessor {
 public:
-    virtual ~_IPreprocessor() = default;
+    virtual ~BasePreprocessor() = default;
 
     // Preprocess a BGR frame into a TensorData for inference.
     virtual TensorData preprocess(const cv::Mat& bgr_frame,

@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 // =============================================================================
-// i-frame-decoder.h — Abstract frame decoder interface (internal to Frontend)
+// base-frame-decoder.h — Abstract frame decoder interface (internal to Frontend)
 //
 // A FrameDecoder takes compressed bitstream data and produces decoded frames.
 //
@@ -36,9 +36,9 @@ struct HardwareFrame {
 };
 
 // Abstract frame decoder interface (internal — do not use directly).
-class _IFrameDecoder {
+class BaseFrameDecoder {
 public:
-    virtual ~_IFrameDecoder() = default;
+    virtual ~BaseFrameDecoder() = default;
 
     // Decode a compressed packet into a hardware frame (DMA buffer fd).
     // Returns true if a decoded frame is available.

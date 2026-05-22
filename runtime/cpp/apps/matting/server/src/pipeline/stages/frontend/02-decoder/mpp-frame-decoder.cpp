@@ -19,24 +19,24 @@
 // SOFTWARE.
 
 // =============================================================================
-// mpp-frame-decoder.cpp — RK3588 VPU hardware frame decoder (internal)
+// mpp-frame-decoder.cpp — Rockchip VPU hardware frame decoder (internal)
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/decoder/mpp-frame-decoder.h"
+#include "pipeline/stages/frontend/02-decoder/mpp-frame-decoder.h"
 
 #include <cstdio>
 #include "MPPKit/mpp_decoder.h"
 
-_MppFrameDecoder::_MppFrameDecoder(helmsman::mppkit::DecoderConfig config)
+MppFrameDecoder::MppFrameDecoder(helmsman::mppkit::DecoderConfig config)
     : config_(std::move(config)) {}
 
-_MppFrameDecoder::~_MppFrameDecoder() = default;
+MppFrameDecoder::~MppFrameDecoder() = default;
 
-_MppFrameDecoder::_MppFrameDecoder(_MppFrameDecoder&&) noexcept = default;
-_MppFrameDecoder& _MppFrameDecoder::operator=(_MppFrameDecoder&&) noexcept = default;
+MppFrameDecoder::MppFrameDecoder(MppFrameDecoder&&) noexcept = default;
+MppFrameDecoder& MppFrameDecoder::operator=(MppFrameDecoder&&) noexcept = default;
 
-bool _MppFrameDecoder::init() {
+bool MppFrameDecoder::init() {
     if (decoder_) {
         fprintf(stderr, "[MppFrameDecoder] already initialized\n");
         return false;
@@ -52,7 +52,7 @@ bool _MppFrameDecoder::init() {
     return true;
 }
 
-bool _MppFrameDecoder::decode(const uint8_t* data, size_t size,
+bool MppFrameDecoder::decode(const uint8_t* data, size_t size,
                               HardwareFrame& out) {
     if (!decoder_ || !decoder_->IsOpen()) {
         out = {};

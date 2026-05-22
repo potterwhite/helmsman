@@ -30,12 +30,12 @@
 
 #include <string>
 #include "CVKit/base/base.h"
-#include "pipeline/stages/frontend/preprocess/i-preprocessor.h"
+#include "pipeline/stages/frontend/04-preprocess/base-preprocessor.h"
 
-class _Preprocessor : public _IPreprocessor {
+class Preprocessor : public BasePreprocessor {
 public:
-    _Preprocessor();
-    ~_Preprocessor() override;
+    Preprocessor();
+    ~Preprocessor() override;
 
     // Preprocess a BGR frame into a TensorData for inference.
     TensorData preprocess(const cv::Mat& bgr_frame,
@@ -43,12 +43,12 @@ public:
                           size_t model_height) override;
 
     // Configure output binary dump directory.
-    void setOutputBinPath(const std::string& path);
+    void set_output_bin_path(const std::string& path);
 
 private:
-    TensorData preprocessCore(cv::Mat img, size_t model_width, size_t model_height);
+    TensorData preprocess_core(cv::Mat img, size_t model_width, size_t model_height);
 
-    bool isDumpEnabled() const { return !output_bin_path_.empty(); }
+    bool is_dump_enabled() const { return !output_bin_path_.empty(); }
 
     std::string output_bin_path_;
     helmsman::cvkit::Base cvkit_;

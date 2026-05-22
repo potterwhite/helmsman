@@ -23,34 +23,34 @@
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/preprocess/preprocessor.h"
+#include "pipeline/stages/frontend/04-preprocess/preprocessor.h"
 
 #include "Utils/file/file-utils.h"
 #include "Utils/logger/logger.h"
 #include "common/common-define.h"
 #include "common/types.h"
 
-_Preprocessor::_Preprocessor() {
+Preprocessor::Preprocessor() {
     helmsman::utils::Logger::GetInstance().Info(
         "Preprocessor constructed.", kcurrent_module_name);
 }
 
-_Preprocessor::~_Preprocessor() {
+Preprocessor::~Preprocessor() {
     helmsman::utils::Logger::GetInstance().Info(
         "Preprocessor cleaned up.", kcurrent_module_name);
 }
 
-void _Preprocessor::setOutputBinPath(const std::string& path) {
+void Preprocessor::set_output_bin_path(const std::string& path) {
     output_bin_path_ = path;
 }
 
-TensorData _Preprocessor::preprocess(const cv::Mat& bgr_frame,
+TensorData Preprocessor::preprocess(const cv::Mat& bgr_frame,
                                      size_t model_width,
                                      size_t model_height) {
-    return preprocessCore(bgr_frame.clone(), model_width, model_height);
+    return preprocess_core(bgr_frame.clone(), model_width, model_height);
 }
 
-TensorData _Preprocessor::preprocessCore(cv::Mat img,
+TensorData Preprocessor::preprocess_core(cv::Mat img,
                                          size_t model_width,
                                          size_t model_height) {
     TensorData tensor_data;
@@ -60,12 +60,12 @@ TensorData _Preprocessor::preprocessCore(cv::Mat img,
 
     // Step 1: BGR → RGB
     img = cvkit_.bgrToRgb(img);
-    if (isDumpEnabled())
+    if (is_dump_enabled())
         cvkit_.dumpBinary(img, output_bin_path_ + "/cpp_02_bgrToRgb.bin");
 
     // Step 2: Ensure 3 channels
     img = cvkit_.ensure3Channel(img);
-    if (isDumpEnabled())
+    if (is_dump_enabled())
         cvkit_.dumpBinary(img, output_bin_path_ + "/cpp_03_ensure3Channel.bin");
 
     int original_w = img.cols;
@@ -109,7 +109,7 @@ TensorData _Preprocessor::preprocessCore(cv::Mat img,
         padded_u8.convertTo(img, CV_32FC3);
     }
 
-    if (isDumpEnabled())
+    if (is_dump_enabled())
         cvkit_.dumpBinary(img, output_bin_path_ + "/cpp_05_resized.bin");
 
     // Step 4: Copy HWC continuous memory
@@ -128,7 +128,7 @@ TensorData _Preprocessor::preprocessCore(cv::Mat img,
 
     tensor_data.data.assign(ptr, ptr + total);
 
-    if (isDumpEnabled())
+    if (is_dump_enabled())
         file_utils.dumpBinary(tensor_data.data,
                               output_bin_path_ + "/cpp_06-07_hwc_direct.bin");
 
