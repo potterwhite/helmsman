@@ -28,9 +28,10 @@
 
 #include <stdexcept>
 
-std::unique_ptr<Frontend> CreateFrontend(const std::string& input_path, bool use_hardware) {
+std::unique_ptr<Frontend> CreateFrontend(const std::string& input_path, bool use_hardware,
+                                         bool use_pipeline) {
 	if (use_hardware) {
 		throw std::runtime_error("Hardware decoder not supported on this build");
 	}
-	return std::make_unique<Frontend>(input_path);
+	return std::make_unique<Frontend>(input_path, use_pipeline);
 }

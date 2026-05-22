@@ -28,7 +28,6 @@
 #include <thread>
 #include "RGAKit/rga_operation.h"
 #include "Utils/timing/timer.h"
-#include "pipeline/infra/single-slot-channel.h"
 #include "pipeline/stages/backend/post-processor/guided-filter-post-processor.h"
 
 using helmsman::rgakit::ImageDescriptor;
@@ -481,7 +480,7 @@ void RVMMode::_ReportAllAccumulatedTimers(void) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	acc_lv02_01_main_loop_total_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_01_worker_preprocess_.report(config_.timing_enabled, logger, kRvmModuleName);
+	frontend_->preprocess_acc().report(config_.timing_enabled, logger, kRvmModuleName);
 	acc_lv02_01_02_main_decode_.report(config_.timing_enabled, logger, kRvmModuleName);
 	acc_lv02_01_03_main_infer_.report(config_.timing_enabled, logger, kRvmModuleName);
 	acc_lv02_01_04_main_composite_.report(config_.timing_enabled, logger, kRvmModuleName);
@@ -617,17 +616,12 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 
 	// =========================================================================
 	// 3rd — Main inference loop
-	//    Dispatch to the appropriate loop based on config_.use_prefetch_thread.
-	//    Both loops call _ProcessOneFrame() for the shared infer+composite+log path.
+	//    Frontend::ProcessOneFrame() handles both sync and pipeline modes internally.
 	// =========================================================================
 	fps_window_start_ = std::chrono::steady_clock::now();
 	const auto pipeline_start = fps_window_start_;
 
-	if (config_.use_prefetch_thread) {
-		_RunMainLoopPrefetch(engine, setup);
-	} else {
-		_RunMainLoopSerial(engine, setup);
-	}
+	_RunMainLoop(engine, setup);
 
 	_ReportAllAccumulatedTimers();
 
@@ -638,31 +632,13 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 }
 
 // =========================================================================
-// _RunMainLoopPrefetch — dual-buffer pipeline with worker thread
+// _RunMainLoop — unified main loop using Frontend::ProcessOneFrame()
 //
-//   Worker preprocesses frame N+1 while main thread infers frame N.
-//   raw_ch and tensor_ch decouple the two stages with capacity-1 buffers.
+//   Frontend handles both sync and pipeline modes internally.
+//   This loop just calls ProcessOneFrame() and processes each result.
 // =========================================================================
-void RVMMode::_RunMainLoopPrefetch(InferenceEngine* engine, const RvmRunSetup& setup) {
+void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmRunSetup& setup) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
-
-	SingleSlotChannel<cv::Mat> raw_ch;
-	SingleSlotChannel<TensorData> tensor_ch;
-
-	std::thread worker(&RVMMode::_RunPrefetchWorker, this, setup.model_input_width,
-	                   setup.model_input_height, std::ref(raw_ch), std::ref(tensor_ch),
-	                   std::ref(acc_lv02_01_01_worker_preprocess_));
-
-	// Read the first frame and hand it to the worker for preprocessing.
-	cv::Mat current_frame;
-	HardwareFrame current_hw_frame;
-	if (!frontend_->ReadFrame(current_frame, current_hw_frame)) {
-		logger.Info("No frames to process.", kRvmModuleName);
-		raw_ch.close();
-		worker.join();
-		return;
-	}
-	raw_ch.push(current_frame);
 
 	while (true) {
 		ManualTimer loop_t;
@@ -672,37 +648,18 @@ void RVMMode::_RunMainLoopPrefetch(InferenceEngine* engine, const RvmRunSetup& s
 			logger.Info("Stop signal received. Finishing video at frame " +
 			                std::to_string(frame_count_) + ".",
 			            kRvmModuleName);
-			raw_ch.close();
+			frontend_->Stop();
 			break;
 		}
 
-		// Block until the worker has finished preprocessing the current frame.
-		auto tensor_opt = tensor_ch.pop();
-		if (!tensor_opt) {
+		auto result = frontend_->ProcessOneFrame(setup.model_input_width,
+		                                          setup.model_input_height);
+		if (!result)
 			break;
-		}
 
 		logger.Info("=== RVM Frame " + std::to_string(frame_count_ + 1) + " ===", kRvmModuleName);
 
-		// Read the next frame and push it to the worker (dual-buffer overlap).
-		cv::Mat next_frame;
-		HardwareFrame next_hw_frame;
-		bool has_next;
-		{
-			ManualTimer decode_t;
-			decode_t.start();
-			has_next = frontend_->ReadFrame(next_frame, next_hw_frame);
-
-			if (has_next) {
-				raw_ch.push(next_frame);
-			} else {
-				raw_ch.close();
-			}
-
-			acc_lv02_01_02_main_decode_.record(decode_t.stop());
-		}
-
-		_ProcessOneFrame(engine, *tensor_opt, current_frame, setup.model_input_width,
+		_ProcessOneFrame(engine, result->tensor, result->frame, setup.model_input_width,
 		                 setup.model_input_height);
 
 		acc_lv02_01_main_loop_total_.record(loop_t.stop());
@@ -710,91 +667,6 @@ void RVMMode::_RunMainLoopPrefetch(InferenceEngine* engine, const RvmRunSetup& s
 		logger.Info(" --- End of RVM Frame " + std::to_string(frame_count_ + 1) + " ---\n",
 		            kRvmModuleName);
 
-		current_frame = std::move(next_frame);
 		frame_count_++;
-
-		if (!has_next) {
-			break;
-		}
-	}
-
-	if (worker.joinable()) {
-		worker.join();
-	}
-}
-
-// =========================================================================
-// _RunMainLoopSerial — all work on main thread (no prefetch)
-//
-//   Each iteration: preprocess → infer → composite, all sequential.
-//   Useful for benchmarking to compare with the dual-buffer pipeline.
-// =========================================================================
-void RVMMode::_RunMainLoopSerial(InferenceEngine* engine, const RvmRunSetup& setup) {
-	auto& logger = helmsman::utils::Logger::GetInstance();
-
-	// Read and preprocess the first frame before entering the loop.
-	cv::Mat current_frame;
-	HardwareFrame current_hw_frame;
-	if (!frontend_->ReadFrame(current_frame, current_hw_frame)) {
-		logger.Info("No frames to process.", kRvmModuleName);
-		return;
-	}
-
-	TensorData current_tensor;
-	{
-		ManualTimer t;
-		t.start();
-		current_tensor =
-		    frontend_->preprocess(current_frame, setup.model_input_width, setup.model_input_height);
-		acc_lv02_01_01_worker_preprocess_.record(t.stop());
-	}
-
-	while (true) {
-		ManualTimer loop_t;
-		loop_t.start();
-
-		if (g_stop_signal_received.load()) {
-			logger.Info("Stop signal received. Finishing video at frame " +
-			                std::to_string(frame_count_) + ".",
-			            kRvmModuleName);
-			break;
-		}
-
-		logger.Info("=== RVM Frame " + std::to_string(frame_count_ + 1) + " ===", kRvmModuleName);
-
-		// Read the next frame (decode).
-		cv::Mat next_frame;
-		HardwareFrame next_hw_frame;
-		bool has_next;
-		{
-			ManualTimer decode_t;
-			decode_t.start();
-			has_next = frontend_->ReadFrame(next_frame, next_hw_frame);
-			acc_lv02_01_02_main_decode_.record(decode_t.stop());
-		}
-
-		_ProcessOneFrame(engine, current_tensor, current_frame, setup.model_input_width,
-		                 setup.model_input_height);
-
-		acc_lv02_01_main_loop_total_.record(loop_t.stop());
-
-		logger.Info(" --- End of RVM Frame " + std::to_string(frame_count_ + 1) + " ---\n",
-		            kRvmModuleName);
-
-		current_frame = std::move(next_frame);
-		frame_count_++;
-
-		// Preprocess the next frame so the tensor is ready at the top of the next iteration.
-		if (has_next) {
-			ManualTimer t;
-			t.start();
-			current_tensor =
-			    frontend_->preprocess(current_frame, setup.model_input_width, setup.model_input_height);
-			acc_lv02_01_01_worker_preprocess_.record(t.stop());
-		}
-
-		if (!has_next) {
-			break;
-		}
 	}
 }

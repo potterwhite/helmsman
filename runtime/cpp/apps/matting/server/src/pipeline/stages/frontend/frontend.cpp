@@ -35,23 +35,34 @@
 // ---------------------------------------------------------------------------
 // deconstructor
 // ---------------------------------------------------------------------------
-Frontend::~Frontend() = default;
+Frontend::~Frontend() {
+	Stop();
+}
 
 // ---------------------------------------------------------------------------
 // Hardware decode path constructor (DI)
 // ---------------------------------------------------------------------------
 Frontend::Frontend(std::unique_ptr<BaseInputSource> source, std::unique_ptr<BaseFrameDecoder> decoder,
-                   std::unique_ptr<BaseColorConverter> converter)
+                   std::unique_ptr<BaseColorConverter> converter, bool use_pipeline)
     : use_hardware_(true), source_(std::move(source)), decoder_(std::move(decoder)),
-      color_converter_(std::move(converter)) {
+      color_converter_(std::move(converter)), use_pipeline_(use_pipeline) {
+	if (use_pipeline_) {
+		raw_ch_ = std::make_unique<SingleSlotChannel<cv::Mat>>();
+		tensor_ch_ = std::make_unique<SingleSlotChannel<TensorData>>();
+	}
 }
 
 // ---------------------------------------------------------------------------
 // OpenCV shortcut path constructor
 // ---------------------------------------------------------------------------
-Frontend::Frontend(const std::string& video_path) : use_hardware_(false) {
+Frontend::Frontend(const std::string& video_path, bool use_pipeline)
+    : use_hardware_(false), use_pipeline_(use_pipeline) {
 	if (!cv_cap_.open(video_path)) {
 		fprintf(stderr, "[Frontend] failed to open video: %s\n", video_path.c_str());
+	}
+	if (use_pipeline_) {
+		raw_ch_ = std::make_unique<SingleSlotChannel<cv::Mat>>();
+		tensor_ch_ = std::make_unique<SingleSlotChannel<TensorData>>();
 	}
 }
 
@@ -132,4 +143,118 @@ double Frontend::fps() const {
 		return cv_cap_.get(cv::CAP_PROP_FPS);
 	}
 	return 0.0;
+}
+
+// ---------------------------------------------------------------------------
+// PrefetchWorkerLoop — worker thread entry point
+// ---------------------------------------------------------------------------
+void Frontend::PrefetchWorkerLoop(size_t model_w, size_t model_h) {
+	while (true) {
+		auto frame_opt = raw_ch_->pop();
+		if (!frame_opt)
+			break;
+
+		helmsman::utils::timing::ManualTimer t;
+		t.start();
+		auto tensor = preprocessor_.preprocess(*frame_opt, model_w, model_h);
+		preprocess_acc_.record(t.stop());
+
+		tensor_ch_->push(std::move(tensor));
+	}
+	tensor_ch_->close();
+}
+
+// ---------------------------------------------------------------------------
+// ProcessOneFrame — unified frame processing interface
+// ---------------------------------------------------------------------------
+std::optional<FrameResult> Frontend::ProcessOneFrame(size_t model_w, size_t model_h) {
+	if (!use_pipeline_) {
+		// Sync mode: read and preprocess on calling thread
+		cv::Mat frame;
+		HardwareFrame hw_frame;
+		if (!ReadFrame(frame, hw_frame))
+			return std::nullopt;
+
+		helmsman::utils::timing::ManualTimer t;
+		t.start();
+		auto tensor = preprocessor_.preprocess(frame, model_w, model_h);
+		preprocess_acc_.record(t.stop());
+
+		return FrameResult{std::move(frame), hw_frame, std::move(tensor)};
+	}
+
+	// Pipeline mode
+	if (pipeline_eof_)
+		return std::nullopt;
+
+	if (!pipeline_started_) {
+		// Phase 1: bootstrap — read frame 1, preprocess, read frame 2
+		pipeline_started_ = true;
+
+		cv::Mat frame_1;
+		HardwareFrame hw_frame_1;
+		if (!ReadFrame(frame_1, hw_frame_1))
+			return std::nullopt;
+
+		// Start the worker thread now that we have the first frame
+		prefetch_worker_ = std::thread(&Frontend::PrefetchWorkerLoop, this, model_w, model_h);
+
+		// Push frame 1 to worker for preprocessing
+		raw_ch_->push(frame_1);
+
+		// Pop tensor 1 (blocks until worker finishes)
+		auto tensor_1 = tensor_ch_->pop();
+		if (!tensor_1) {
+			pipeline_eof_ = true;
+			return std::nullopt;
+		}
+
+		// Read frame 2 and push to worker (dual-buffer overlap)
+		bool has_next = ReadFrame(next_frame_, next_hw_frame_);
+		if (has_next) {
+			raw_ch_->push(next_frame_);
+		} else {
+			raw_ch_->close();
+		}
+
+		return FrameResult{std::move(frame_1), hw_frame_1, std::move(*tensor_1)};
+	}
+
+	// Phase 2: subsequent calls — pop tensor for buffered frame, read next
+	auto tensor = tensor_ch_->pop();
+	if (!tensor) {
+		pipeline_eof_ = true;
+		return std::nullopt;
+	}
+
+	// Save current buffered frame to return
+	cv::Mat return_frame = std::move(next_frame_);
+	HardwareFrame return_hw_frame = next_hw_frame_;
+
+	// Read the next frame and push to worker
+	bool has_next = ReadFrame(next_frame_, next_hw_frame_);
+	if (has_next) {
+		raw_ch_->push(next_frame_);
+	} else {
+		raw_ch_->close();
+	}
+
+	return FrameResult{std::move(return_frame), return_hw_frame, std::move(*tensor)};
+}
+
+// ---------------------------------------------------------------------------
+// Stop — signal prefetch worker to stop
+// ---------------------------------------------------------------------------
+void Frontend::Stop() {
+	if (raw_ch_)
+		raw_ch_->close();
+	if (prefetch_worker_.joinable())
+		prefetch_worker_.join();
+}
+
+// ---------------------------------------------------------------------------
+// preprocess_acc — access preprocess timing accumulator
+// ---------------------------------------------------------------------------
+const helmsman::utils::timing::StageAccumulator& Frontend::preprocess_acc() const {
+	return preprocess_acc_;
 }

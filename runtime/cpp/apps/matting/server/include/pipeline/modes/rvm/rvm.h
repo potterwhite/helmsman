@@ -31,7 +31,6 @@
 #include "Utils/timing/timer.h"
 #include "common/types.h"
 #include "pipeline/infra/recurrent-state-manager.h"
-#include "pipeline/infra/single-slot-channel.h"
 #include "pipeline/stages/backend/backend.h"
 #include "pipeline/stages/frontend/frontend.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
@@ -85,31 +84,16 @@ class RVMMode {
 	bool _InitOutputDma(int src_width, int src_height);
 
 	/**
-     * Body of the prefetch worker thread.
-     * Loops: pop raw frame from raw_ch → preprocess → push tensor to tensor_ch.
-     * Closes tensor_ch on exit to signal EOF to the main inference loop.
-     */
-	void _RunPrefetchWorker(size_t model_w, size_t model_h, SingleSlotChannel<cv::Mat>& raw_ch,
-	                        SingleSlotChannel<TensorData>& tensor_ch,
-	                        helmsman::utils::timing::StageAccumulator& preprocess_acc);
-
-	/**
 	 * Process one frame: infer → composite → log. Shared by both prefetch and serial loops.
 	 */
 	void _ProcessOneFrame(InferenceEngine* engine, const TensorData& tensor,
 	                       const cv::Mat& current_frame, size_t model_w, size_t model_h);
 
 	/**
-	 * Main inference loop with dual-buffer prefetch worker (default mode).
-	 * Worker preprocesses frame N+1 while main thread infers frame N.
+	 * Unified main loop. Uses Frontend::ProcessOneFrame() which handles
+	 * both sync and pipeline modes internally.
 	 */
-	void _RunMainLoopPrefetch(InferenceEngine* engine, const RvmRunSetup& setup);
-
-	/**
-	 * Main inference loop without prefetch (all work on main thread).
-	 * Useful for benchmarking to compare with/without the dual-buffer pipeline.
-	 */
-	void _RunMainLoopSerial(InferenceEngine* engine, const RvmRunSetup& setup);
+	void _RunMainLoop(InferenceEngine* engine, const RvmRunSetup& setup);
 
 	/**
 	* Report all accumulated timers via logger. Called at the end of run() after the main loop exits.
@@ -191,7 +175,6 @@ class RVMMode {
 	using sa = helmsman::utils::timing::StageAccumulator;
 
 	sa acc_lv02_01_main_loop_total_{"Lv02-01::main::loop_total"};
-	sa acc_lv02_01_01_worker_preprocess_{"  Lv02-01-01::worker::preprocess"};
 	sa acc_lv02_01_02_main_decode_{"  Lv02-01-02::main::decode"};
 	sa acc_lv02_01_03_main_infer_{"  Lv02-01-03::main::infer"};
 	sa acc_lv02_01_04_main_composite_{"  Lv02-01-04::main::composite"};

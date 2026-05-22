@@ -32,7 +32,8 @@
 
 #include <stdexcept>
 
-std::unique_ptr<Frontend> RockchipFrontendFactory::create(const std::string& input_path) {
+std::unique_ptr<Frontend> RockchipFrontendFactory::create(const std::string& input_path,
+                                                          bool use_pipeline) {
 	// Create and open FFmpeg input source
 	auto source = std::make_unique<FfmpegInputSource>();
 	if (!source->open(input_path)) {
@@ -59,13 +60,14 @@ std::unique_ptr<Frontend> RockchipFrontendFactory::create(const std::string& inp
 	// Assemble Frontend with DI constructor
 	return std::make_unique<Frontend>(
 	    std::move(source), std::move(decoder),
-	    std::make_unique<RgaNv12ToBgr>());
+	    std::make_unique<RgaNv12ToBgr>(), use_pipeline);
 }
 
-std::unique_ptr<Frontend> CreateFrontend(const std::string& input_path, bool use_hardware) {
+std::unique_ptr<Frontend> CreateFrontend(const std::string& input_path, bool use_hardware,
+                                         bool use_pipeline) {
 	if (use_hardware) {
 		RockchipFrontendFactory factory;
-		return factory.create(input_path);
+		return factory.create(input_path, use_pipeline);
 	}
-	return std::make_unique<Frontend>(input_path);
+	return std::make_unique<Frontend>(input_path, use_pipeline);
 }

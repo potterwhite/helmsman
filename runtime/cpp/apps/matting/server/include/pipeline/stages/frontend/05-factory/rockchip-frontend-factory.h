@@ -34,5 +34,6 @@
 
 class RockchipFrontendFactory : public BaseFrontendFactory {
 public:
-    std::unique_ptr<Frontend> create(const std::string& input_path) override;
+    std::unique_ptr<Frontend> create(const std::string& input_path,
+                                     bool use_pipeline = false) override;
 };

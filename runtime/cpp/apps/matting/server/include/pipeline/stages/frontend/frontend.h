@@ -35,22 +35,37 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <opencv2/videoio.hpp>
+#include <thread>
+#include "Utils/timing/timer.h"
+#include "common/types.h"
+#include "pipeline/infra/single-slot-channel.h"
 #include "pipeline/stages/frontend/01-input-source/base-input-source.h"
 #include "pipeline/stages/frontend/02-decoder/base-frame-decoder.h"
-#include "pipeline/stages/frontend/04-preprocess/preprocessor.h"
 #include "pipeline/stages/frontend/03-color-convert/base-color-converter.h"
-#include "common/types.h"
+#include "pipeline/stages/frontend/04-preprocess/preprocessor.h"
+
+/**
+ * Result of processing one frame through the Frontend pipeline.
+ * Contains both the raw frame (for compositing) and the preprocessed tensor (for inference).
+ */
+struct FrameResult {
+    cv::Mat frame;          // Raw BGR frame (for compositing)
+    HardwareFrame hw_frame; // Hardware frame metadata (for hardware path)
+    TensorData tensor;      // Preprocessed tensor (for inference)
+};
 
 class Frontend {
 public:
     // Hardware decode path constructor (DI).
     Frontend(std::unique_ptr<BaseInputSource> source,
              std::unique_ptr<BaseFrameDecoder> decoder,
-             std::unique_ptr<BaseColorConverter> converter);
+             std::unique_ptr<BaseColorConverter> converter,
+             bool use_pipeline = false);
 
     // OpenCV shortcut path constructor.
-    explicit Frontend(const std::string& video_path);
+    explicit Frontend(const std::string& video_path, bool use_pipeline = false);
 
     ~Frontend();
 
@@ -69,6 +84,19 @@ public:
     // Preprocess a CPU frame into TensorData.
     TensorData preprocess(const cv::Mat& frame, size_t model_w, size_t model_h);
 
+    // Unified frame processing interface.
+    // In sync mode: reads and preprocesses one frame on the calling thread.
+    // In pipeline mode: returns the next preprocessed frame from the prefetch pipeline.
+    // Returns std::nullopt on EOF.
+    std::optional<FrameResult> ProcessOneFrame(size_t model_w, size_t model_h);
+
+    // Signal the prefetch worker to stop. Safe to call multiple times.
+    // Closes the internal channel and joins the worker thread.
+    void Stop();
+
+    // Access the preprocess timing accumulator (thread-safe record(), main-thread report()).
+    const helmsman::utils::timing::StageAccumulator& preprocess_acc() const;
+
     // Whether the hardware decode path is active.
     bool IsHardwarePath() const { return use_hardware_; }
 
@@ -78,6 +106,9 @@ public:
     double fps() const;
 
 private:
+    // Worker thread entry point. Loops: pop raw frame from raw_ch_ -> preprocess -> push tensor to tensor_ch_.
+    void PrefetchWorkerLoop(size_t model_w, size_t model_h);
+
     bool use_hardware_ = false;
 
     // Hardware decode path
@@ -90,4 +121,23 @@ private:
 
     // Shared preprocessor (both paths)
     Preprocessor preprocessor_;
+
+    // Pipeline mode
+    bool use_pipeline_ = false;
+
+    // Channel infrastructure (pipeline mode only)
+    std::unique_ptr<SingleSlotChannel<cv::Mat>> raw_ch_;
+    std::unique_ptr<SingleSlotChannel<TensorData>> tensor_ch_;
+    std::thread prefetch_worker_;
+
+    // Pipeline state
+    bool pipeline_eof_ = false;
+    bool pipeline_started_ = false;
+
+    // Pipeline-mode buffered results (frame N+1 decoded while processing frame N)
+    cv::Mat next_frame_;
+    HardwareFrame next_hw_frame_;
+
+    // Timing
+    helmsman::utils::timing::StageAccumulator preprocess_acc_{"  Lv02-01-01::worker::preprocess"};
 };

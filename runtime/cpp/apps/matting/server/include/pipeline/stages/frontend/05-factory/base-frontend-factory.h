@@ -38,13 +38,17 @@ public:
     virtual ~BaseFrontendFactory() = default;
 
     // Create a hardware-decode Frontend for the given input path.
+    // If use_pipeline is true, enables the prefetch worker thread.
     // Throws std::runtime_error on failure.
-    virtual std::unique_ptr<Frontend> create(const std::string& input_path) = 0;
+    virtual std::unique_ptr<Frontend> create(const std::string& input_path,
+                                             bool use_pipeline = false) = 0;
 };
 
 // Creates a Frontend for the given input path.
 // If use_hardware is true, uses the platform-specific hardware decode factory
 // selected at build time. Otherwise, uses OpenCV software decode.
+// If use_pipeline is true, enables the prefetch worker thread for dual-buffer pipeline.
 // Throws std::runtime_error on failure.
 std::unique_ptr<Frontend> CreateFrontend(const std::string& input_path,
-                                         bool use_hardware);
+                                         bool use_hardware,
+                                         bool use_pipeline = false);
