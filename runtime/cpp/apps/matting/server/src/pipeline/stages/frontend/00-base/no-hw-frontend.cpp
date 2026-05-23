@@ -25,11 +25,12 @@
 
 #include "pipeline/stages/frontend/00-base/no-hw-frontend.h"
 
-#include <cstdio>
 #include <stdexcept>
 
 NoHwFrontend::NoHwFrontend(const std::string& video_path, bool use_pipeline)
-    : FrontendBase(false, use_pipeline) {
+    : FrontendBase(false),
+      pipeline_([this]() -> std::optional<ReadResult> { return _ReadFrame(); },
+                use_pipeline) {
     if (!cv_cap_.open(video_path)) {
         throw std::runtime_error("Failed to open video: " + video_path);
     }
@@ -41,9 +42,25 @@ NoHwFrontend::NoHwFrontend(const std::string& video_path, bool use_pipeline)
     SetSourceProperties(w, h, fps);
 }
 
-bool NoHwFrontend::ReadFrame(cv::Mat& cpu_frame, HardwareFrame& /*hw_frame*/) {
-    if (!cv_cap_.isOpened()) {
-        return false;
-    }
-    return cv_cap_.read(cpu_frame);
+std::optional<FrameResult> NoHwFrontend::ProcessOneFrame(int model_w, int model_h) {
+    return pipeline_.ProcessOneFrame(model_w, model_h);
+}
+
+void NoHwFrontend::Stop() {
+    pipeline_.Stop();
+}
+
+const helmsman::utils::timing::StageAccumulator& NoHwFrontend::preprocess_acc() const {
+    return pipeline_.preprocess_acc();
+}
+
+std::optional<ReadResult> NoHwFrontend::_ReadFrame() {
+    if (!cv_cap_.isOpened())
+        return std::nullopt;
+
+    ReadResult result;
+    if (!cv_cap_.read(result.frame))
+        return std::nullopt;
+
+    return result;
 }

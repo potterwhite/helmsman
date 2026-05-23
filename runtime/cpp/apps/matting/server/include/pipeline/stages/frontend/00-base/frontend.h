@@ -19,12 +19,11 @@
 // SOFTWARE.
 
 // =============================================================================
-// frontend.h — Frontend base class for the matting pipeline
+// frontend.h — Frontend abstract interface for the matting pipeline
 //
-// FrontendBase is the abstract base class. Platform-specific subclasses
-// override ReadFrame() to provide hardware-decode or OpenCV software decode.
-//
-// Shared logic (preprocessing, pipeline mode, timing) lives in the base class.
+// FrontendBase is the pure abstract interface. Platform-specific subclasses
+// own all internal execution logic (preprocessing, pipeline orchestration,
+// timing) and implement the virtual methods.
 //
 // Use FrontendBase::Create() to instantiate the correct subclass at runtime.
 //
@@ -35,12 +34,10 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <thread>
+#include <opencv2/core.hpp>
 #include "Utils/timing/timer.h"
 #include "common/types.h"
-#include "pipeline/infra/single-slot-channel.h"
 #include "pipeline/stages/frontend/02-decoder/base-frame-decoder.h"  // HardwareFrame
-#include "pipeline/stages/frontend/04-preprocess/preprocessor.h"
 
 /**
  * Result of processing one frame through the Frontend pipeline.
@@ -53,10 +50,10 @@ struct FrameResult {
 };
 
 /**
- * Abstract base class for the Frontend stage.
+ * Abstract interface for the Frontend stage.
  *
- * Subclasses override ReadFrame() to provide platform-specific frame decoding.
- * All other methods (preprocessing, pipeline mode, timing) are shared.
+ * Subclasses own all implementation: frame reading, preprocessing,
+ * pipeline orchestration, and timing.
  */
 class FrontendBase {
 public:
@@ -68,21 +65,17 @@ public:
     FrontendBase(FrontendBase&&) = delete;
     FrontendBase& operator=(FrontendBase&&) = delete;
 
-    // Preprocess a CPU frame into TensorData.
-    TensorData preprocess(const cv::Mat& frame, int model_w, int model_h);
-
     // Unified frame processing interface.
     // In sync mode: reads and preprocesses one frame on the calling thread.
     // In pipeline mode: returns the next preprocessed frame from the prefetch pipeline.
     // Returns std::nullopt on EOF.
-    std::optional<FrameResult> ProcessOneFrame(int model_w, int model_h);
+    virtual std::optional<FrameResult> ProcessOneFrame(int model_w, int model_h) = 0;
 
     // Signal the prefetch worker to stop. Safe to call multiple times.
-    // Closes the internal channel and joins the worker thread.
-    void Stop();
+    virtual void Stop() = 0;
 
     // Access the preprocess timing accumulator (thread-safe record(), main-thread report()).
-    const helmsman::utils::timing::StageAccumulator& preprocess_acc() const;
+    virtual const helmsman::utils::timing::StageAccumulator& preprocess_acc() const = 0;
 
     // Whether the hardware decode path is active.
     bool IsHardwarePath() const { return use_hardware_; }
@@ -101,47 +94,16 @@ public:
                                                 bool use_pipeline = false);
 
 protected:
-    // Subclass constructor: sets pipeline mode. Source properties default to 0.
+    // Subclass constructor: sets hardware flag. Source properties default to 0.
     // Subclasses call SetSourceProperties() after opening the source.
-    FrontendBase(bool use_hardware, bool use_pipeline);
+    explicit FrontendBase(bool use_hardware);
 
     // Set source dimensions and fps. Called by subclasses after opening the source.
     void SetSourceProperties(int width, int height, double fps);
 
-    // Pure virtual: read the next decoded frame.
-    // For hardware path: fills cpu_frame via color converter.
-    // For OpenCV path: fills cpu_frame directly.
-    // Returns false on EOF or error.
-    virtual bool ReadFrame(cv::Mat& cpu_frame, HardwareFrame& hw_frame) = 0;
-
 private:
-    // Worker thread entry point. Loops: pop raw frame from raw_ch_ -> preprocess -> push tensor to tensor_ch_.
-    void PrefetchWorkerLoop(int model_w, int model_h);
-
-    int width_;
-    int height_;
-    double fps_;
+    int width_ = 0;
+    int height_ = 0;
+    double fps_ = 0.0;
     bool use_hardware_;
-
-    // Shared preprocessor (both paths)
-    Preprocessor preprocessor_;
-
-    // Pipeline mode
-    bool use_pipeline_;
-
-    // Channel infrastructure (pipeline mode only)
-    std::unique_ptr<SingleSlotChannel<cv::Mat>> raw_ch_;
-    std::unique_ptr<SingleSlotChannel<TensorData>> tensor_ch_;
-    std::thread prefetch_worker_;
-
-    // Pipeline state
-    bool pipeline_eof_ = false;
-    bool pipeline_started_ = false;
-
-    // Pipeline-mode buffered results (frame N+1 decoded while processing frame N)
-    cv::Mat next_frame_;
-    HardwareFrame next_hw_frame_;
-
-    // Timing
-    helmsman::utils::timing::StageAccumulator preprocess_acc_{"  Lv02-01-01::worker::preprocess"};
 };

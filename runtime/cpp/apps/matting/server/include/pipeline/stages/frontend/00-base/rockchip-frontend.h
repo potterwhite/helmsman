@@ -29,21 +29,29 @@
 
 #include <memory>
 #include "pipeline/stages/frontend/00-base/frontend.h"
+#include "pipeline/stages/frontend/00-base/frontend-pipeline.h"
 #include "pipeline/stages/frontend/01-input-source/base-input-source.h"
 #include "pipeline/stages/frontend/02-decoder/base-frame-decoder.h"
 #include "pipeline/stages/frontend/03-color-convert/base-color-converter.h"
 
 class RockchipFrontend : public FrontendBase {
 public:
-    // Constructs the hardware decode pipeline: FFmpeg demux → MPP decode → RGA color convert.
+    // Constructs the hardware decode pipeline: FFmpeg demux -> MPP decode -> RGA color convert.
     // Throws std::runtime_error on failure.
     explicit RockchipFrontend(const std::string& input_path, bool use_pipeline = false);
 
-protected:
-    bool ReadFrame(cv::Mat& cpu_frame, HardwareFrame& hw_frame) override;
+    std::optional<FrameResult> ProcessOneFrame(int model_w, int model_h) override;
+    void Stop() override;
+    const helmsman::utils::timing::StageAccumulator& preprocess_acc() const override;
 
 private:
+    // Reader callback for FrontendPipeline
+    std::optional<ReadResult> _ReadFrame();
+
+    // Hardware decode components (declared before pipeline_ for correct destruction order)
     std::unique_ptr<BaseInputSource> source_;
     std::unique_ptr<BaseFrameDecoder> decoder_;
     std::unique_ptr<BaseColorConverter> color_converter_;
+
+    FrontendPipeline pipeline_;
 };

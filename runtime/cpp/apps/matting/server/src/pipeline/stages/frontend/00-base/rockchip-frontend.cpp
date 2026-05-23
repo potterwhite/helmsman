@@ -34,7 +34,9 @@
 #include <stdexcept>
 
 RockchipFrontend::RockchipFrontend(const std::string& input_path, bool use_pipeline)
-    : FrontendBase(true, use_pipeline) {
+    : FrontendBase(true),
+      pipeline_([this]() -> std::optional<ReadResult> { return _ReadFrame(); },
+                use_pipeline) {
     // Create and open FFmpeg input source (concrete type for CodecId access)
     auto ffmpeg_source = std::make_unique<FfmpegInputSource>();
     if (!ffmpeg_source->open(input_path)) {
@@ -68,9 +70,21 @@ RockchipFrontend::RockchipFrontend(const std::string& input_path, bool use_pipel
     color_converter_ = std::make_unique<RgaNv12ToBgr>();
 }
 
-bool RockchipFrontend::ReadFrame(cv::Mat& cpu_frame, HardwareFrame& hw_frame) {
+std::optional<FrameResult> RockchipFrontend::ProcessOneFrame(int model_w, int model_h) {
+    return pipeline_.ProcessOneFrame(model_w, model_h);
+}
+
+void RockchipFrontend::Stop() {
+    pipeline_.Stop();
+}
+
+const helmsman::utils::timing::StageAccumulator& RockchipFrontend::preprocess_acc() const {
+    return pipeline_.preprocess_acc();
+}
+
+std::optional<ReadResult> RockchipFrontend::_ReadFrame() {
     if (!source_ || !decoder_ || !color_converter_) {
-        return false;
+        return std::nullopt;
     }
 
     // Feed packets until the decoder produces a frame or we hit EOF.
@@ -78,17 +92,22 @@ bool RockchipFrontend::ReadFrame(cv::Mat& cpu_frame, HardwareFrame& hw_frame) {
     // frame appears (e.g. SPS/PPS in H.264), so a single failed
     // decode does not mean end-of-stream.
     RawPacket pkt;
+    ReadResult result;
     while (true) {
         if (!source_->ReadRaw(pkt) || pkt.is_eof) {
-            return false;
+            return std::nullopt;
         }
 
-        if (decoder_->decode(pkt.data, pkt.size, hw_frame)) {
+        if (decoder_->decode(pkt.data, pkt.size, result.hw_frame)) {
             break;  // Got a decoded frame
         }
         // decode returned false — decoder needs more data, keep feeding
     }
 
     // Convert hardware frame to BGR via color converter
-    return color_converter_->convert(hw_frame, cpu_frame);
+    if (!color_converter_->convert(result.hw_frame, result.frame)) {
+        return std::nullopt;
+    }
+
+    return result;
 }
