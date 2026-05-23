@@ -24,11 +24,13 @@
 
 #include <memory>
 #include <opencv2/opencv.hpp>
+#include "RGAKit/rga_resize.h"
 #include "Utils/file/file-utils.h"
 #include "Utils/logger/logger.h"
 #include "Utils/logger/worker/consolesink.h"
 #include "Utils/logger/worker/filesink.h"
 #include "Utils/math/math-utils.h"
+#include "Utils/timing/timer.h"
 #include "pipeline/stages/backend/post-processor/base-post-processor.h"
 #include "common/types.h"
 
@@ -47,6 +49,22 @@ class MattingBackend {
 	 */
 	void SetPostProcessor(std::shared_ptr<BasePostProcessor> processor);
 
+	// --- Video compositing setup ---
+
+	/**
+	 * Set the pre-computed background image at model resolution (CV_8UC3).
+	 * Used by Composite() for alpha blending.
+	 */
+	void SetBackgroundModelImage(const cv::Mat& bg);
+
+	/**
+	 * Set the RGA hardware resize operation for accelerated upscaling/downscaling.
+	 * Falls back to cv::resize if RGA is unavailable.
+	 */
+	void SetRgaResize(std::unique_ptr<helmsman::rgakit::RgaResize> rga);
+
+	// --- Inference post-processing ---
+
 	// Accept multi-tensor output from InferenceEngine.
 	// Selects the pha (alpha matte) tensor by name or position:
 	//   - MODNet: outputs[0] = pha
@@ -60,6 +78,28 @@ class MattingBackend {
 	 */
 	cv::Mat Postprocess(const std::vector<TensorData>& outputs, const cv::Mat& guide_bgr);
 
+	// --- Video compositing ---
+
+	/**
+	 * Composite: resize alpha + resize frame + alpha blend + upscale.
+	 *
+	 * Steps:
+	 *   1. Resize alpha_8u to (model_w × model_h) — CPU (RGA doesn't support YUV400)
+	 *   2. Resize frame to (model_w × model_h) — RGA hardware (fallback: cv::resize)
+	 *   3. Alpha blend: fg * alpha + bg * (1-alpha) — CPU
+	 *   4. Upscale composed to (output_w × output_h) — RGA hardware (fallback: cv::resize)
+	 *
+	 * @param frame     Original BGR frame from frontend (any resolution)
+	 * @param alpha_8u  Alpha matte from Postprocess() (original resolution, CV_8UC1)
+	 * @param model_w   Model input width (blend resolution)
+	 * @param model_h   Model input height (blend resolution)
+	 * @param output_w  Final output width (upscale target)
+	 * @param output_h  Final output height (upscale target)
+	 * @return Composited BGR frame at (output_w × output_h), CV_8UC3
+	 */
+	cv::Mat Composite(const cv::Mat& frame, const cv::Mat& alpha_8u,
+	                   int model_w, int model_h, int output_w, int output_h);
+
    private:
 	std::string output_path_;
 	std::string background_path_;
@@ -67,6 +107,17 @@ class MattingBackend {
 
 	std::shared_ptr<BasePostProcessor> post_processor_;  // nullptr = no post-processing
 	int process_count_ = 0;  // counts postprocess() calls; used for per-frame debug dump
+
+	// Video compositing resources (set via setters)
+	cv::Mat bg_model_u8_;  // Background at model resolution (CV_8UC3)
+	std::unique_ptr<helmsman::rgakit::RgaResize> rga_resize_;
+
+	// Composite sub-step timing accumulators
+	using sa = helmsman::utils::timing::StageAccumulator;
+	sa acc_resize_alpha_{"    comp::resize_alpha"};
+	sa acc_resize_frame_{"    comp::resize_frame"};
+	sa acc_blend_{"    comp::blend"};
+	sa acc_upscale_{"    comp::upscale"};
 
 	cv::Mat nchwToHwc(const TensorData& tensor);
 };

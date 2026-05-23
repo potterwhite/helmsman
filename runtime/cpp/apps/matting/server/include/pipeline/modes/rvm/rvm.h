@@ -27,7 +27,6 @@
 #include <vector>
 #include "DRMKit/drm_display.h"
 #include "DmaKit/dma_buffer.h"
-#include "RGAKit/rga_resize.h"
 #include "Utils/timing/timer.h"
 #include "common/types.h"
 #include "pipeline/infra/recurrent-state-manager.h"
@@ -73,16 +72,18 @@ class RVMMode {
 
 	// Returns total composite time in ms (for per-frame logging).
 	double _CompositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
-	                          const cv::Mat& alpha_8u);
+	                          const cv::Mat& alpha_8u, int model_w, int model_h);
 
 	// DRM composite: blend + upscale + BGR→XRGB + ShowARGB.
 	// Returns total composite time in ms.
-	double _CompositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, int panel_w, int panel_h);
+	double _CompositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u,
+	                       int panel_w, int panel_h, int model_w, int model_h);
 
 	// DMA zero-copy composite: composites into a pre-allocated DMA buffer.
 	// Returns the DMA buffer fd (valid until next call or destruction).
 	// The buffer is allocated once at _InitOutputDma() and reused every frame.
-	int _CompositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u);
+	int _CompositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u,
+	                    int model_w, int model_h);
 
 	// Allocate the output DMA buffer for the given source dimensions.
 	// Must be called before _CompositeToDma(). Returns false on failure.
@@ -126,11 +127,6 @@ class RVMMode {
 	AppConfig config_;                   // Copy of the app config, set via SetConfig()
 	float dsr_ = 0.25f;                 ///< downsample_ratio, overwritten in Run()
 	RecurrentStateManager state_mgr_;
-	cv::Mat bg_model_u8_;  // Pre-computed background at model resolution (CV_8UC3)
-
-	// RGA hardware operations (stateless, created once, reused every frame)
-	std::unique_ptr<helmsman::rgakit::RgaResize> rga_resize_;
-
 	// DMA zero-copy output buffer (allocated once, reused every frame)
 	std::unique_ptr<helmsman::dmakit::DmaBuffer> dma_output_buf_;
 
@@ -154,10 +150,7 @@ class RVMMode {
 	//     ├── acc_lv02_01_03_main_infer_          (NPU inference, current frame)
 	//     └── acc_lv02_01_04_main_composite_      (composite + write, current frame)
 	//             │
-	//             ├── acc_lv02_01_04_01_resize_alpha_  (CPU resize alpha → model size)
-	//             ├── acc_lv02_01_04_02_resize_frame_  (RGA resize frame → model size)
-	//             ├── acc_lv02_01_04_03_blend_         (CPU alpha blend at model size)
-	//             ├── acc_lv02_01_04_04_upscale_       (RGA upscale composed → full size)
+	//             ├── [Backend::Composite() — see backend.h for sub-step timers]
 	//             ├── acc_lv02_01_04_05_writer_        (VideoWriter::write — see NOTE below)
 	//             └── acc_lv02_01_04_06_drm_           ()
 	//
@@ -172,7 +165,7 @@ class RVMMode {
 	//
 	// Identity (approx, ignoring tiny logging overhead):
 	//   acc_lv02_01_main_loop_total_ ≈ max(tensor_ch.pop wait, 0) + acc_lv02_01_02_main_decode_ + acc_lv02_01_03_main_infer_ + acc_lv02_01_04_main_composite_
-	//   acc_lv02_01_04_main_composite_ ≈ resize_alpha + resize_frame + blend + upscale + writer
+	//   acc_lv02_01_04_main_composite_ ≈ Backend::Composite() + writer
 	// ------------------------------------------------------------------------- */
 	using sa = helmsman::utils::timing::StageAccumulator;
 
@@ -181,10 +174,6 @@ class RVMMode {
 	sa acc_lv02_01_03_main_infer_{"  Lv02-01-03::main::infer"};
 	sa acc_lv02_01_04_main_composite_{"  Lv02-01-04::main::composite"};
 
-	sa acc_lv02_01_04_01_resize_alpha_{"    Lv02-01-04-01::comp::resize_alpha"};
-	sa acc_lv02_01_04_02_resize_frame_{"    Lv02-01-04-02::comp::resize_frame"};
-	sa acc_lv02_01_04_03_blend_{"    Lv02-01-04-03::comp::blend"};
-	sa acc_lv02_01_04_04_upscale_{"    Lv02-01-04-04::comp::upscale"};
 	sa acc_lv02_01_04_05_writer_{"    Lv02-01-04-05::comp::writer"};
 	sa acc_lv02_01_04_06_drm_{"    Lv02-01-04-06::comp::drm_show"};
 

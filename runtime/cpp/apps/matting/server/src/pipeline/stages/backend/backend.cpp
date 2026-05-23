@@ -283,3 +283,91 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 
 	return output_8u;
 }
+
+void MattingBackend::SetBackgroundModelImage(const cv::Mat& bg) {
+	bg_model_u8_ = bg;
+}
+
+void MattingBackend::SetRgaResize(std::unique_ptr<helmsman::rgakit::RgaResize> rga) {
+	rga_resize_ = std::move(rga);
+}
+
+using helmsman::rgakit::ImageDescriptor;
+using helmsman::rgakit::RgaPixelFormat;
+
+cv::Mat MattingBackend::Composite(const cv::Mat& frame, const cv::Mat& alpha_8u,
+                                   int model_w, int model_h, int output_w, int output_h) {
+	auto& logger = helmsman::utils::Logger::GetInstance();
+	helmsman::utils::timing::ManualTimer t;
+
+	if (alpha_8u.empty() || bg_model_u8_.empty()) {
+		logger.Warning("Composite skipped: alpha or background is empty.", kcurrent_module_name);
+		return frame;
+	}
+
+	// 1. Resize alpha to model resolution (CPU — RGA doesn't support single-channel YUV400)
+	cv::Mat alpha_model;
+	t.start();
+	{
+		alpha_model.create(model_h, model_w, CV_8UC1);
+		cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
+	}
+	acc_resize_alpha_.record(t.stop());
+
+	// 2. Resize frame to model resolution (RGA hardware, fallback: cv::resize)
+	cv::Mat frame_model;
+	t.start();
+	{
+		frame_model.create(model_h, model_w, CV_8UC3);
+		ImageDescriptor src(frame.data, frame.cols, frame.rows, RgaPixelFormat::kBgr888);
+		ImageDescriptor dst(frame_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
+		if (!rga_resize_ || !rga_resize_->Execute(src, dst)) {
+			cv::resize(frame, frame_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
+		}
+	}
+	acc_resize_frame_.record(t.stop());
+
+	// 3. CPU alpha blend: fg_bgr * alpha + bg_bgr * (1-alpha) → composed_bgr
+	cv::Mat composed_model(model_h, model_w, CV_8UC3);
+	t.start();
+	{
+		const int pixels = model_h * model_w;
+		const uint8_t* fg_ptr = frame_model.ptr<uint8_t>(0);
+		const uint8_t* bg_ptr = bg_model_u8_.ptr<uint8_t>(0);
+		const uint8_t* a_ptr = alpha_model.ptr<uint8_t>(0);
+		uint8_t* out = composed_model.ptr<uint8_t>(0);
+		for (int i = 0; i < pixels; ++i) {
+			const uint16_t alpha = a_ptr[i];
+			const uint16_t inv = 255 - alpha;
+			out[0] = static_cast<uint8_t>((fg_ptr[0] * alpha + bg_ptr[0] * inv + 1 +
+			                               ((fg_ptr[0] * alpha + bg_ptr[0] * inv) >> 8)) >>
+			                              8);
+			out[1] = static_cast<uint8_t>((fg_ptr[1] * alpha + bg_ptr[1] * inv + 1 +
+			                               ((fg_ptr[1] * alpha + bg_ptr[1] * inv) >> 8)) >>
+			                              8);
+			out[2] = static_cast<uint8_t>((fg_ptr[2] * alpha + bg_ptr[2] * inv + 1 +
+			                               ((fg_ptr[2] * alpha + bg_ptr[2] * inv) >> 8)) >>
+			                              8);
+			fg_ptr += 3;
+			bg_ptr += 3;
+			out += 3;
+		}
+	}
+	acc_blend_.record(t.stop());
+
+	// 4. Upscale to output resolution (RGA hardware, fallback: cv::resize)
+	cv::Mat composed_output;
+	t.start();
+	{
+		composed_output.create(output_h, output_w, CV_8UC3);
+		ImageDescriptor src(composed_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
+		ImageDescriptor dst(composed_output.data, output_w, output_h, RgaPixelFormat::kBgr888);
+		if (!rga_resize_ || !rga_resize_->Execute(src, dst)) {
+			cv::resize(composed_model, composed_output, cv::Size(output_w, output_h), 0, 0,
+			           cv::INTER_LINEAR);
+		}
+	}
+	acc_upscale_.record(t.stop());
+
+	return composed_output;
+}

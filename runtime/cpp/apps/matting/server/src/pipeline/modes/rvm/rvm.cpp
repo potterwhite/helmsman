@@ -26,12 +26,8 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <thread>
-#include "RGAKit/rga_operation.h"
 #include "Utils/timing/timer.h"
 #include "pipeline/stages/backend/post-processor/guided-filter-post-processor.h"
-
-using helmsman::rgakit::ImageDescriptor;
-using helmsman::rgakit::RgaPixelFormat;
 
 using helmsman::utils::timing::ManualTimer;
 using helmsman::utils::timing::ScopedTimer;
@@ -91,7 +87,7 @@ void RVMMode::InitBackgroundImage(int width, int height) {
 	} else {
 		cv::resize(bg, bg, cv::Size(width, height));
 	}
-	bg_model_u8_ = bg.clone();
+	backend_->SetBackgroundModelImage(bg.clone());
 }
 
 cv::Mat RVMMode::_InferOneFrame(InferenceEngine* engine, const TensorData& src,
@@ -122,7 +118,7 @@ cv::Mat RVMMode::_InferOneFrame(InferenceEngine* engine, const TensorData& src,
 }
 
 void RVMMode::_ProcessOneFrame(InferenceEngine* engine, const TensorData& tensor,
-                               const cv::Mat& current_frame, int /*model_w*/, int /*model_h*/) {
+                               const cv::Mat& current_frame, int model_w, int model_h) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	// --------------- infer one frame ---------------
@@ -137,15 +133,16 @@ void RVMMode::_ProcessOneFrame(InferenceEngine* engine, const TensorData& tensor
 	if (use_dma_output_) {
 		ManualTimer dma_t;
 		dma_t.start();
-		const int output_fd = _CompositeToDma(current_frame, alpha_8u);
+		const int output_fd = _CompositeToDma(current_frame, alpha_8u, model_w, model_h);
 		comp_ms = dma_t.stop();
 		if (frame_count_ == 0) {
 			logger.Info("DMA output fd=" + std::to_string(output_fd), kRvmModuleName);
 		}
 	} else if (config_.output_mode == OutputMode::kDrm) {
-		comp_ms = _CompositeToDrm(current_frame, alpha_8u, drm_panel_w_, drm_panel_h_);
+		comp_ms = _CompositeToDrm(current_frame, alpha_8u, drm_panel_w_, drm_panel_h_,
+		                          model_w, model_h);
 	} else {
-		comp_ms = _CompositeAndWrite(video_writer_, current_frame, alpha_8u);
+		comp_ms = _CompositeAndWrite(video_writer_, current_frame, alpha_8u, model_w, model_h);
 	}
 	acc_lv02_01_04_main_composite_.record(comp_ms);
 
@@ -167,83 +164,19 @@ void RVMMode::_ProcessOneFrame(InferenceEngine* engine, const TensorData& tensor
 }
 
 double RVMMode::_CompositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
-                                   const cv::Mat& alpha_8u) {
+                                   const cv::Mat& alpha_8u, int model_w, int model_h) {
 	if (!writer.isOpened() || alpha_8u.empty())
 		return 0.0;
 
 	ManualTimer total_t;
 	total_t.start();
 
-	const int model_h = bg_model_u8_.rows;
-	const int model_w = bg_model_u8_.cols;
+	cv::Mat composed = backend_->Composite(frame, alpha_8u, model_w, model_h,
+	                                       frame.cols, frame.rows);
+
 	ManualTimer t;
-
-	// 1. Resize alpha (CPU — RGA doesn't support single-channel YUV400 format)
-	cv::Mat alpha_model;
 	t.start();
-	{
-		alpha_model.create(model_h, model_w, CV_8UC1);
-		cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
-	}
-	acc_lv02_01_04_01_resize_alpha_.record(t.stop());
-
-	// 2. Resize frame (RGA hardware)
-	cv::Mat frame_model;
-	t.start();
-	{
-		frame_model.create(model_h, model_w, CV_8UC3);
-		ImageDescriptor src(frame.data, frame.cols, frame.rows, RgaPixelFormat::kBgr888);
-		ImageDescriptor dst(frame_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
-		if (!rga_resize_->Execute(src, dst)) {
-			cv::resize(frame, frame_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
-		}
-	}
-	acc_lv02_01_04_02_resize_frame_.record(t.stop());
-
-	// 3. CPU alpha blend: fg_bgr * alpha + bg_bgr * (1-alpha) → composed_bgr
-	cv::Mat composed_model(model_h, model_w, CV_8UC3);
-	t.start();
-	{
-		const int pixels = model_h * model_w;
-		const uint8_t* fg_ptr = frame_model.ptr<uint8_t>(0);
-		const uint8_t* bg_ptr = bg_model_u8_.ptr<uint8_t>(0);
-		const uint8_t* a_ptr = alpha_model.ptr<uint8_t>(0);
-		uint8_t* out = composed_model.ptr<uint8_t>(0);
-		for (int i = 0; i < pixels; ++i) {
-			const uint16_t alpha = a_ptr[i];
-			const uint16_t inv = 255 - alpha;
-			out[0] = static_cast<uint8_t>((fg_ptr[0] * alpha + bg_ptr[0] * inv + 1 +
-			                               ((fg_ptr[0] * alpha + bg_ptr[0] * inv) >> 8)) >>
-			                              8);
-			out[1] = static_cast<uint8_t>((fg_ptr[1] * alpha + bg_ptr[1] * inv + 1 +
-			                               ((fg_ptr[1] * alpha + bg_ptr[1] * inv) >> 8)) >>
-			                              8);
-			out[2] = static_cast<uint8_t>((fg_ptr[2] * alpha + bg_ptr[2] * inv + 1 +
-			                               ((fg_ptr[2] * alpha + bg_ptr[2] * inv) >> 8)) >>
-			                              8);
-			fg_ptr += 3;
-			bg_ptr += 3;
-			out += 3;
-		}
-	}
-	acc_lv02_01_04_03_blend_.record(t.stop());
-
-	// 5. Upscale (RGA hardware)
-	cv::Mat composed_full;
-	t.start();
-	{
-		composed_full.create(frame.rows, frame.cols, CV_8UC3);
-		ImageDescriptor src(composed_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
-		ImageDescriptor dst(composed_full.data, frame.cols, frame.rows, RgaPixelFormat::kBgr888);
-		if (!rga_resize_->Execute(src, dst)) {
-			cv::resize(composed_model, composed_full, frame.size(), 0, 0, cv::INTER_LINEAR);
-		}
-	}
-	acc_lv02_01_04_04_upscale_.record(t.stop());
-
-	// 6. Write
-	t.start();
-	writer.write(composed_full);
+	writer.write(composed);
 	acc_lv02_01_04_05_writer_.record(t.stop());
 
 	return total_t.elapsed_ms();
@@ -269,168 +202,40 @@ bool RVMMode::_InitOutputDma(int src_width, int src_height) {
 	return true;
 }
 
-int RVMMode::_CompositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u) {
+int RVMMode::_CompositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u,
+                             int model_w, int model_h) {
 	if (!dma_output_buf_ || alpha_8u.empty())
 		return -1;
 
-	const int model_h = bg_model_u8_.rows;
-	const int model_w = bg_model_u8_.cols;
-	ManualTimer t;
+	cv::Mat composed = backend_->Composite(frame, alpha_8u, model_w, model_h,
+	                                       frame.cols, frame.rows);
 
-	// 1. Resize alpha (CPU — RGA doesn't support single-channel YUV400 format)
-	cv::Mat alpha_model;
-	t.start();
-	{
-		alpha_model.create(model_h, model_w, CV_8UC1);
-		cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
+	void* dma_ptr = dma_output_buf_->map();
+	if (dma_ptr) {
+		memcpy(dma_ptr, composed.data, composed.total() * composed.elemSize());
 	}
-	acc_lv02_01_04_01_resize_alpha_.record(t.stop());
-
-	// 2. Resize frame (RGA hardware)
-	cv::Mat frame_model;
-	t.start();
-	{
-		frame_model.create(model_h, model_w, CV_8UC3);
-		ImageDescriptor src(frame.data, frame.cols, frame.rows, RgaPixelFormat::kBgr888);
-		ImageDescriptor dst(frame_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
-		if (!rga_resize_->Execute(src, dst)) {
-			cv::resize(frame, frame_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
-		}
-	}
-	acc_lv02_01_04_02_resize_frame_.record(t.stop());
-
-	// 3. CPU alpha blend: fg_bgr * alpha + bg_bgr * (1-alpha) → composed_bgr
-	cv::Mat composed_model(model_h, model_w, CV_8UC3);
-	t.start();
-	{
-		const int pixels = model_h * model_w;
-		const uint8_t* fg_ptr = frame_model.ptr<uint8_t>(0);
-		const uint8_t* bg_ptr = bg_model_u8_.ptr<uint8_t>(0);
-		const uint8_t* a_ptr = alpha_model.ptr<uint8_t>(0);
-		uint8_t* out = composed_model.ptr<uint8_t>(0);
-		for (int i = 0; i < pixels; ++i) {
-			const uint16_t alpha = a_ptr[i];
-			const uint16_t inv = 255 - alpha;
-			out[0] = static_cast<uint8_t>((fg_ptr[0] * alpha + bg_ptr[0] * inv + 1 +
-			                               ((fg_ptr[0] * alpha + bg_ptr[0] * inv) >> 8)) >>
-			                              8);
-			out[1] = static_cast<uint8_t>((fg_ptr[1] * alpha + bg_ptr[1] * inv + 1 +
-			                               ((fg_ptr[1] * alpha + bg_ptr[1] * inv) >> 8)) >>
-			                              8);
-			out[2] = static_cast<uint8_t>((fg_ptr[2] * alpha + bg_ptr[2] * inv + 1 +
-			                               ((fg_ptr[2] * alpha + bg_ptr[2] * inv) >> 8)) >>
-			                              8);
-			fg_ptr += 3;
-			bg_ptr += 3;
-			out += 3;
-		}
-	}
-	acc_lv02_01_04_03_blend_.record(t.stop());
-
-	// 5. Upscale directly into DMA buffer (RGA hardware, zero-copy)
-	t.start();
-	{
-		void* dma_ptr = dma_output_buf_->map();
-		if (dma_ptr) {
-			ImageDescriptor src_desc(composed_model.data, model_w, model_h,
-			                         RgaPixelFormat::kBgr888);
-			ImageDescriptor dst_desc(dma_ptr, frame.cols, frame.rows, RgaPixelFormat::kBgr888);
-			if (!rga_resize_->Execute(src_desc, dst_desc)) {
-				// Fallback: CPU upscale then memcpy to DMA
-				cv::Mat composed_full;
-				cv::resize(composed_model, composed_full, frame.size(), 0, 0, cv::INTER_LINEAR);
-				memcpy(dma_ptr, composed_full.data,
-				       composed_full.total() * composed_full.elemSize());
-			}
-		}
-	}
-	acc_lv02_01_04_04_upscale_.record(t.stop());
 
 	return dma_output_buf_->fd();
 }
 
-double RVMMode::_CompositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, int panel_w,
-                                int panel_h) {
+double RVMMode::_CompositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u,
+                                int panel_w, int panel_h, int model_w, int model_h) {
 	if (!drm_display_.IsOpen() || alpha_8u.empty())
 		return 0.0;
 
 	ManualTimer total_t;
 	total_t.start();
 
-	const int model_h = bg_model_u8_.rows;
-	const int model_w = bg_model_u8_.cols;
+	cv::Mat composed = backend_->Composite(frame, alpha_8u, model_w, model_h,
+	                                       panel_w, panel_h);
+
+	// BGR888 → XRGB8888 + ShowARGB
 	ManualTimer t;
-
-	// 1. Resize alpha (CPU — RGA doesn't support single-channel YUV400 format)
-	cv::Mat alpha_model;
-	t.start();
-	{
-		alpha_model.create(model_h, model_w, CV_8UC1);
-		cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
-	}
-	acc_lv02_01_04_01_resize_alpha_.record(t.stop());
-
-	// 2. Resize frame (RGA hardware)
-	cv::Mat frame_model;
-	t.start();
-	{
-		frame_model.create(model_h, model_w, CV_8UC3);
-		ImageDescriptor src(frame.data, frame.cols, frame.rows, RgaPixelFormat::kBgr888);
-		ImageDescriptor dst(frame_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
-		if (!rga_resize_->Execute(src, dst)) {
-			cv::resize(frame, frame_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
-		}
-	}
-	acc_lv02_01_04_02_resize_frame_.record(t.stop());
-
-	// 3. CPU alpha blend: fg_bgr * alpha + bg_bgr * (1-alpha) → composed_bgr
-	cv::Mat composed_model(model_h, model_w, CV_8UC3);
-	t.start();
-	{
-		const int pixels = model_h * model_w;
-		const uint8_t* fg_ptr = frame_model.ptr<uint8_t>(0);
-		const uint8_t* bg_ptr = bg_model_u8_.ptr<uint8_t>(0);
-		const uint8_t* a_ptr = alpha_model.ptr<uint8_t>(0);
-		uint8_t* out = composed_model.ptr<uint8_t>(0);
-		for (int i = 0; i < pixels; ++i) {
-			const uint16_t alpha = a_ptr[i];
-			const uint16_t inv = 255 - alpha;
-			out[0] = static_cast<uint8_t>((fg_ptr[0] * alpha + bg_ptr[0] * inv + 1 +
-			                               ((fg_ptr[0] * alpha + bg_ptr[0] * inv) >> 8)) >>
-			                              8);
-			out[1] = static_cast<uint8_t>((fg_ptr[1] * alpha + bg_ptr[1] * inv + 1 +
-			                               ((fg_ptr[1] * alpha + bg_ptr[1] * inv) >> 8)) >>
-			                              8);
-			out[2] = static_cast<uint8_t>((fg_ptr[2] * alpha + bg_ptr[2] * inv + 1 +
-			                               ((fg_ptr[2] * alpha + bg_ptr[2] * inv) >> 8)) >>
-			                              8);
-			fg_ptr += 3;
-			bg_ptr += 3;
-			out += 3;
-		}
-	}
-	acc_lv02_01_04_03_blend_.record(t.stop());
-
-	// 4. Upscale to panel size (RGA hardware)
-	cv::Mat composed_panel;
-	t.start();
-	{
-		composed_panel.create(panel_h, panel_w, CV_8UC3);
-		ImageDescriptor src(composed_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
-		ImageDescriptor dst(composed_panel.data, panel_w, panel_h, RgaPixelFormat::kBgr888);
-		if (!rga_resize_->Execute(src, dst)) {
-			cv::resize(composed_model, composed_panel, cv::Size(panel_w, panel_h), 0, 0,
-			           cv::INTER_LINEAR);
-		}
-	}
-	acc_lv02_01_04_04_upscale_.record(t.stop());
-
-	// 5. BGR888 → XRGB8888 + ShowARGB
 	t.start();
 	{
 		const int n_pixels = panel_w * panel_h;
 		argb_buf_.resize(static_cast<size_t>(n_pixels) * 4);
-		const uint8_t* bgr = composed_panel.ptr<uint8_t>(0);
+		const uint8_t* bgr = composed.ptr<uint8_t>(0);
 		uint8_t* xrgb = argb_buf_.data();
 		for (int i = 0; i < n_pixels; ++i) {
 			xrgb[0] = bgr[0];  // B → B
@@ -468,10 +273,6 @@ void RVMMode::_ReportAllAccumulatedTimers(void) {
 	acc_lv02_01_03_main_infer_.report(config_.timing_enabled, logger, kRvmModuleName);
 	acc_lv02_01_04_main_composite_.report(config_.timing_enabled, logger, kRvmModuleName);
 
-	acc_lv02_01_04_01_resize_alpha_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_04_02_resize_frame_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_04_03_blend_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_04_04_upscale_.report(config_.timing_enabled, logger, kRvmModuleName);
 	// NOTE: acc_lv02_01_04_05_writer_ measures only the time VideoWriter::write() returns,
 	// NOT actual encoder completion (FFmpeg buffers internally). Treat this
 	// number as a lower bound for the true write cost.
@@ -615,8 +416,9 @@ int RVMMode::Run() {
 
 	// Create RGA hardware operations (stateless, reused every frame).
 	// RGA resize replaces cv::resize for the downscale/upscale steps.
-	// RGA composite replaces the CPU uint8 blend loop.
-	rga_resize_ = helmsman::rgakit::CreateOperation<helmsman::rgakit::RgaResize>();
+	// Pass ownership to Backend for composite operations.
+	auto rga = helmsman::rgakit::CreateOperation<helmsman::rgakit::RgaResize>();
+	backend_->SetRgaResize(std::move(rga));
 
 	// =========================================================================
 	// 3rd - Main inference loop
