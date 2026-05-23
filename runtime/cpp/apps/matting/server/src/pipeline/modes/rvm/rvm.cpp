@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "pipeline/modes/rvm/rvm.h"
+#include "common/common-define.h"
 #include <atomic>
 #include <chrono>
 #include <cstring>
@@ -46,17 +47,17 @@ inline const cv::Scalar kDefaultBgColor{155, 255, 120};
 
 bool RVMMode::_OpenVideoWriter(cv::VideoWriter& writer, const std::string& path, int width,
                                int height, double fps) {
-	auto& logger = helmsman::utils::Logger::GetInstance();
+
 	writer.open(path, cv::VideoWriter::fourcc('m', 'p', '4', 'v'), fps, cv::Size(width, height));
 	if (!writer.isOpened()) {
-		logger.Warning(
+		GetLogger().Warning(
 		    "Failed to open VideoWriter: " + path + ". Composited video will NOT be saved.",
 		    kRvmModuleName);
 		return false;
 	}
-	logger.Info("VideoWriter opened: " + path + " (" + std::to_string(width) + "x" +
-	                std::to_string(height) + " @ " + std::to_string(fps) + " fps)",
-	            kRvmModuleName);
+	GetLogger().Info("VideoWriter opened: " + path + " (" + std::to_string(width) + "x" +
+	                     std::to_string(height) + " @ " + std::to_string(fps) + " fps)",
+	                 kRvmModuleName);
 	return true;
 }
 
@@ -75,8 +76,6 @@ void RVMMode::InitBackgroundImage(int width, int height) {
 
 double RVMMode::_CompositeAndDeliver(const cv::Mat& frame, const cv::Mat& alpha_8u,
                                      int model_w, int model_h, int output_w, int output_h) {
-	auto& logger = helmsman::utils::Logger::GetInstance();
-
 	if (alpha_8u.empty())
 		return 0.0;
 
@@ -154,42 +153,38 @@ RvmModelState RVMMode::InitModelState(InferenceEngine* engine) {
 }
 
 void RVMMode::_ReportAllAccumulatedTimers(void) {
-	auto& logger = helmsman::utils::Logger::GetInstance();
-
-	acc_lv02_01_main_loop_total_.report(config_.timing_enabled, logger, kRvmModuleName);
-	frontend_->preprocess_acc().report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_02_main_decode_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_03_main_infer_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_04_main_composite_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_main_loop_total_.report(config_.timing_enabled, GetLogger(), kRvmModuleName);
+	frontend_->preprocess_acc().report(config_.timing_enabled, GetLogger(), kRvmModuleName);
+	acc_lv02_01_02_main_decode_.report(config_.timing_enabled, GetLogger(), kRvmModuleName);
+	acc_lv02_01_03_main_infer_.report(config_.timing_enabled, GetLogger(), kRvmModuleName);
+	acc_lv02_01_04_main_composite_.report(config_.timing_enabled, GetLogger(), kRvmModuleName);
 
 	// NOTE: acc_lv02_01_04_05_writer_ measures only the time VideoWriter::write() returns,
 	// NOT actual encoder completion (FFmpeg buffers internally). Treat this
 	// number as a lower bound for the true write cost.
-	acc_lv02_01_04_05_writer_.report(config_.timing_enabled, logger, kRvmModuleName);
-	acc_lv02_01_04_06_drm_.report(config_.timing_enabled, logger, kRvmModuleName);
+	acc_lv02_01_04_05_writer_.report(config_.timing_enabled, GetLogger(), kRvmModuleName);
+	acc_lv02_01_04_06_drm_.report(config_.timing_enabled, GetLogger(), kRvmModuleName);
 }
 
 void RVMMode::_DoCleaningThings(const std::chrono::steady_clock::time_point& pipeline_start,
                                 const std::string& output_video_path) {
-	auto& logger = helmsman::utils::Logger::GetInstance();
-
 	if (video_writer_.isOpened()) {
 		video_writer_.release();
-		logger.Info("Video compositing complete: " + std::to_string(frame_count_) +
-		                " frames written to " + output_video_path,
-		            kRvmModuleName);
+		GetLogger().Info("Video compositing complete: " + std::to_string(frame_count_) +
+		                     " frames written to " + output_video_path,
+		                 kRvmModuleName);
 	}
 
 	if (drm_display_.IsOpen()) {
 		drm_display_.Close();
-		logger.Info("DRM display closed after " + std::to_string(frame_count_) + " frames.",
-		            kRvmModuleName);
+		GetLogger().Info("DRM display closed after " + std::to_string(frame_count_) + " frames.",
+		                 kRvmModuleName);
 	}
 
 	// if (use_dma_output_) {
-	//     logger.Info("DMA output: " + std::to_string(frame_count_) +
-	//                     " frames composited to DMA fd=" + std::to_string(dma_output_buf_->fd()),
-	//                 kRvmModuleName);
+	//     GetLogger().Info("DMA output: " + std::to_string(frame_count_) +
+	//                          " frames composited to DMA fd=" + std::to_string(dma_output_buf_->fd()),
+	//                      kRvmModuleName);
 	// }
 
 	if (frame_count_ > 0) {
@@ -197,19 +192,17 @@ void RVMMode::_DoCleaningThings(const std::chrono::steady_clock::time_point& pip
 		    std::chrono::duration<double>(std::chrono::steady_clock::now() - pipeline_start)
 		        .count();
 		const double avg_fps = static_cast<double>(frame_count_) / total_elapsed;
-		logger.Info("[FPS] Total: " + std::to_string(frame_count_) + " frames in " +
-		                std::to_string(total_elapsed) + "s = " + std::to_string(avg_fps) + " fps",
-		            kRvmModuleName);
+		GetLogger().Info("[FPS] Total: " + std::to_string(frame_count_) + " frames in " +
+		                     std::to_string(total_elapsed) + "s = " + std::to_string(avg_fps) + " fps",
+		                 kRvmModuleName);
 	}
 
-	logger.Info("RVM video pipeline finished. Total frames: " + std::to_string(frame_count_),
-	            kRvmModuleName);
+	GetLogger().Info("RVM video pipeline finished. Total frames: " + std::to_string(frame_count_),
+	                 kRvmModuleName);
 }
 
 void RVMMode::InitOutputSink(const int src_width, const int src_height, const double src_fps,
                              const std::string& output_video_path, const OutputMode output_mode) {
-	auto& logger = helmsman::utils::Logger::GetInstance();
-
 	// const int src_width = frontend_->width();
 	// const int src_height = frontend_->height();
 	engine_->SetDownsampleRatio(512.0f / static_cast<float>(std::max(src_width, src_height)));
@@ -220,11 +213,11 @@ void RVMMode::InitOutputSink(const int src_width, const int src_height, const do
 	if (output_mode == OutputMode::kDrm) {
 		if (drm_display_.Init(src_width, src_height)) {
 			std::tie(drm_panel_w_, drm_panel_h_) = drm_display_.PanelSize();
-			logger.Info("DRM display initialized: panel " + std::to_string(drm_panel_w_) + "x" +
-			                std::to_string(drm_panel_h_),
-			            kRvmModuleName);
+			GetLogger().Info("DRM display initialized: panel " + std::to_string(drm_panel_w_) + "x" +
+			                     std::to_string(drm_panel_h_),
+			                 kRvmModuleName);
 		} else {
-			logger.Warning("DRM init failed. Falling back to mp4.", kRvmModuleName);
+			GetLogger().Warning("DRM init failed. Falling back to mp4.", kRvmModuleName);
 			config_.output_mode = OutputMode::kMp4;
 		}
 	}
@@ -240,16 +233,14 @@ void RVMMode::InitOutputSink(const int src_width, const int src_height, const do
 //   This loop just calls ProcessOneFrame() and processes each result.
 // =========================================================================
 void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) {
-	auto& logger = helmsman::utils::Logger::GetInstance();
-
 	while (true) {
 		ManualTimer loop_t;
 		loop_t.start();
 
 		if (g_stop_signal_received.load()) {
-			logger.Info("Stop signal received. Finishing video at frame " +
-			                std::to_string(frame_count_) + ".",
-			            kRvmModuleName);
+			GetLogger().Info("Stop signal received. Finishing video at frame " +
+			                     std::to_string(frame_count_) + ".",
+			                 kRvmModuleName);
 			frontend_->Stop();
 			break;
 		}
@@ -263,7 +254,7 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		if (!result)
 			break;
 
-		logger.Info("=== RVM Frame " + std::to_string(frame_count_ + 1) + " ===", kRvmModuleName);
+		GetLogger().Info("=== RVM Frame " + std::to_string(frame_count_ + 1) + " ===", kRvmModuleName);
 
 		const int model_w = setup.model_input_width;
 		const int model_h = setup.model_input_height;
@@ -285,34 +276,32 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		acc_lv02_01_04_main_composite_.record(comp_ms);
 
 		// --- log per-frame stats ---
-		logger.Info("[PerFrame] frame=" + std::to_string(frame_count_) +
-		                "  infer=" + std::to_string(infer_ms) + "ms" +
-		                "  composite=" + std::to_string(comp_ms) + "ms",
-		            kRvmModuleName);
+		GetLogger().Info("[PerFrame] frame=" + std::to_string(frame_count_) +
+		                    "  infer=" + std::to_string(infer_ms) + "ms" +
+		                    "  composite=" + std::to_string(comp_ms) + "ms",
+		                kRvmModuleName);
 
 		// FPS measurement: report every 30 frames
 		if (frame_count_ % 30 == 0) {
 			auto now = std::chrono::steady_clock::now();
 			double elapsed = std::chrono::duration<double>(now - fps_window_start_).count();
-			logger.Info("[FPS] " + std::to_string(30.0 / elapsed) + " fps (last 30 frames in " +
-			                std::to_string(elapsed) + "s)",
-			            kRvmModuleName);
+			GetLogger().Info("[FPS] " + std::to_string(30.0 / elapsed) + " fps (last 30 frames in " +
+			                     std::to_string(elapsed) + "s)",
+			                 kRvmModuleName);
 			fps_window_start_ = now;
 		}
 
 		acc_lv02_01_main_loop_total_.record(loop_t.stop());
 
-		logger.Info(" --- End of RVM Frame " + std::to_string(frame_count_ + 1) + " ---\n",
-		            kRvmModuleName);
+		GetLogger().Info(" --- End of RVM Frame " + std::to_string(frame_count_ + 1) + " ---\n",
+		                 kRvmModuleName);
 
 		frame_count_++;
 	}
 }
 
 int RVMMode::Run() {
-	auto& logger = helmsman::utils::Logger::GetInstance();
-
-	ScopedTimer run_rvm_timer("Lv02::RVMMode::run() total", config_.timing_enabled, logger,
+	ScopedTimer run_rvm_timer("Lv02::RVMMode::run() total", config_.timing_enabled, GetLogger(),
 	                          kRvmModuleName);
 
 	// =========================================================================

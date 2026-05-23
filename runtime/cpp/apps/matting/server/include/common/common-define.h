@@ -24,6 +24,7 @@
 
 #include <cstdlib>
 #include <string_view>
+#include "Utils/logger/logger.h"
 
 constexpr std::string_view kcurrent_module_name = "main-server";
 
@@ -39,6 +40,10 @@ inline bool IsDumpEnabled() {
 	static const bool enabled = (std::getenv("HELMSMAN_DUMP") != nullptr);
 	return enabled;
 }
+
+// Convenience accessor for the Logger singleton.
+// Prefer GetLogger().Info(...) over auto& logger = Logger::GetInstance(); in each function.
+inline auto& GetLogger() { return helmsman::utils::Logger::GetInstance(); }
 
 // namespace helmsman {
 // namespace runtime {
