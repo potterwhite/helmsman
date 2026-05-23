@@ -26,7 +26,7 @@
 #include <string>
 #include <vector>
 #include "DRMKit/drm_display.h"
-#include "DmaKit/dma_buffer.h"
+// #include "DmaKit/dma_buffer.h"  // DMA output: currently disabled
 #include "Utils/timing/timer.h"
 #include "common/types.h"
 #include "pipeline/stages/backend/backend.h"
@@ -98,8 +98,8 @@ class RVMMode {
 	FrontendBase* frontend_ = nullptr;   // Non-owning; owned by Pipeline
 	MattingBackend* backend_ = nullptr;  // Non-owning; owned by Pipeline
 	AppConfig config_;                   // Copy of the app config, set via SetConfig()
-	// DMA zero-copy output buffer (allocated once, reused every frame)
-	std::unique_ptr<helmsman::dmakit::DmaBuffer> dma_output_buf_;
+	// DMA zero-copy output: currently disabled.
+	// std::unique_ptr<helmsman::dmakit::DmaBuffer> dma_output_buf_;
 
 	// DRM display (initialized when output_mode == kDrm)
 	helmsman::drmkit::DrmDisplay drm_display_;
@@ -153,9 +153,8 @@ class RVMMode {
 
 	cv::VideoWriter video_writer_;
 
-	// DMA zero-copy output disabled: experiment phase needs video file for quality comparison.
-	// Re-enable after sweet-spot experiments: uncomment _InitOutputDma and restore the if-block.
-	const bool use_dma_output_ = false;  // was: _InitOutputDma(src_width, src_height)
+	// DMA zero-copy output: currently disabled.
+	// const bool use_dma_output_ = false;
 
 	int drm_panel_w_ = 0;
 	int drm_panel_h_ = 0;

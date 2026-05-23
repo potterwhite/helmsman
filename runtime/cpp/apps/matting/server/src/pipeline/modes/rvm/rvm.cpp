@@ -86,15 +86,14 @@ double RVMMode::_CompositeAndDeliver(const cv::Mat& frame, const cv::Mat& alpha_
 	cv::Mat composed = backend_->Composite(frame, alpha_8u, model_w, model_h,
 	                                       output_w, output_h);
 
-	if (use_dma_output_) {
-		void* dma_ptr = dma_output_buf_->map();
-		if (dma_ptr) {
-			memcpy(dma_ptr, composed.data, composed.total() * composed.elemSize());
-		}
-		if (frame_count_ == 0) {
-			logger.Info("DMA output fd=" + std::to_string(dma_output_buf_->fd()), kRvmModuleName);
-		}
-	} else if (config_.output_mode == OutputMode::kDrm) {
+	// DMA output path: currently disabled (use_dma_output_ = false).
+	// if (use_dma_output_) {
+	//     void* dma_ptr = dma_output_buf_->map();
+	//     if (dma_ptr) {
+	//         memcpy(dma_ptr, composed.data, composed.total() * composed.elemSize());
+	//     }
+	// }
+	if (config_.output_mode == OutputMode::kDrm) {
 		ManualTimer t;
 		t.start();
 		const int n_pixels = output_w * output_h;
@@ -121,25 +120,28 @@ double RVMMode::_CompositeAndDeliver(const cv::Mat& frame, const cv::Mat& alpha_
 	return total_t.elapsed_ms();
 }
 
-bool RVMMode::_InitOutputDma(int src_width, int src_height) {
-	auto& logger = helmsman::utils::Logger::GetInstance();
-	const size_t buf_bytes =
-	    static_cast<size_t>(src_width) * static_cast<size_t>(src_height) * 3;  // BGR888
-	dma_output_buf_ = helmsman::dmakit::DmaBuffer::Allocate(buf_bytes);
-	if (!dma_output_buf_) {
-		logger.Warning("Failed to allocate DMA output buffer (" + std::to_string(buf_bytes) +
-		                   " bytes). Falling back to VideoWriter.",
-		               kRvmModuleName);
-		return false;
-	}
-	// Map once so we can use the virtual address as RGA destination.
-	dma_output_buf_->map();
-	logger.Info("DMA output buffer allocated: fd=" + std::to_string(dma_output_buf_->fd()) +
-	                ", size=" + std::to_string(buf_bytes) + " bytes (" + std::to_string(src_width) +
-	                "x" + std::to_string(src_height) + " BGR)",
-	            kRvmModuleName);
-	return true;
-}
+// DMA output path: currently disabled (use_dma_output_ = false).
+// _InitOutputDma() allocates a DMA buffer for zero-copy output.
+// Re-enable when ready to experiment with DMA-based output.
+//
+// bool RVMMode::_InitOutputDma(int src_width, int src_height) {
+//     auto& logger = helmsman::utils::Logger::GetInstance();
+//     const size_t buf_bytes =
+//         static_cast<size_t>(src_width) * static_cast<size_t>(src_height) * 3;  // BGR888
+//     dma_output_buf_ = helmsman::dmakit::DmaBuffer::Allocate(buf_bytes);
+//     if (!dma_output_buf_) {
+//         logger.Warning("Failed to allocate DMA output buffer (" + std::to_string(buf_bytes) +
+//                            " bytes). Falling back to VideoWriter.",
+//                        kRvmModuleName);
+//         return false;
+//     }
+//     dma_output_buf_->map();
+//     logger.Info("DMA output buffer allocated: fd=" + std::to_string(dma_output_buf_->fd()) +
+//                     ", size=" + std::to_string(buf_bytes) + " bytes (" + std::to_string(src_width) +
+//                     "x" + std::to_string(src_height) + " BGR)",
+//                 kRvmModuleName);
+//     return true;
+// }
 
 RvmModelState RVMMode::InitModelState(InferenceEngine* engine) {
 	RvmModelState setup;
@@ -184,11 +186,11 @@ void RVMMode::_DoCleaningThings(const std::chrono::steady_clock::time_point& pip
 		            kRvmModuleName);
 	}
 
-	if (use_dma_output_) {
-		logger.Info("DMA output: " + std::to_string(frame_count_) +
-		                " frames composited to DMA fd=" + std::to_string(dma_output_buf_->fd()),
-		            kRvmModuleName);
-	}
+	// if (use_dma_output_) {
+	//     logger.Info("DMA output: " + std::to_string(frame_count_) +
+	//                     " frames composited to DMA fd=" + std::to_string(dma_output_buf_->fd()),
+	//                 kRvmModuleName);
+	// }
 
 	if (frame_count_ > 0) {
 		const double total_elapsed =
