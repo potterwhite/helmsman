@@ -66,10 +66,9 @@ void RVMMode::_InitRecurrentStates(InferenceEngine* engine) {
 }
 
 bool RVMMode::_OpenVideoWriter(cv::VideoWriter& writer, const std::string& path, int width,
-                              int height, double fps) {
+                               int height, double fps) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
-	writer.open(path, cv::VideoWriter::fourcc('m', 'p', '4', 'v'), fps,
-	            cv::Size(width, height));
+	writer.open(path, cv::VideoWriter::fourcc('m', 'p', '4', 'v'), fps, cv::Size(width, height));
 	if (!writer.isOpened()) {
 		logger.Warning(
 		    "Failed to open VideoWriter: " + path + ". Composited video will NOT be saved.",
@@ -96,7 +95,7 @@ void RVMMode::InitBackgroundImage(int width, int height) {
 }
 
 cv::Mat RVMMode::_InferOneFrame(InferenceEngine* engine, const TensorData& src,
-                               const cv::Mat& guide_bgr) {
+                                const cv::Mat& guide_bgr) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	std::vector<TensorData> inputs = {src};
@@ -168,7 +167,7 @@ void RVMMode::_ProcessOneFrame(InferenceEngine* engine, const TensorData& tensor
 }
 
 double RVMMode::_CompositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
-                                  const cv::Mat& alpha_8u) {
+                                   const cv::Mat& alpha_8u) {
 	if (!writer.isOpened() || alpha_8u.empty())
 		return 0.0;
 
@@ -351,7 +350,7 @@ int RVMMode::_CompositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u) {
 }
 
 double RVMMode::_CompositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, int panel_w,
-                               int panel_h) {
+                                int panel_h) {
 	if (!drm_display_.IsOpen() || alpha_8u.empty())
 		return 0.0;
 
@@ -481,7 +480,7 @@ void RVMMode::_ReportAllAccumulatedTimers(void) {
 }
 
 void RVMMode::_DoCleaningThings(const std::chrono::steady_clock::time_point& pipeline_start,
-                                  const std::string& output_video_path) {
+                                const std::string& output_video_path) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	if (video_writer_.isOpened()) {
@@ -517,9 +516,8 @@ void RVMMode::_DoCleaningThings(const std::chrono::steady_clock::time_point& pip
 	            kRvmModuleName);
 }
 
-void RVMMode::InitOutputSink(const int src_width, const int src_height,
-                                   const double src_fps, const std::string& output_video_path,
-                                   const OutputMode output_mode) {
+void RVMMode::InitOutputSink(const int src_width, const int src_height, const double src_fps,
+                             const std::string& output_video_path, const OutputMode output_mode) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	// const int src_width = frontend_->width();
@@ -545,54 +543,6 @@ void RVMMode::InitOutputSink(const int src_width, const int src_height,
 	}
 }
 
-int RVMMode::Run() {
-	auto& logger = helmsman::utils::Logger::GetInstance();
-
-	ScopedTimer run_rvm_timer("Lv02::RVMMode::run() total", config_.timing_enabled, logger,
-	                          kRvmModuleName);
-
-	// =========================================================================
-	// 1st — Setup phase
-	//    - query the model's expected input resolution (fall back to 288×512 if
-	//      the engine returns 0, which can happen with dynamic-shape ONNX models)
-	//    - initialise the four RNN hidden-state tensors (r1i–r4i) to zero
-	// =========================================================================
-	const RvmModelState setup = InitModelState(engine_);
-
-	// =========================================================================
-	// 2nd — Video I/O setup
-	//    - read source dimensions and fps from the InputSource abstraction
-	//      (works for both Mp4InputSource and any future camera/IPC source)
-	//    - open the VideoWriter; if it fails, _CompositeAndWrite() is a no-op
-	//    - load or synthesise a solid-colour background for alpha compositing
-	// =========================================================================
-	InitOutputSink(setup.model_input_width, setup.model_input_height, frontend_->fps(),
-	                     config_.output_bin_path + "/output_composited.mp4", config_.output_mode);
-
-	InitBackgroundImage(setup.model_input_width, setup.model_input_height);
-
-	// Create RGA hardware operations (stateless, reused every frame).
-	// RGA resize replaces cv::resize for the downscale/upscale steps.
-	// RGA composite replaces the CPU uint8 blend loop.
-	rga_resize_ = helmsman::rgakit::CreateOperation<helmsman::rgakit::RgaResize>();
-
-	// =========================================================================
-	// 3rd — Main inference loop
-	//    Frontend::ProcessOneFrame() handles both sync and pipeline modes internally.
-	// =========================================================================
-	fps_window_start_ = std::chrono::steady_clock::now();
-	const auto pipeline_start = fps_window_start_;
-
-	_RunMainLoop(engine_, setup);
-
-	_ReportAllAccumulatedTimers();
-
-	const std::string output_video_path = config_.output_bin_path + "/output_composited.mp4";
-	_DoCleaningThings(pipeline_start, output_video_path);
-
-	return 0;
-}
-
 // =========================================================================
 // _RunMainLoop — unified main loop using Frontend::ProcessOneFrame()
 //
@@ -614,8 +564,12 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 			break;
 		}
 
-		auto result = frontend_->ProcessOneFrame(setup.model_input_width,
-		                                          setup.model_input_height);
+		// frontend_->ProcessOneFrame
+		// - In sync mode: reads one frame, preprocesses it, and returns the tensor and frame.
+		// - In pipeline mode: waits for the next completed frame from the pipeline, and returns the tensor and frame.
+		//
+		// sync or pipeline mode has been configured at pipeline layer previously
+		auto result = frontend_->ProcessOneFrame(setup.model_input_width, setup.model_input_height);
 		if (!result)
 			break;
 
@@ -631,4 +585,55 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 
 		frame_count_++;
 	}
+}
+
+int RVMMode::Run() {
+	auto& logger = helmsman::utils::Logger::GetInstance();
+
+	ScopedTimer run_rvm_timer("Lv02::RVMMode::run() total", config_.timing_enabled, logger,
+	                          kRvmModuleName);
+
+	// =========================================================================
+	// 1st - Setup phase
+	//    - query the model's expected input resolution (fall back to 288×512 if
+	//      the engine returns 0, which can happen with dynamic-shape ONNX models)
+	//    - initialise the four RNN hidden-state tensors (r1i–r4i) to zero
+	// =========================================================================
+	const RvmModelState setup = InitModelState(engine_);
+
+	// =========================================================================
+	// 2nd - Video I/O setup
+	//    - read source dimensions and fps from the InputSource abstraction
+	//      (works for both Mp4InputSource and any future camera/IPC source)
+	//    - open the VideoWriter; if it fails, _CompositeAndWrite() is a no-op
+	//    - load or synthesise a solid-colour background for alpha compositing
+	// =========================================================================
+	InitOutputSink(setup.model_input_width, setup.model_input_height, frontend_->fps(),
+	               config_.output_bin_path + "/output_composited.mp4", config_.output_mode);
+
+	InitBackgroundImage(setup.model_input_width, setup.model_input_height);
+
+	// Create RGA hardware operations (stateless, reused every frame).
+	// RGA resize replaces cv::resize for the downscale/upscale steps.
+	// RGA composite replaces the CPU uint8 blend loop.
+	rga_resize_ = helmsman::rgakit::CreateOperation<helmsman::rgakit::RgaResize>();
+
+	// =========================================================================
+	// 3rd - Main inference loop
+	//    Frontend::ProcessOneFrame() handles both sync and pipeline modes internally.
+	// =========================================================================
+	fps_window_start_ = std::chrono::steady_clock::now();
+	const auto pipeline_start = fps_window_start_;
+
+	_RunMainLoop(engine_, setup);
+
+	// =========================================================================
+	// 4th - Finish up and report timing stats
+	// =========================================================================
+	_ReportAllAccumulatedTimers();
+
+	const std::string output_video_path = config_.output_bin_path + "/output_composited.mp4";
+	_DoCleaningThings(pipeline_start, output_video_path);
+
+	return 0;
 }
