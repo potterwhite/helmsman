@@ -26,8 +26,9 @@
 #include <string>
 #include "Utils/logger/logger.h"
 #include "common/types.h"
+#include "pipeline/stages/backend/backend.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
-#include "pipeline/stages/frontend/frontend.h"
+#include "pipeline/stages/frontend/frontend.h"  // FrontendBase
 #include "pipeline/modes/modnet/modnet.h"
 #include "pipeline/modes/rvm/rvm.h"
 
@@ -52,8 +53,9 @@ private:
 
 private:
     AppConfig config_;
-    std::unique_ptr<Frontend> frontend_;
+    std::unique_ptr<FrontendBase> frontend_;
     std::unique_ptr<InferenceEngine> engine_;
+    MattingBackend backend_;
 
     MODNetMode modnet_mode_;
     RVMMode rvm_mode_;

@@ -39,14 +39,14 @@ public:
 
     // Preprocess a BGR frame into a TensorData for inference.
     TensorData preprocess(const cv::Mat& bgr_frame,
-                          size_t model_width,
-                          size_t model_height) override;
+                          int model_width,
+                          int model_height) override;
 
     // Configure output binary dump directory.
     void SetOutputBinPath(const std::string& path);
 
 private:
-    TensorData PreprocessCore(cv::Mat img, size_t model_width, size_t model_height);
+    TensorData PreprocessCore(cv::Mat img, int model_width, int model_height);
 
     bool IsDumpEnabled() const { return !output_bin_path_.empty(); }
 

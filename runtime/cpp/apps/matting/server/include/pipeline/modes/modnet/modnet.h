@@ -20,7 +20,6 @@
 
 #pragma once
 
-#include <memory>
 #include <string>
 #include "common/types.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
@@ -29,8 +28,15 @@
 
 class MODNetMode {
 public:
-    int run(InferenceEngine* engine, const AppConfig& config);
+    void SetEngine(InferenceEngine* engine) { engine_ = engine; }
+    void SetBackend(MattingBackend* backend) { backend_ = backend; }
+    void SetConfig(const AppConfig& config) { config_ = config; }
+
+    int Run();
 
 private:
-    Preprocessor frontend_;
+    InferenceEngine* engine_ = nullptr;  // Non-owning; owned by Pipeline
+    MattingBackend* backend_ = nullptr;  // Non-owning; owned by Pipeline
+    AppConfig config_;
+    Preprocessor preprocessor_;
 };

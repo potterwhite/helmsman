@@ -19,21 +19,31 @@
 // SOFTWARE.
 
 // =============================================================================
-// rockchip-frontend-factory.h — Rockchip platform Frontend factory
+// rockchip-frontend.h — Rockchip hardware-decode Frontend subclass
 //
-// Creates a hardware-decode Frontend using:
-//   - FfmpegInputSource (demux)
-//   - MppFrameDecoder (VPU decode)
-//   - RgaNv12ToBgr (RGA color conversion)
+// Uses FFmpegInputSource + MppFrameDecoder + RgaNv12ToBgr for hardware decode.
 //
 // =============================================================================
 
 #pragma once
 
-#include "pipeline/stages/frontend/05-factory/base-frontend-factory.h"
+#include <memory>
+#include "pipeline/stages/frontend/frontend.h"
+#include "pipeline/stages/frontend/01-input-source/base-input-source.h"
+#include "pipeline/stages/frontend/02-decoder/base-frame-decoder.h"
+#include "pipeline/stages/frontend/03-color-convert/base-color-converter.h"
 
-class RockchipFrontendFactory : public BaseFrontendFactory {
+class RockchipFrontend : public FrontendBase {
 public:
-    std::unique_ptr<Frontend> create(const std::string& input_path,
-                                     bool use_pipeline = false) override;
+    // Constructs the hardware decode pipeline: FFmpeg demux → MPP decode → RGA color convert.
+    // Throws std::runtime_error on failure.
+    explicit RockchipFrontend(const std::string& input_path, bool use_pipeline = false);
+
+protected:
+    bool ReadFrame(cv::Mat& cpu_frame, HardwareFrame& hw_frame) override;
+
+private:
+    std::unique_ptr<BaseInputSource> source_;
+    std::unique_ptr<BaseFrameDecoder> decoder_;
+    std::unique_ptr<BaseColorConverter> color_converter_;
 };

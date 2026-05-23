@@ -21,7 +21,6 @@
 #include "pipeline/pipeline.h"
 #include "common/common-define.h"
 #include "pipeline/stages/inference-engine/inference-engine-factory.h"
-#include "pipeline/stages/frontend/05-factory/base-frontend-factory.h"
 
 using helmsman::utils::timing::ScopedTimer;
 
@@ -60,11 +59,11 @@ void Pipeline::Init(const AppConfig& config) {
 
 	config_ = config;
 
+	// 1. Frontend (video only)
 	if (config_.is_video) {
-		// Video path: construct Frontend (hardware decode or OpenCV software)
 		try {
-			frontend_ = CreateFrontend(config_.input_path, config_.use_hardware_decoder,
-			                           config_.use_prefetch_thread);
+			frontend_ = FrontendBase::Create(config_.input_path, config_.use_hardware_decoder,
+			                                 config_.use_prefetch_thread);
 		} catch (const std::exception& e) {
 			logger.Error(std::string("Failed to create Frontend: ") + e.what(),
 			             kcurrent_module_name);
@@ -76,7 +75,6 @@ void Pipeline::Init(const AppConfig& config) {
 		                std::to_string(frontend_->fps()) + " fps",
 		            kcurrent_module_name);
 
-		// MODNet does not support video yet
 		if (config_.model_type == ModelType::kMODNet) {
 			logger.Error("MODNet does not support video input. Use --rvm for video.",
 			             kcurrent_module_name);
@@ -84,7 +82,28 @@ void Pipeline::Init(const AppConfig& config) {
 		}
 	}
 
+	// 2. InferenceEngine + model load
 	engine_ = MakeEngine();
+	engine_->SetOutputBinPath(config_.output_bin_path);
+	{
+		ScopedTimer t("Pipeline::Init() model load", config_.timing_enabled, logger,
+		              kcurrent_module_name);
+		engine_->Load(config_.model_path);
+	}
+
+	// 3. Backend base configuration
+	backend_.SetOutputPath(config_.output_bin_path);
+	backend_.SetBackgroundPath(config_.background_path);
+
+	// 4. Inject dependencies into modes
+	rvm_mode_.SetEngine(engine_.get());
+	rvm_mode_.SetFrontend(frontend_.get());
+	rvm_mode_.SetBackend(&backend_);
+	rvm_mode_.SetConfig(config_);
+
+	modnet_mode_.SetEngine(engine_.get());
+	modnet_mode_.SetBackend(&backend_);
+	modnet_mode_.SetConfig(config_);
 }
 
 int Pipeline::Run() {
@@ -95,10 +114,10 @@ int Pipeline::Run() {
 	switch (config_.model_type) {
 		case ModelType::kMODNet:
 			logger.Info("Pipeline: running MODNet path (single-frame)", kcurrent_module_name);
-			return modnet_mode_.run(engine_.get(), config_);
+			return modnet_mode_.Run();
 		case ModelType::kRVM:
 			logger.Info("Pipeline: running RVM path (recurrent multi-frame)", kcurrent_module_name);
-			return rvm_mode_.run(engine_.get(), frontend_.get(), config_);
+			return rvm_mode_.Run();
 		default:
 			throw std::runtime_error("Unknown model type");
 	}

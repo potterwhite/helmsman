@@ -45,14 +45,14 @@ void Preprocessor::SetOutputBinPath(const std::string& path) {
 }
 
 TensorData Preprocessor::preprocess(const cv::Mat& bgr_frame,
-                                     size_t model_width,
-                                     size_t model_height) {
+                                     int model_width,
+                                     int model_height) {
     return PreprocessCore(bgr_frame.clone(), model_width, model_height);
 }
 
 TensorData Preprocessor::PreprocessCore(cv::Mat img,
-                                         size_t model_width,
-                                         size_t model_height) {
+                                         int model_width,
+                                         int model_height) {
     TensorData tensor_data;
 
     auto& logger = helmsman::utils::Logger::GetInstance();
@@ -83,8 +83,7 @@ TensorData Preprocessor::PreprocessCore(cv::Mat img,
 
     if (model_width > 0 && model_height > 0) {
         cv::resize(img, img,
-                   cv::Size(static_cast<int>(model_width),
-                            static_cast<int>(model_height)),
+                   cv::Size(model_width, model_height),
                    0, 0, cv::INTER_LINEAR);
         logger.Info("RKNN resize: " + std::to_string(original_w) + "x" +
                         std::to_string(original_h) + " -> " +

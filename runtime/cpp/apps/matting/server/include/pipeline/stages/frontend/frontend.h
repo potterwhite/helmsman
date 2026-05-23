@@ -19,16 +19,14 @@
 // SOFTWARE.
 
 // =============================================================================
-// frontend.h — Frontend for the matting pipeline
+// frontend.h — Frontend base class for the matting pipeline
 //
-// The Frontend orchestrates four internal modules:
-//   1. BaseInputSource — reads raw compressed data from the signal source
-//   2. BaseFrameDecoder — decodes compressed packets into frames
-//   3. BaseColorConverter — converts hardware frames to BGR cv::Mat
-//   4. Preprocessor — converts frames into TensorData for inference
+// FrontendBase is the abstract base class. Platform-specific subclasses
+// override ReadFrame() to provide hardware-decode or OpenCV software decode.
 //
-// Hardware path: BaseInputSource → BaseFrameDecoder → BaseColorConverter → BGR
-// OpenCV path: cv::VideoCapture directly (fallback)
+// Shared logic (preprocessing, pipeline mode, timing) lives in the base class.
+//
+// Use FrontendBase::Create() to instantiate the correct subclass at runtime.
 //
 // =============================================================================
 
@@ -36,14 +34,12 @@
 
 #include <memory>
 #include <optional>
-#include <opencv2/videoio.hpp>
+#include <string>
 #include <thread>
 #include "Utils/timing/timer.h"
 #include "common/types.h"
 #include "pipeline/infra/single-slot-channel.h"
-#include "pipeline/stages/frontend/01-input-source/base-input-source.h"
-#include "pipeline/stages/frontend/02-decoder/base-frame-decoder.h"
-#include "pipeline/stages/frontend/03-color-convert/base-color-converter.h"
+#include "pipeline/stages/frontend/02-decoder/base-frame-decoder.h"  // HardwareFrame
 #include "pipeline/stages/frontend/04-preprocess/preprocessor.h"
 
 /**
@@ -56,39 +52,30 @@ struct FrameResult {
     TensorData tensor;      // Preprocessed tensor (for inference)
 };
 
-class Frontend {
+/**
+ * Abstract base class for the Frontend stage.
+ *
+ * Subclasses override ReadFrame() to provide platform-specific frame decoding.
+ * All other methods (preprocessing, pipeline mode, timing) are shared.
+ */
+class FrontendBase {
 public:
-    // Hardware decode path constructor (DI).
-    Frontend(std::unique_ptr<BaseInputSource> source,
-             std::unique_ptr<BaseFrameDecoder> decoder,
-             std::unique_ptr<BaseColorConverter> converter,
-             bool use_pipeline = false);
-
-    // OpenCV shortcut path constructor.
-    explicit Frontend(const std::string& video_path, bool use_pipeline = false);
-
-    ~Frontend();
+    virtual ~FrontendBase();
 
     // Non-copyable, non-movable (owned by unique_ptr in Pipeline).
-    Frontend(const Frontend&) = delete;
-    Frontend& operator=(const Frontend&) = delete;
-    Frontend(Frontend&&) = delete;
-    Frontend& operator=(Frontend&&) = delete;
-
-    // Read the next decoded frame.
-    // For hardware path: fills cpu_frame via color converter.
-    // For OpenCV path: fills cpu_frame directly.
-    // Returns false on EOF or error.
-    bool ReadFrame(cv::Mat& cpu_frame, HardwareFrame& hw_frame);
+    FrontendBase(const FrontendBase&) = delete;
+    FrontendBase& operator=(const FrontendBase&) = delete;
+    FrontendBase(FrontendBase&&) = delete;
+    FrontendBase& operator=(FrontendBase&&) = delete;
 
     // Preprocess a CPU frame into TensorData.
-    TensorData preprocess(const cv::Mat& frame, size_t model_w, size_t model_h);
+    TensorData preprocess(const cv::Mat& frame, int model_w, int model_h);
 
     // Unified frame processing interface.
     // In sync mode: reads and preprocesses one frame on the calling thread.
     // In pipeline mode: returns the next preprocessed frame from the prefetch pipeline.
     // Returns std::nullopt on EOF.
-    std::optional<FrameResult> ProcessOneFrame(size_t model_w, size_t model_h);
+    std::optional<FrameResult> ProcessOneFrame(int model_w, int model_h);
 
     // Signal the prefetch worker to stop. Safe to call multiple times.
     // Closes the internal channel and joins the worker thread.
@@ -101,29 +88,46 @@ public:
     bool IsHardwarePath() const { return use_hardware_; }
 
     // Source properties (available after construction).
-    int width() const;
-    int height() const;
-    double fps() const;
+    int width() const { return width_; }
+    int height() const { return height_; }
+    double fps() const { return fps_; }
+
+    // Static factory: creates the platform-specific FrontendBase subclass.
+    // If use_hardware is true, uses the hardware decode path (platform-dependent).
+    // If use_pipeline is true, enables the prefetch worker thread.
+    // Throws std::runtime_error on failure.
+    static std::unique_ptr<FrontendBase> Create(const std::string& input_path,
+                                                bool use_hardware,
+                                                bool use_pipeline = false);
+
+protected:
+    // Subclass constructor: sets pipeline mode. Source properties default to 0.
+    // Subclasses call SetSourceProperties() after opening the source.
+    FrontendBase(bool use_hardware, bool use_pipeline);
+
+    // Set source dimensions and fps. Called by subclasses after opening the source.
+    void SetSourceProperties(int width, int height, double fps);
+
+    // Pure virtual: read the next decoded frame.
+    // For hardware path: fills cpu_frame via color converter.
+    // For OpenCV path: fills cpu_frame directly.
+    // Returns false on EOF or error.
+    virtual bool ReadFrame(cv::Mat& cpu_frame, HardwareFrame& hw_frame) = 0;
 
 private:
     // Worker thread entry point. Loops: pop raw frame from raw_ch_ -> preprocess -> push tensor to tensor_ch_.
-    void PrefetchWorkerLoop(size_t model_w, size_t model_h);
+    void PrefetchWorkerLoop(int model_w, int model_h);
 
-    bool use_hardware_ = false;
-
-    // Hardware decode path
-    std::unique_ptr<BaseInputSource> source_;
-    std::unique_ptr<BaseFrameDecoder> decoder_;
-    std::unique_ptr<BaseColorConverter> color_converter_;
-
-    // OpenCV shortcut path
-    cv::VideoCapture cv_cap_;
+    int width_;
+    int height_;
+    double fps_;
+    bool use_hardware_;
 
     // Shared preprocessor (both paths)
     Preprocessor preprocessor_;
 
     // Pipeline mode
-    bool use_pipeline_ = false;
+    bool use_pipeline_;
 
     // Channel infrastructure (pipeline mode only)
     std::unique_ptr<SingleSlotChannel<cv::Mat>> raw_ch_;

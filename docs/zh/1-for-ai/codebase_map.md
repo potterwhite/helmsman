@@ -8,7 +8,6 @@
 >
 > 最后更新：2026-04-20（新增 Utils/timing/timer.h；pipeline 全流程计时；--timing=off CLI 标志）
 >
-> **English →** [../../en/1-for-ai/codebase_map.md](../../en/1-for-ai/codebase_map.md)
 
 ---
 
@@ -280,32 +279,32 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 ### 抠图流水线（C++ 数据流）
 
 ```
-[输入：图片路径 / MP4 视频路径 + RKNN/ONNX 模型路径]
+[输入：MP4 视频路径 / 图片路径 + RKNN/ONNX 模型路径]
         |
         ▼
-┌─────────────────────────┐
-│  InputSource（抽象）     │  → input/input-source.h
-│                         │  ★ Phase-5 新增：视频输入抽象
-│  Mp4InputSource         │  → input/mp4-input-source.h/cpp
-│  └─ cv::VideoCapture    │  FFmpeg 后端，逐帧 read(cv::Mat&)
-│     + FFmpeg backend    │
-│                         │  Legacy 路径: 直接使用图片路径字符串
-└────────┬────────────────┘
-         │ cv::Mat (BGR) 或 图片路径
+┌─────────────────────────────┐
+│  FrontendBase（抽象基类）    │  → pipeline/stages/frontend/frontend.h
+│                             │  ★ 工厂方法: FrontendBase::Create()
+│  RockchipFrontend           │  → rockchip-frontend.h
+│  ├─ FfmpegInputSource       │  FFmpeg demux
+│  ├─ MppFrameDecoder         │  MPP 硬件解码
+│  └─ RgaNv12ToBgr            │  RGA 颜色转换 (NV12→BGR)
+│                             │
+│  NoHwFrontend               │  → no-hw-frontend.h
+│  └─ cv::VideoCapture        │  OpenCV 软件解码（回退）
+│                             │
+│  ReadFrame() → cv::Mat BGR  │  子类实现
+│  preprocess() → TensorData  │  基类共享（Preprocessor）
+└────────┬────────────────────┘
+         │ cv::Mat (BGR)
          ▼
 ┌─────────────────┐
-│  ImageFrontend  │  → pipeline/frontend/frontend.cpp
-│  ::preprocess() │  ★ Phase-5 拆分为双重载：
-│  (string path)  │  ├─ preprocess(string path, w, h) — imread → preprocessCore
-│  (cv::Mat frame)│  └─ preprocess(cv::Mat, w, h) — clone → preprocessCore
-│                 │
-│ preprocessCore():│
+│  Preprocessor   │  → pipeline/stages/frontend/04-preprocess/preprocessor.cpp
+│  preprocessCore():│
 │  1. BGR → RGB    │
 │  2. 确保 3 通道  │
 │  3. convertTo CV_32FC3（保持 0–255 范围，不归一化）
-│  4. Letterbox 缩放至 model_W × model_H
-│     - 保持宽高比缩放
-│     - cv::copyMakeBorder（黑色填充）
+│  4. 缩放至 model_W × model_H
 │  5. 将 HWC float32 内存复制到 tensor_data.data
 │  6. 填充 TensorData 元数据（orig_w/h, pad_*）
 └────────┬────────┘
@@ -363,26 +362,29 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 | `include/common/common-define.h` | `kcurrent_module_name = "main-server"` |
 | `include/common/data_structure.h` 🔒 | `TensorData` 结构体（name, data, shape, orig_w/h, pad_*） |
 
-### 输入源（pipeline 外部）
+### Frontend 子系统（pipeline/stages/frontend/）
 
 | 文件 | 用途 |
 |---|---|
-| `include/input/input-source.h` ★ | `InputSource` 抽象接口：`open()`, `read()`, `width()`, `height()`, `fps()`, `close()` |
-| `include/input/mp4-input-source.h` ★ | `Mp4InputSource`：cv::VideoCapture + FFmpeg 后端 |
-| `src/input/mp4-input-source.cpp` ★ | Mp4InputSource 实现 |
+| `include/pipeline/stages/frontend/frontend.h` | `FrontendBase` 抽象基类：`ProcessOneFrame()`, `preprocess()`, `Stop()`, 工厂方法 `Create()` |
+| `include/pipeline/stages/frontend/rockchip-frontend.h` | `RockchipFrontend`：FFmpeg + MPP + RGA 硬件解码路径 |
+| `include/pipeline/stages/frontend/no-hw-frontend.h` | `NoHwFrontend`：cv::VideoCapture 软件解码回退 |
+| `include/pipeline/stages/frontend/01-input-source/base-input-source.h` | `BaseInputSource` 抽象接口：`open()`, `ReadRaw()`, `width()`, `height()` |
+| `include/pipeline/stages/frontend/02-decoder/base-frame-decoder.h` | `BaseFrameDecoder` 抽象 + `HardwareFrame` 结构体 |
+| `include/pipeline/stages/frontend/03-color-convert/base-color-converter.h` | `BaseColorConverter` 抽象 |
+| `include/pipeline/stages/frontend/04-preprocess/preprocessor.h` | `Preprocessor`：BGR→RGB→float32→resize→HWC 张量 |
 
 ### 流水线文件
 
 | 文件 | 用途 |
 |---|---|
-| `src/main-server.cpp` | 入口点；配置 logger、SIGINT 信号处理（全局 `g_stop_signal_received`），自动检测视频/图片，调用 `Pipeline::init()` + `run()` |
-| `include/pipeline/pipeline.h` | `Pipeline` 单例：双 `init()` 重载（unique_ptr<InputSource> / 图片路径），`run()`, `runMODNet()`, `runRVM()`（含 VideoWriter 合成输出）, `runRVM_CV_SinglePicture()` + `ModelType` 枚举 |
-| `src/pipeline/pipeline.cpp` 🔒 | 编排：MODNet 路径（1→1 + 10× 基准）/ RVM 路径（5→6 + 递归状态 + 视频逐帧循环 + VideoWriter alpha compositing + SIGINT 优雅退出）/ RVM_CV_SinglePicture（legacy 单图5帧测试）|
-| `include/pipeline/recurrent-state-manager.h` ★ | `RecurrentStateManager`：RVM 递归状态持久化（init/reset/inject/update） |
-| `src/pipeline/recurrent-state-manager.cpp` ★ | RecurrentStateManager 实现 |
-| `include/pipeline/frontend/frontend.h` | `ImageFrontend`: `preprocess(image_path, w, h)` + `preprocess(cv::Mat, w, h)` 双重载 |
-| `src/pipeline/frontend/frontend.cpp` 🔒 | preprocessCore()：BGR→RGB→float32→letterbox→HWC 张量（0–255 范围）；两个公共重载调用 |
-| `include/pipeline/inference-engine/base/inference-engine.h` 🔒 | `InferenceEngine` 抽象基类：`load()`, `infer(vector<in>, vector<out>)` — N→M 泛化接口 |
+| `src/main-server.cpp` | 入口点；配置 logger、SIGINT 信号处理，调用 `Pipeline::Init()` + `Run()` |
+| `include/pipeline/pipeline.h` | `Pipeline` 单例：`Init()` 创建+加载+注入，`Run()` 纯执行 |
+| `src/pipeline/pipeline.cpp` 🔒 | Init(): FrontendBase::Create + engine->Load + Backend 配置 + 注入到 modes |
+| `include/pipeline/modes/rvm/rvm.h` | `RVMMode`：setter 注入 + `Run()` 无参数 |
+| `include/pipeline/modes/modnet/modnet.h` | `MODNetMode`：setter 注入 + `Run()` 无参数 |
+| `include/pipeline/infra/recurrent-state-manager.h` ★ | `RecurrentStateManager`：RVM 递归状态持久化 |
+| `include/pipeline/stages/inference-engine/base/inference-engine.h` 🔒 | `InferenceEngine` 抽象基类：`Load()`, `Infer()` — N→M 泛化接口 |
 | `include/pipeline/inference-engine/rknn/rknn-zero-copy.h` | `InferenceEngineRKNNZeroCP` — 多组 zero-copy buffer |
 | `src/pipeline/inference-engine/rknn/rknn-zero-copy.cpp` | N 输入 × M 输出 zero-copy：遍历 input_mems_/output_mems_，自适应 INT8/FP16/FP32 |
 | `include/pipeline/inference-engine/rknn/rknn-non-zero-copy.h` | `InferenceEngineRKNN`（备选）|

@@ -81,8 +81,7 @@ int MattingServer::ProcessFrame(int input_fd, int input_w, int input_h) {
 	cv::Mat input_frame(input_h, input_w, CV_8UC3, input_ptr);
 
 	// 3. Preprocess: resize + normalize → TensorData.
-	TensorData tensor = frontend_.preprocess(input_frame, static_cast<size_t>(model_w_),
-	                                         static_cast<size_t>(model_h_));
+	TensorData tensor = frontend_.preprocess(input_frame, model_w_, model_h_);
 
 	// 4. Inject recurrent states.
 	std::vector<TensorData> inputs = {tensor};

@@ -19,36 +19,21 @@
 // SOFTWARE.
 
 // =============================================================================
-// base-frontend-factory.h — Frontend factory interface
+// frontend-create-rockchip.cpp — FrontendBase::Create() for Rockchip platform
 //
-// Each SoC vendor provides its own implementation (e.g., RockchipFrontendFactory)
-// that wires the appropriate input source, decoder, and color converter.
+// Compiled only when CMAKE_PLATFORM includes "rockchip".
 //
 // =============================================================================
 
-#pragma once
+#include "pipeline/stages/frontend/frontend.h"
+#include "pipeline/stages/frontend/no-hw-frontend.h"
+#include "pipeline/stages/frontend/rockchip-frontend.h"
 
-#include <memory>
-#include <string>
-
-class Frontend;
-
-class BaseFrontendFactory {
-public:
-    virtual ~BaseFrontendFactory() = default;
-
-    // Create a hardware-decode Frontend for the given input path.
-    // If use_pipeline is true, enables the prefetch worker thread.
-    // Throws std::runtime_error on failure.
-    virtual std::unique_ptr<Frontend> create(const std::string& input_path,
-                                             bool use_pipeline = false) = 0;
-};
-
-// Creates a Frontend for the given input path.
-// If use_hardware is true, uses the platform-specific hardware decode factory
-// selected at build time. Otherwise, uses OpenCV software decode.
-// If use_pipeline is true, enables the prefetch worker thread for dual-buffer pipeline.
-// Throws std::runtime_error on failure.
-std::unique_ptr<Frontend> CreateFrontend(const std::string& input_path,
-                                         bool use_hardware,
-                                         bool use_pipeline = false);
+std::unique_ptr<FrontendBase> FrontendBase::Create(const std::string& input_path,
+                                                    bool use_hardware,
+                                                    bool use_pipeline) {
+    if (use_hardware) {
+        return std::make_unique<RockchipFrontend>(input_path, use_pipeline);
+    }
+    return std::make_unique<NoHwFrontend>(input_path, use_pipeline);
+}

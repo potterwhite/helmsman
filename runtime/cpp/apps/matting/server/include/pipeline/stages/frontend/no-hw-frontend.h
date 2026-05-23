@@ -19,25 +19,27 @@
 // SOFTWARE.
 
 // =============================================================================
-// base-preprocessor.h — Abstract preprocessor interface (internal to Frontend)
+// no-hw-frontend.h — OpenCV software-decode Frontend subclass (fallback)
 //
-// A Preprocessor converts a decoded frame (cv::Mat BGR) into a TensorData
-// structure ready for the inference engine.
+// Uses cv::VideoCapture for software decode when no hardware decoder is available.
 //
 // =============================================================================
 
 #pragma once
 
-#include <opencv2/core/mat.hpp>
-#include "common/types.h"
+#include <opencv2/videoio.hpp>
+#include <string>
+#include "pipeline/stages/frontend/frontend.h"
 
-// Abstract preprocessor interface (internal — do not use directly).
-class BasePreprocessor {
+class NoHwFrontend : public FrontendBase {
 public:
-    virtual ~BasePreprocessor() = default;
+    // Opens the video with cv::VideoCapture.
+    // Throws std::runtime_error on failure.
+    explicit NoHwFrontend(const std::string& video_path, bool use_pipeline = false);
 
-    // Preprocess a BGR frame into a TensorData for inference.
-    virtual TensorData preprocess(const cv::Mat& bgr_frame,
-                                  int model_width,
-                                  int model_height) = 0;
+protected:
+    bool ReadFrame(cv::Mat& cpu_frame, HardwareFrame& hw_frame) override;
+
+private:
+    cv::VideoCapture cv_cap_;
 };

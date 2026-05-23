@@ -19,19 +19,22 @@
 // SOFTWARE.
 
 // =============================================================================
-// no-hw-frontend-factory.cpp — Fallback when no hardware decoder is available
+// frontend-create-nohw.cpp — FrontendBase::Create() for non-hardware platforms
+//
+// Compiled when CMAKE_PLATFORM does NOT include "rockchip".
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/05-factory/base-frontend-factory.h"
 #include "pipeline/stages/frontend/frontend.h"
+#include "pipeline/stages/frontend/no-hw-frontend.h"
 
 #include <stdexcept>
 
-std::unique_ptr<Frontend> CreateFrontend(const std::string& input_path, bool use_hardware,
-                                         bool use_pipeline) {
-	if (use_hardware) {
-		throw std::runtime_error("Hardware decoder not supported on this build");
-	}
-	return std::make_unique<Frontend>(input_path, use_pipeline);
+std::unique_ptr<FrontendBase> FrontendBase::Create(const std::string& input_path,
+                                                    bool use_hardware,
+                                                    bool use_pipeline) {
+    if (use_hardware) {
+        throw std::runtime_error("Hardware decoder not supported on this build");
+    }
+    return std::make_unique<NoHwFrontend>(input_path, use_pipeline);
 }

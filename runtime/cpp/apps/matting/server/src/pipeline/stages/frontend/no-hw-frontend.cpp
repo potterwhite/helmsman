@@ -19,25 +19,31 @@
 // SOFTWARE.
 
 // =============================================================================
-// base-preprocessor.h — Abstract preprocessor interface (internal to Frontend)
-//
-// A Preprocessor converts a decoded frame (cv::Mat BGR) into a TensorData
-// structure ready for the inference engine.
+// no-hw-frontend.cpp — OpenCV software-decode Frontend subclass (fallback)
 //
 // =============================================================================
 
-#pragma once
+#include "pipeline/stages/frontend/no-hw-frontend.h"
 
-#include <opencv2/core/mat.hpp>
-#include "common/types.h"
+#include <cstdio>
+#include <stdexcept>
 
-// Abstract preprocessor interface (internal — do not use directly).
-class BasePreprocessor {
-public:
-    virtual ~BasePreprocessor() = default;
+NoHwFrontend::NoHwFrontend(const std::string& video_path, bool use_pipeline)
+    : FrontendBase(false, use_pipeline) {
+    if (!cv_cap_.open(video_path)) {
+        throw std::runtime_error("Failed to open video: " + video_path);
+    }
 
-    // Preprocess a BGR frame into a TensorData for inference.
-    virtual TensorData preprocess(const cv::Mat& bgr_frame,
-                                  int model_width,
-                                  int model_height) = 0;
-};
+    int w = static_cast<int>(cv_cap_.get(cv::CAP_PROP_FRAME_WIDTH));
+    int h = static_cast<int>(cv_cap_.get(cv::CAP_PROP_FRAME_HEIGHT));
+    double fps = cv_cap_.get(cv::CAP_PROP_FPS);
+
+    SetSourceProperties(w, h, fps);
+}
+
+bool NoHwFrontend::ReadFrame(cv::Mat& cpu_frame, HardwareFrame& /*hw_frame*/) {
+    if (!cv_cap_.isOpened()) {
+        return false;
+    }
+    return cv_cap_.read(cpu_frame);
+}

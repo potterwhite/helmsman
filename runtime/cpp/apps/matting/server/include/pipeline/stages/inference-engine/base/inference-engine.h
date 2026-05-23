@@ -53,8 +53,8 @@ class InferenceEngine {
 	) = 0;
 
 	// Getters for model input dimensions (used by Pipeline to configure frontend).
-	virtual std::size_t GetInputHeight() const { return 0; }
-	virtual std::size_t GetInputWidth()  const { return 0; }
+	virtual int GetInputHeight() const { return 0; }
+	virtual int GetInputWidth()  const { return 0; }
 
 	// Get the shapes of recurrent state inputs (inputs 1..4 for RVM).
 	// Returns empty vector if not available (e.g. ONNX engine).

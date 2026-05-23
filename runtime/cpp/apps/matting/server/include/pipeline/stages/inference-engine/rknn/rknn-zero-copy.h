@@ -53,11 +53,11 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 
 	// Get model input dimensions from the FIRST input tensor (image/src).
 	// RKNN reports NHWC layout: dims[0]=batch, dims[1]=height, dims[2]=width, dims[3]=channels
-	size_t GetInputHeight() const override {
-		return input_attrs_.empty() ? 0 : static_cast<size_t>(input_attrs_[0].dims[1]);
+	int GetInputHeight() const override {
+		return input_attrs_.empty() ? 0 : static_cast<int>(input_attrs_[0].dims[1]);
 	}
-	size_t GetInputWidth() const override {
-		return input_attrs_.empty() ? 0 : static_cast<size_t>(input_attrs_[0].dims[2]);
+	int GetInputWidth() const override {
+		return input_attrs_.empty() ? 0 : static_cast<int>(input_attrs_[0].dims[2]);
 	}
 
 	// Return the shapes of recurrent state inputs (inputs 1..N).

@@ -65,11 +65,11 @@ void RVMMode::_InitRecurrentStates(InferenceEngine* engine) {
 	}
 }
 
-bool RVMMode::_OpenVideoWriter(cv::VideoWriter& writer, const std::string& path, size_t width,
-                              size_t height, double fps) {
+bool RVMMode::_OpenVideoWriter(cv::VideoWriter& writer, const std::string& path, int width,
+                              int height, double fps) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 	writer.open(path, cv::VideoWriter::fourcc('m', 'p', '4', 'v'), fps,
-	            cv::Size(static_cast<int>(width), static_cast<int>(height)));
+	            cv::Size(width, height));
 	if (!writer.isOpened()) {
 		logger.Warning(
 		    "Failed to open VideoWriter: " + path + ". Composited video will NOT be saved.",
@@ -82,17 +82,17 @@ bool RVMMode::_OpenVideoWriter(cv::VideoWriter& writer, const std::string& path,
 	return true;
 }
 
-cv::Mat RVMMode::_LoadOrCreateBackground(size_t width, size_t height) {
+cv::Mat RVMMode::_LoadOrCreateBackground(int width, int height) {
 	cv::Mat bg;
 	if (!config_.background_path.empty()) {
 		bg = cv::imread(config_.background_path, cv::IMREAD_COLOR);
 		if (!bg.empty()) {
-			cv::resize(bg, bg, cv::Size(static_cast<int>(width), static_cast<int>(height)));
+			cv::resize(bg, bg, cv::Size(width, height));
 			return bg;
 		}
 	}
 	// Default fallback background: BGR(155,255,120) = RGB(120,255,155), matches e.py baseline
-	return cv::Mat(static_cast<int>(height), static_cast<int>(width), CV_8UC3, kDefaultBgColor);
+	return cv::Mat(height, width, CV_8UC3, kDefaultBgColor);
 }
 
 cv::Mat RVMMode::_InferOneFrame(InferenceEngine* engine, const TensorData& src,
@@ -119,11 +119,11 @@ cv::Mat RVMMode::_InferOneFrame(InferenceEngine* engine, const TensorData& src,
 	logger.Info("infer() cost: " + std::to_string(dur.count()) + " ms.", kRvmModuleName);
 
 	state_mgr_.update(outputs);
-	return backend_.Postprocess(outputs, guide_bgr);
+	return backend_->Postprocess(outputs, guide_bgr);
 }
 
 void RVMMode::_ProcessOneFrame(InferenceEngine* engine, const TensorData& tensor,
-                               const cv::Mat& current_frame, size_t /*model_w*/, size_t /*model_h*/) {
+                               const cv::Mat& current_frame, int /*model_w*/, int /*model_h*/) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	// --------------- infer one frame ---------------
@@ -449,15 +449,6 @@ double RVMMode::_CompositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, i
 }
 
 RvmRunSetup RVMMode::_PrepareRun(InferenceEngine* engine) {
-	auto& logger = helmsman::utils::Logger::GetInstance();
-
-	{
-		ScopedTimer t("Lv03::RVMMode::_PrepareRun() load", config_.timing_enabled, logger,
-		              kRvmModuleName);
-		engine->SetOutputBinPath(config_.output_bin_path);
-		engine->Load(config_.model_path);
-	}
-
 	RvmRunSetup setup;
 	setup.model_input_height =
 	    engine->GetInputHeight() > 0 ? engine->GetInputHeight() : kDefaultModelInputHeight;
@@ -465,13 +456,6 @@ RvmRunSetup RVMMode::_PrepareRun(InferenceEngine* engine) {
 	    engine->GetInputWidth() > 0 ? engine->GetInputWidth() : kDefaultModelInputWidth;
 
 	_InitRecurrentStates(engine);
-
-	backend_.SetOutputPath(config_.output_bin_path);
-	backend_.SetBackgroundPath(config_.background_path);
-	// Post-processor: disabled to match PyTorch baseline (no post-processing).
-	// PyTorch inference: com = fgr * pha + bgr * (1 - pha) — raw model alpha, no GF.
-	// Re-enable after confirming raw alpha quality: SetPostProcessor(make_shared<GuidedFilterPostProcessor>(...))
-	// backend_.SetPostProcessor(std::make_shared<GuidedFilterPostProcessor>(8, 1e-4, 0.4f, 2, 5));
 
 	return setup;
 }
@@ -533,7 +517,7 @@ void RVMMode::_DoCleaningThings(const std::chrono::steady_clock::time_point& pip
 	            kRvmModuleName);
 }
 
-void RVMMode::_OutputModeProcess(const size_t src_width, const size_t src_height,
+void RVMMode::_OutputModeProcess(const int src_width, const int src_height,
                                    const double src_fps, const std::string& output_video_path,
                                    const OutputMode output_mode) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
@@ -546,7 +530,7 @@ void RVMMode::_OutputModeProcess(const size_t src_width, const size_t src_height
 	const double output_fps = (src_fps > 0) ? src_fps : 30.0;
 
 	if (output_mode == OutputMode::kDrm) {
-		if (drm_display_.Init(static_cast<int>(src_width), static_cast<int>(src_height))) {
+		if (drm_display_.Init(src_width, src_height)) {
 			std::tie(drm_panel_w_, drm_panel_h_) = drm_display_.PanelSize();
 			logger.Info("DRM display initialized: panel " + std::to_string(drm_panel_w_) + "x" +
 			                std::to_string(drm_panel_h_),
@@ -561,36 +545,31 @@ void RVMMode::_OutputModeProcess(const size_t src_width, const size_t src_height
 	}
 }
 
-void RVMMode::_PreprocessBgUint8(cv::Mat bg_bgr, const size_t src_width,
-                                   const size_t src_height) {
+void RVMMode::_PreprocessBgUint8(cv::Mat bg_bgr, const int src_width,
+                                   const int src_height) {
 	// Pre-compute background at model resolution for fast compositing in _CompositeAndWrite().
 	// Avoids converting bg from uint8→float32 at full resolution every frame.
 
 	cv::Mat bg_model;
 	cv::resize(bg_bgr, bg_model,
-	           cv::Size(static_cast<int>(src_width), static_cast<int>(src_height)), 0, 0,
+	           cv::Size(src_width, src_height), 0, 0,
 	           cv::INTER_LINEAR);
 	bg_model_u8_ = bg_model.clone();  // uint8 copy for fast compositing
 }
 
-int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& config) {
+int RVMMode::Run() {
 	auto& logger = helmsman::utils::Logger::GetInstance();
-
-	config_ = config;
-	frontend_ = frontend;
 
 	ScopedTimer run_rvm_timer("Lv02::RVMMode::run() total", config_.timing_enabled, logger,
 	                          kRvmModuleName);
 
 	// =========================================================================
 	// 1st — Setup phase
-	//    - load the model into the inference engine
 	//    - query the model's expected input resolution (fall back to 288×512 if
 	//      the engine returns 0, which can happen with dynamic-shape ONNX models)
 	//    - initialise the four RNN hidden-state tensors (r1i–r4i) to zero
-	//    - wire output / background paths into frontend and backend members
 	// =========================================================================
-	const RvmRunSetup setup = _PrepareRun(engine);
+	const RvmRunSetup setup = _PrepareRun(engine_);
 
 	// =========================================================================
 	// 2nd — Video I/O setup
@@ -621,7 +600,7 @@ int RVMMode::run(InferenceEngine* engine, Frontend* frontend, const AppConfig& c
 	fps_window_start_ = std::chrono::steady_clock::now();
 	const auto pipeline_start = fps_window_start_;
 
-	_RunMainLoop(engine, setup);
+	_RunMainLoop(engine_, setup);
 
 	_ReportAllAccumulatedTimers();
 

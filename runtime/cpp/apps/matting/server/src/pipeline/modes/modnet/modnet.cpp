@@ -28,40 +28,31 @@ using helmsman::utils::timing::ScopedTimer;
 
 inline constexpr std::string_view kModnetModuleName = "MODNetMode";
 
-int MODNetMode::run(InferenceEngine* engine, const AppConfig& config) {
+int MODNetMode::Run() {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
-	MattingBackend backend;
+	const int model_input_height = engine_->GetInputHeight() > 0 ? engine_->GetInputHeight() : 512;
+	const int model_input_width = engine_->GetInputWidth() > 0 ? engine_->GetInputWidth() : 512;
 
-	// 1. Load model
-	{
-		ScopedTimer t("runMODNet: model load", config.timing_enabled, logger, kModnetModuleName);
-		engine->SetOutputBinPath(config.output_bin_path);
-		engine->Load(config.model_path);
-	}
-
-	const size_t model_input_height = engine->GetInputHeight() > 0 ? engine->GetInputHeight() : 512;
-	const size_t model_input_width = engine->GetInputWidth() > 0 ? engine->GetInputWidth() : 512;
-
-	// 2. Frontend: preprocess image
+	// 1. Frontend: preprocess image
 	TensorData src;
 	{
-		ScopedTimer t("runMODNet: preprocess", config.timing_enabled, logger, kModnetModuleName);
-		frontend_.SetOutputBinPath(config.output_bin_path);
-		cv::Mat img = cv::imread(config.input_path, cv::IMREAD_COLOR);
-		src = frontend_.preprocess(img, model_input_width, model_input_height);
+		ScopedTimer t("runMODNet: preprocess", config_.timing_enabled, logger, kModnetModuleName);
+		preprocessor_.SetOutputBinPath(config_.output_bin_path);
+		cv::Mat img = cv::imread(config_.input_path, cv::IMREAD_COLOR);
+		src = preprocessor_.preprocess(img, model_input_width, model_input_height);
 	}
 
-	// 3. Inference: benchmark 10 iterations
+	// 2. Inference: benchmark 10 iterations
 	std::vector<TensorData> inputs = {src};
 	std::vector<TensorData> outputs;
 
 	{
-		ScopedTimer bench_timer("runMODNet: benchmark 10x total", config.timing_enabled, logger,
+		ScopedTimer bench_timer("runMODNet: benchmark 10x total", config_.timing_enabled, logger,
 		                        kModnetModuleName);
 		for (int i = 0; i < 10; ++i) {
 			auto start = std::chrono::high_resolution_clock::now();
-			engine->Infer(inputs, outputs);
+			engine_->Infer(inputs, outputs);
 			auto end = std::chrono::high_resolution_clock::now();
 
 			std::chrono::duration<double, std::milli> dur = end - start;
@@ -72,14 +63,12 @@ int MODNetMode::run(InferenceEngine* engine, const AppConfig& config) {
 		}
 	}
 
-	// 4. Backend: postprocess
+	// 3. Backend: postprocess
 	{
-		ScopedTimer t("runMODNet: postprocess", config.timing_enabled, logger, kModnetModuleName);
-		backend.SetOutputPath(config.output_bin_path);
-		backend.SetBackgroundPath(config.background_path);
-		backend.SetForegroundImagePath(config.input_path);
-		backend.SetPostProcessor(std::make_shared<GuidedFilterPostProcessor>(2, 1e-4, 0.2f, 1));
-		backend.Postprocess(outputs);
+		ScopedTimer t("runMODNet: postprocess", config_.timing_enabled, logger, kModnetModuleName);
+		backend_->SetForegroundImagePath(config_.input_path);
+		backend_->SetPostProcessor(std::make_shared<GuidedFilterPostProcessor>(2, 1e-4, 0.2f, 1));
+		backend_->Postprocess(outputs);
 	}
 
 	return 0;

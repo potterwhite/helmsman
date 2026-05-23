@@ -22,38 +22,27 @@
 # apps/matting/server/src/pipeline/stages/frontend/CMakeLists.txt
 #
 
+# Shared sources (all platforms)
 target_sources(${PROJECT_NAME}
     PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/frontend.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/no-hw-frontend.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/04-preprocess/preprocessor.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/01-input-source/ffmpeg-input-source.cpp"
 )
 
-# MppFrameDecoder: only when MPPKit is available
-if(TARGET ${PROJECT_NAMESPACE}::MPPKit)
+# Platform-specific sources: Rockchip hardware decode path
+if("rockchip" IN_LIST CMAKE_PLATFORM)
     target_sources(${PROJECT_NAME}
         PRIVATE
             "${CMAKE_CURRENT_SOURCE_DIR}/02-decoder/mpp-frame-decoder.cpp"
-    )
-endif()
-
-# RgaNv12ToBgr: only when RGAKit is available
-if(TARGET ${PROJECT_NAMESPACE}::RGAKit)
-    target_sources(${PROJECT_NAME}
-        PRIVATE
             "${CMAKE_CURRENT_SOURCE_DIR}/03-color-convert/rga-nv12-to-bgr.cpp"
-    )
-endif()
-
-# RockchipFrontendFactory: only when both MPPKit and RGAKit are available
-if(TARGET ${PROJECT_NAMESPACE}::MPPKit AND TARGET ${PROJECT_NAMESPACE}::RGAKit)
-    target_sources(${PROJECT_NAME}
-        PRIVATE
-            "${CMAKE_CURRENT_SOURCE_DIR}/05-factory/rockchip-frontend-factory.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/rockchip-frontend.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/frontend-create-rockchip.cpp"
     )
 else()
     target_sources(${PROJECT_NAME}
         PRIVATE
-            "${CMAKE_CURRENT_SOURCE_DIR}/05-factory/no-hw-frontend-factory.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/frontend-create-nohw.cpp"
     )
 endif()

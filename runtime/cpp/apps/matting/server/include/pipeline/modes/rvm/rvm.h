@@ -40,13 +40,18 @@
  * Kept outside the class — no need to nest a plain data struct inside a class.
  */
 struct RvmRunSetup {
-	size_t model_input_height;
-	size_t model_input_width;
+	int model_input_height;
+	int model_input_width;
 };
 
 class RVMMode {
    public:
-	int run(InferenceEngine* engine, Frontend* frontend, const AppConfig& config);
+	void SetEngine(InferenceEngine* engine) { engine_ = engine; }
+	void SetFrontend(FrontendBase* frontend) { frontend_ = frontend; }
+	void SetBackend(MattingBackend* backend) { backend_ = backend; }
+	void SetConfig(const AppConfig& config) { config_ = config; }
+
+	int Run();
 
    private:
 	/**
@@ -58,10 +63,10 @@ class RVMMode {
 
 	void _InitRecurrentStates(InferenceEngine* engine);
 
-	bool _OpenVideoWriter(cv::VideoWriter& writer, const std::string& path, size_t width,
-	                      size_t height, double fps);
+	bool _OpenVideoWriter(cv::VideoWriter& writer, const std::string& path, int width,
+	                      int height, double fps);
 
-	cv::Mat _LoadOrCreateBackground(size_t width, size_t height);
+	cv::Mat _LoadOrCreateBackground(int width, int height);
 
 	cv::Mat _InferOneFrame(InferenceEngine* engine, const TensorData& src,
 	                       const cv::Mat& guide_bgr);
@@ -87,7 +92,7 @@ class RVMMode {
 	 * Process one frame: infer → composite → log. Shared by both prefetch and serial loops.
 	 */
 	void _ProcessOneFrame(InferenceEngine* engine, const TensorData& tensor,
-	                       const cv::Mat& current_frame, size_t model_w, size_t model_h);
+	                       const cv::Mat& current_frame, int model_w, int model_h);
 
 	/**
 	 * Unified main loop. Uses Frontend::ProcessOneFrame() which handles
@@ -109,20 +114,21 @@ class RVMMode {
 	/**
 	 * Shared output path for both output modes (MP4 file or DRM display). Sets up the VideoWriter if needed.
 	 */
-	void _OutputModeProcess(const size_t src_width, const size_t src_height, const double src_fps,
+	void _OutputModeProcess(const int src_width, const int src_height, const double src_fps,
 	                          const std::string& output_video_path, const OutputMode output_mode);
 
 	/**
 	 * Preprocess the background image into a uint8 BGR cv::Mat at model resolution for fast compositing.
 	 */
-	void _PreprocessBgUint8(cv::Mat bg_bgr, const size_t src_width, const size_t src_height);
+	void _PreprocessBgUint8(cv::Mat bg_bgr, const int src_width, const int src_height);
 
    private:
 	// Member variables
-	float dsr_ = 0.25f;             ///< downsample_ratio, overwritten in run()
-	Frontend* frontend_ = nullptr;  // Non-owning; owned by Pipeline
-	AppConfig config_;              // Copy of the app config, set at run() entry
-	MattingBackend backend_;
+	InferenceEngine* engine_ = nullptr;  // Non-owning; owned by Pipeline
+	FrontendBase* frontend_ = nullptr;   // Non-owning; owned by Pipeline
+	MattingBackend* backend_ = nullptr;  // Non-owning; owned by Pipeline
+	AppConfig config_;                   // Copy of the app config, set via SetConfig()
+	float dsr_ = 0.25f;                 ///< downsample_ratio, overwritten in Run()
 	RecurrentStateManager state_mgr_;
 	cv::Mat bg_model_u8_;  // Pre-computed background at model resolution (CV_8UC3)
 
