@@ -19,31 +19,27 @@
 // SOFTWARE.
 
 // =============================================================================
-// no-hw-frontend.cpp — OpenCV software-decode Frontend subclass (fallback)
+// no-hw-frontend.h — OpenCV software-decode Frontend subclass (fallback)
+//
+// Uses cv::VideoCapture for software decode when no hardware decoder is available.
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/no-hw-frontend.h"
+#pragma once
 
-#include <cstdio>
-#include <stdexcept>
+#include <opencv2/videoio.hpp>
+#include <string>
+#include "pipeline/stages/frontend/00-base/frontend.h"
 
-NoHwFrontend::NoHwFrontend(const std::string& video_path, bool use_pipeline)
-    : FrontendBase(false, use_pipeline) {
-    if (!cv_cap_.open(video_path)) {
-        throw std::runtime_error("Failed to open video: " + video_path);
-    }
+class NoHwFrontend : public FrontendBase {
+public:
+    // Opens the video with cv::VideoCapture.
+    // Throws std::runtime_error on failure.
+    explicit NoHwFrontend(const std::string& video_path, bool use_pipeline = false);
 
-    int w = static_cast<int>(cv_cap_.get(cv::CAP_PROP_FRAME_WIDTH));
-    int h = static_cast<int>(cv_cap_.get(cv::CAP_PROP_FRAME_HEIGHT));
-    double fps = cv_cap_.get(cv::CAP_PROP_FPS);
+protected:
+    bool ReadFrame(cv::Mat& cpu_frame, HardwareFrame& hw_frame) override;
 
-    SetSourceProperties(w, h, fps);
-}
-
-bool NoHwFrontend::ReadFrame(cv::Mat& cpu_frame, HardwareFrame& /*hw_frame*/) {
-    if (!cv_cap_.isOpened()) {
-        return false;
-    }
-    return cv_cap_.read(cpu_frame);
-}
+private:
+    cv::VideoCapture cv_cap_;
+};

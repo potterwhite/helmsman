@@ -3,21 +3,21 @@
 ## 类层次
 
 ```
-FrontendBase (abstract)                    ← frontend.h
-├── RockchipFrontend                       ← rockchip-frontend.h
+FrontendBase (abstract)                    ← 00-base/frontend.h
+├── RockchipFrontend                       ← 00-base/rockchip-frontend.h
 │   ├── FfmpegInputSource (demux)
 │   ├── MppFrameDecoder (VPU decode)
 │   └── RgaNv12ToBgr (RGA color convert)
-└── NoHwFrontend                           ← no-hw-frontend.h
+└── NoHwFrontend                           ← 00-base/no-hw-frontend.h
     └── cv::VideoCapture (software decode)
 ```
 
 ## 工厂方法
 
 `FrontendBase::Create(input_path, use_hardware, use_pipeline)` 是静态工厂方法。
-两个 .cpp 文件实现它，CMake 根据 `CMAKE_PLATFORM` 选择编译哪个：
-- `frontend-create-rockchip.cpp` — 可创建 RockchipFrontend 和 NoHwFrontend
-- `frontend-create-nohw.cpp` — 只能创建 NoHwFrontend
+两个 .cpp 文件实现它（位于 `00-base/factory/`），CMake 根据 `CMAKE_PLATFORM` 选择编译哪个：
+- `00-base/factory/frontend-create-rockchip.cpp` — 可创建 RockchipFrontend 和 NoHwFrontend
+- `00-base/factory/frontend-create-nohw.cpp` — 只能创建 NoHwFrontend
 
 ## 子阶段
 

@@ -25,8 +25,8 @@
 # Shared sources (all platforms)
 target_sources(${PROJECT_NAME}
     PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/frontend.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/no-hw-frontend.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/00-base/frontend.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/00-base/no-hw-frontend.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/04-preprocess/preprocessor.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/01-input-source/ffmpeg-input-source.cpp"
 )
@@ -35,14 +35,14 @@ target_sources(${PROJECT_NAME}
 if("rockchip" IN_LIST CMAKE_PLATFORM)
     target_sources(${PROJECT_NAME}
         PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/00-base/rockchip-frontend.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/00-base/factory/frontend-create-rockchip.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/02-decoder/mpp-frame-decoder.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/03-color-convert/rga-nv12-to-bgr.cpp"
-            "${CMAKE_CURRENT_SOURCE_DIR}/rockchip-frontend.cpp"
-            "${CMAKE_CURRENT_SOURCE_DIR}/frontend-create-rockchip.cpp"
     )
 else()
     target_sources(${PROJECT_NAME}
         PRIVATE
-            "${CMAKE_CURRENT_SOURCE_DIR}/frontend-create-nohw.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/00-base/factory/frontend-create-nohw.cpp"
     )
 endif()

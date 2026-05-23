@@ -19,27 +19,21 @@
 // SOFTWARE.
 
 // =============================================================================
-// no-hw-frontend.h — OpenCV software-decode Frontend subclass (fallback)
+// frontend-create-rockchip.cpp — FrontendBase::Create() for Rockchip platform
 //
-// Uses cv::VideoCapture for software decode when no hardware decoder is available.
+// Compiled only when CMAKE_PLATFORM includes "rockchip".
 //
 // =============================================================================
 
-#pragma once
+#include "pipeline/stages/frontend/00-base/frontend.h"
+#include "pipeline/stages/frontend/00-base/no-hw-frontend.h"
+#include "pipeline/stages/frontend/00-base/rockchip-frontend.h"
 
-#include <opencv2/videoio.hpp>
-#include <string>
-#include "pipeline/stages/frontend/frontend.h"
-
-class NoHwFrontend : public FrontendBase {
-public:
-    // Opens the video with cv::VideoCapture.
-    // Throws std::runtime_error on failure.
-    explicit NoHwFrontend(const std::string& video_path, bool use_pipeline = false);
-
-protected:
-    bool ReadFrame(cv::Mat& cpu_frame, HardwareFrame& hw_frame) override;
-
-private:
-    cv::VideoCapture cv_cap_;
-};
+std::unique_ptr<FrontendBase> FrontendBase::Create(const std::string& input_path,
+                                                    bool use_hardware,
+                                                    bool use_pipeline) {
+    if (use_hardware) {
+        return std::make_unique<RockchipFrontend>(input_path, use_pipeline);
+    }
+    return std::make_unique<NoHwFrontend>(input_path, use_pipeline);
+}

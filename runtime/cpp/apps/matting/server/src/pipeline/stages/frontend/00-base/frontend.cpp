@@ -26,7 +26,7 @@
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/frontend.h"
+#include "pipeline/stages/frontend/00-base/frontend.h"
 
 // ---------------------------------------------------------------------------
 // Protected constructor

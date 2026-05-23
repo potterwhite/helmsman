@@ -32,7 +32,7 @@
 #include "common/types.h"
 #include "pipeline/infra/recurrent-state-manager.h"
 #include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/frontend/frontend.h"
+#include "pipeline/stages/frontend/00-base/frontend.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
 
 /**
