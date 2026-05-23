@@ -95,4 +95,5 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 
 	// NPU core mask (-1 = default/CORE_ALL)
 	int core_mask_ = -1;
+	bool perf_enabled_ = false;  // true if COLLECT_PERF_MASK was accepted
 };

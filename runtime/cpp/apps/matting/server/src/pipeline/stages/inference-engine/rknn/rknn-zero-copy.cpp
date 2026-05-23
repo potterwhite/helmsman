@@ -81,12 +81,23 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// ----------------------------------------------------------------
 	// Phase I - RKNN Context Initialization (file path mode)
 	// ----------------------------------------------------------------
+	// Try with COLLECT_PERF_MASK first; some SDK versions reject this flag in file-path mode.
+	uint32_t init_flags = RKNN_FLAG_COLLECT_PERF_MASK;
 	int ret = rknn_init(&ctx_, const_cast<void*>(static_cast<const void*>(model_path.c_str())), 0,
-	                    RKNN_FLAG_COLLECT_PERF_MASK, nullptr);
+	                    init_flags, nullptr);
 	if (ret < 0) {
-		throw std::runtime_error("rknn_init failed!");
+		logger.Warning("rknn_init with COLLECT_PERF_MASK failed (ret=" + std::to_string(ret) +
+		               "), retrying without it.", kcurrent_module_name);
+		init_flags = 0;
+		ret = rknn_init(&ctx_, const_cast<void*>(static_cast<const void*>(model_path.c_str())), 0,
+		                init_flags, nullptr);
 	}
-	logger.Info("RKNN model loaded and context initialized. (COLLECT_PERF_MASK enabled)", kcurrent_module_name);
+	if (ret < 0) {
+		throw std::runtime_error("rknn_init failed! (ret=" + std::to_string(ret) + ")");
+	}
+	perf_enabled_ = (init_flags & RKNN_FLAG_COLLECT_PERF_MASK) != 0;
+	logger.Info("RKNN model loaded and context initialized. (COLLECT_PERF_MASK " +
+	            std::string(perf_enabled_ ? "enabled" : "disabled") + ")", kcurrent_module_name);
 
 	// --- One-time: SDK version ---
 	rknn_sdk_version sdk_ver;
@@ -285,15 +296,17 @@ void InferenceEngineRKNNZeroCP::InferImpl(
 		logger.Warning("   [RKNN] RKNN_QUERY_PERF_RUN failed", kcurrent_module_name);
 	}
 
-	// --- Per-frame: per-layer op timing ---
-	rknn_perf_detail perf_detail;
-	memset(&perf_detail, 0, sizeof(perf_detail));
-	ret = rknn_query(ctx_, RKNN_QUERY_PERF_DETAIL, &perf_detail, sizeof(perf_detail));
-	if (ret == 0 && perf_detail.data_len > 0) {
-		std::string detail_str(perf_detail.perf_data, perf_detail.data_len);
-		logger.Info("   [RKNN] perf_detail:\n" + detail_str, kcurrent_module_name);
-	} else {
-		logger.Warning("   [RKNN] RKNN_QUERY_PERF_DETAIL failed or empty", kcurrent_module_name);
+	// --- Per-frame: per-layer op timing (only when COLLECT_PERF_MASK was accepted) ---
+	if (perf_enabled_) {
+		rknn_perf_detail perf_detail;
+		memset(&perf_detail, 0, sizeof(perf_detail));
+		ret = rknn_query(ctx_, RKNN_QUERY_PERF_DETAIL, &perf_detail, sizeof(perf_detail));
+		if (ret == 0 && perf_detail.data_len > 0) {
+			std::string detail_str(perf_detail.perf_data, perf_detail.data_len);
+			logger.Info("   [RKNN] perf_detail:\n" + detail_str, kcurrent_module_name);
+		} else {
+			logger.Warning("   [RKNN] RKNN_QUERY_PERF_DETAIL failed or empty", kcurrent_module_name);
+		}
 	}
 
 	auto t2 = std::chrono::high_resolution_clock::now();
