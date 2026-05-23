@@ -36,10 +36,10 @@
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
 
 /**
- * Holds the resolved model input dimensions returned by RVMMode::_PrepareRun().
+ * Holds the resolved model input dimensions returned by RVMMode::InitModelState().
  * Kept outside the class — no need to nest a plain data struct inside a class.
  */
-struct RvmRunSetup {
+struct RvmModelState {
 	int model_input_height;
 	int model_input_width;
 };
@@ -59,7 +59,7 @@ class RVMMode {
      * states, and wire up frontend / backend paths.
      * Returns the resolved model dimensions needed by the prefetch worker.
      */
-	RvmRunSetup _PrepareRun(InferenceEngine* engine);
+	RvmModelState InitModelState(InferenceEngine* engine);
 
 	void _InitRecurrentStates(InferenceEngine* engine);
 
@@ -98,7 +98,7 @@ class RVMMode {
 	 * Unified main loop. Uses Frontend::ProcessOneFrame() which handles
 	 * both sync and pipeline modes internally.
 	 */
-	void _RunMainLoop(InferenceEngine* engine, const RvmRunSetup& setup);
+	void _RunMainLoop(InferenceEngine* engine, const RvmModelState& setup);
 
 	/**
 	* Report all accumulated timers via logger. Called at the end of run() after the main loop exits.
@@ -169,7 +169,7 @@ class RVMMode {
 	//
 	//   ScopedTimer "Lv01::main::pipeline.run() total"           (pipeline.cpp)   — outermost
 	//   ScopedTimer "Lv02::RVMMode::run() total"            (this fn)        — wraps loop
-	//   ScopedTimer "Lv03::RVMMode::_PrepareRun() load"      (this fn)        — model load only
+	//   ScopedTimer "Lv03::RVMMode::InitModelState() load"      (this fn)        — model load only
 	//
 	//   [FPS]   line every 30 frames                                         — moving fps
 	//   [PerFrame] line every frame                                          — infer + comp

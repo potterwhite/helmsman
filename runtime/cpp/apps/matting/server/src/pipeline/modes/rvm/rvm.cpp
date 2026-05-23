@@ -448,8 +448,8 @@ double RVMMode::_CompositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u, i
 	return total_t.elapsed_ms();
 }
 
-RvmRunSetup RVMMode::_PrepareRun(InferenceEngine* engine) {
-	RvmRunSetup setup;
+RvmModelState RVMMode::InitModelState(InferenceEngine* engine) {
+	RvmModelState setup;
 	setup.model_input_height =
 	    engine->GetInputHeight() > 0 ? engine->GetInputHeight() : kDefaultModelInputHeight;
 	setup.model_input_width =
@@ -569,7 +569,7 @@ int RVMMode::Run() {
 	//      the engine returns 0, which can happen with dynamic-shape ONNX models)
 	//    - initialise the four RNN hidden-state tensors (r1i–r4i) to zero
 	// =========================================================================
-	const RvmRunSetup setup = _PrepareRun(engine_);
+	const RvmModelState setup = InitModelState(engine_);
 
 	// =========================================================================
 	// 2nd — Video I/O setup
@@ -616,7 +616,7 @@ int RVMMode::Run() {
 //   Frontend handles both sync and pipeline modes internally.
 //   This loop just calls ProcessOneFrame() and processes each result.
 // =========================================================================
-void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmRunSetup& setup) {
+void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	while (true) {
