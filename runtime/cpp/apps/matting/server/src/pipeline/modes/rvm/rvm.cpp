@@ -517,7 +517,7 @@ void RVMMode::_DoCleaningThings(const std::chrono::steady_clock::time_point& pip
 	            kRvmModuleName);
 }
 
-void RVMMode::_OutputModeProcess(const int src_width, const int src_height,
+void RVMMode::InitOutputSink(const int src_width, const int src_height,
                                    const double src_fps, const std::string& output_video_path,
                                    const OutputMode output_mode) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
@@ -578,7 +578,7 @@ int RVMMode::Run() {
 	//    - open the VideoWriter; if it fails, _CompositeAndWrite() is a no-op
 	//    - load or synthesise a solid-colour background for alpha compositing
 	// =========================================================================
-	_OutputModeProcess(setup.model_input_width, setup.model_input_height, frontend_->fps(),
+	InitOutputSink(setup.model_input_width, setup.model_input_height, frontend_->fps(),
 	                     config_.output_bin_path + "/output_composited.mp4", config_.output_mode);
 
 	cv::Mat bg_bgr = _LoadOrCreateBackground(setup.model_input_width, setup.model_input_height);

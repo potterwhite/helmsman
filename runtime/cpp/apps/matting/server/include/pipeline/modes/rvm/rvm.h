@@ -114,7 +114,7 @@ class RVMMode {
 	/**
 	 * Shared output path for both output modes (MP4 file or DRM display). Sets up the VideoWriter if needed.
 	 */
-	void _OutputModeProcess(const int src_width, const int src_height, const double src_fps,
+	void InitOutputSink(const int src_width, const int src_height, const double src_fps,
 	                          const std::string& output_video_path, const OutputMode output_mode);
 
 	/**
