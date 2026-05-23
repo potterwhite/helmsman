@@ -41,25 +41,8 @@ inline constexpr std::string_view kRvmModuleName = "RVMMode";
 inline constexpr int kDefaultModelInputHeight = 288;
 inline constexpr int kDefaultModelInputWidth = 512;
 
-// Default downsample ratio (overwritten at runtime as 512/max(src_w, src_h))
-inline constexpr float kDefaultDsr = 0.25f;
-
 // Default fallback background color: BGR(155,255,120) = RGB(120,255,155)
 inline const cv::Scalar kDefaultBgColor{155, 255, 120};
-
-void RVMMode::_InitRecurrentStates(InferenceEngine* engine) {
-	// Try to get recurrent state shapes from the engine (RKNN reports actual shapes).
-	auto shapes = engine->GetRecurrentStateShapes();
-	if (shapes.size() == 4) {
-		auto& logger = helmsman::utils::Logger::GetInstance();
-		logger.Info("Using model-reported recurrent state shapes", kRvmModuleName);
-		state_mgr_.init(shapes, {"r1i", "r2i", "r3i", "r4i"});
-	} else {
-		// Fallback: use [1,1,1,1] (ONNX broadcasts, RKNN first frame uses zeros).
-		state_mgr_.init({{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
-		                {"r1i", "r2i", "r3i", "r4i"});
-	}
-}
 
 bool RVMMode::_OpenVideoWriter(cv::VideoWriter& writer, const std::string& path, int width,
                                int height, double fps) {
@@ -90,33 +73,6 @@ void RVMMode::InitBackgroundImage(int width, int height) {
 	backend_->SetBackgroundModelImage(bg.clone());
 }
 
-cv::Mat RVMMode::_InferOneFrame(InferenceEngine* engine, const TensorData& src,
-                                const cv::Mat& guide_bgr) {
-	auto& logger = helmsman::utils::Logger::GetInstance();
-
-	std::vector<TensorData> inputs = {src};
-	state_mgr_.inject(inputs);
-
-	if (engine->NeedsDownsampleRatio()) {
-		TensorData dsr;
-		dsr.name = "downsample_ratio";
-		dsr.shape = {1};
-		dsr.data = {dsr_};
-		inputs.push_back(std::move(dsr));
-	}
-
-	std::vector<TensorData> outputs;
-	auto t0 = std::chrono::high_resolution_clock::now();
-	engine->Infer(inputs, outputs);
-	auto t1 = std::chrono::high_resolution_clock::now();
-
-	std::chrono::duration<double, std::milli> dur = t1 - t0;
-	logger.Info("infer() cost: " + std::to_string(dur.count()) + " ms.", kRvmModuleName);
-
-	state_mgr_.update(outputs);
-	return backend_->Postprocess(outputs, guide_bgr);
-}
-
 void RVMMode::_ProcessOneFrame(InferenceEngine* engine, const TensorData& tensor,
                                const cv::Mat& current_frame, int model_w, int model_h) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
@@ -124,7 +80,9 @@ void RVMMode::_ProcessOneFrame(InferenceEngine* engine, const TensorData& tensor
 	// --------------- infer one frame ---------------
 	ManualTimer infer_t;
 	infer_t.start();
-	cv::Mat alpha_8u = _InferOneFrame(engine, tensor, current_frame);
+	std::vector<TensorData> outputs;
+	engine->Infer({tensor}, outputs);
+	cv::Mat alpha_8u = backend_->Postprocess(outputs, current_frame);
 	const double infer_ms = infer_t.stop();
 	acc_lv02_01_03_main_infer_.record(infer_ms);
 
@@ -259,8 +217,6 @@ RvmModelState RVMMode::InitModelState(InferenceEngine* engine) {
 	setup.model_input_width =
 	    engine->GetInputWidth() > 0 ? engine->GetInputWidth() : kDefaultModelInputWidth;
 
-	_InitRecurrentStates(engine);
-
 	return setup;
 }
 
@@ -323,8 +279,8 @@ void RVMMode::InitOutputSink(const int src_width, const int src_height, const do
 
 	// const int src_width = frontend_->width();
 	// const int src_height = frontend_->height();
-	dsr_ = 512.0f / static_cast<float>(std::max(src_width, src_height));
-	// dance.mp4 1920×1080 → dsr_ = 512/1920 ≈ 0.2667
+	engine_->SetDownsampleRatio(512.0f / static_cast<float>(std::max(src_width, src_height)));
+	// dance.mp4 1920×1080 → dsr = 512/1920 ≈ 0.2667
 	// const double src_fps = frontend_->fps();
 	const double output_fps = (src_fps > 0) ? src_fps : 30.0;
 
@@ -401,6 +357,7 @@ int RVMMode::Run() {
 	//    - initialise the four RNN hidden-state tensors (r1i–r4i) to zero
 	// =========================================================================
 	const RvmModelState setup = InitModelState(engine_);
+	engine_->InitRecurrentStates();
 
 	// =========================================================================
 	// 2nd - Video I/O setup

@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 #include "common/types.h"
+#include "pipeline/infra/recurrent-state-manager.h"
 
 // ---------------------------------------------------------------------------
 // InferenceEngine — abstract inference interface
@@ -34,8 +35,9 @@
 //   - RVM:    N=5, M=6  (src + r1i~r4i → fgr + pha + r1o~r4o)
 //   - Future: SAM2, etc. — no new subclass needed, just fill vectors
 //
-// Recurrent state management is the responsibility of the caller (Pipeline),
-// NOT of InferenceEngine. InferenceEngine is stateless.
+// Stateful inference: Infer() automatically handles recurrent state
+// injection/capture and downsample_ratio injection. Subclasses implement
+// InferImpl() for the pure stateless inference step.
 // ---------------------------------------------------------------------------
 
 class InferenceEngine {
@@ -44,30 +46,33 @@ class InferenceEngine {
 
 	virtual void Load(const std::string& model_path) = 0;
 
-	// Run inference: N inputs → M outputs.
-	// Caller is responsible for pre-sizing `outputs` or leaving it empty
-	// (implementations must resize outputs to match model output count).
-	virtual void Infer(
-	    const std::vector<TensorData>& inputs,
-	          std::vector<TensorData>& outputs
-	) = 0;
+	// --- Stateful inference (public interface) ---
+	// Automatically handles recurrent state injection/capture + dsr injection.
+	// Delegates to InferImpl() for the actual model execution.
+	void Infer(const std::vector<TensorData>& inputs,
+	           std::vector<TensorData>& outputs);
 
-	// Getters for model input dimensions (used by Pipeline to configure frontend).
+	// --- Initialization (RVM-specific, MODNet does not call) ---
+	void InitRecurrentStates();
+	void SetDownsampleRatio(float dsr);
+
+	// --- Query (unchanged) ---
 	virtual int GetInputHeight() const { return 0; }
 	virtual int GetInputWidth()  const { return 0; }
-
-	// Get the shapes of recurrent state inputs (inputs 1..4 for RVM).
-	// Returns empty vector if not available (e.g. ONNX engine).
-	// Used by Pipeline to initialize RecurrentStateManager with correct shapes.
 	virtual std::vector<std::vector<int64_t>> GetRecurrentStateShapes() const { return {}; }
-
-	// Whether the engine expects a "downsample_ratio" tensor appended to inputs.
-	// ONNX RVM models require it; RKNN models bake it into the graph.
 	virtual bool NeedsDownsampleRatio() const { return false; }
 
 	// Optional: path for debug binary dumps.
 	virtual void SetOutputBinPath(const std::string& path) { output_bin_path_ = path; }
 
    protected:
+	// Subclasses implement: pure stateless inference (N inputs → M outputs).
+	virtual void InferImpl(const std::vector<TensorData>& inputs,
+	                       std::vector<TensorData>& outputs) = 0;
+
 	std::string output_bin_path_;
+
+   private:
+	RecurrentStateManager state_mgr_;
+	float dsr_ = 0.25f;
 };

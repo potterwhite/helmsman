@@ -185,7 +185,7 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 //   - FP16:  FLOAT32 → __fp16
 //   - FP32:  direct memcpy
 // ============================================================================
-void InferenceEngineRKNNZeroCP::Infer(
+void InferenceEngineRKNNZeroCP::InferImpl(
     const std::vector<TensorData>& inputs,
           std::vector<TensorData>& outputs)
 {

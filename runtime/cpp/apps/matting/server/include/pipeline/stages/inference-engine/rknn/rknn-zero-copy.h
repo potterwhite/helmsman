@@ -45,12 +45,6 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 
 	void Load(const std::string& model_path) override;
 
-	// N-input / M-output inference (general interface).
-	void Infer(
-	    const std::vector<TensorData>& inputs,
-	          std::vector<TensorData>& outputs
-	) override;
-
 	// Get model input dimensions from the FIRST input tensor (image/src).
 	// RKNN reports NHWC layout: dims[0]=batch, dims[1]=height, dims[2]=width, dims[3]=channels
 	int GetInputHeight() const override {
@@ -75,6 +69,10 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 		}
 		return shapes;
 	}
+
+   protected:
+	void InferImpl(const std::vector<TensorData>& inputs,
+	               std::vector<TensorData>& outputs) override;
 
    private:
 	// member functions

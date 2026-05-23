@@ -26,6 +26,7 @@
 # INFERENCE_BACKEND is set by CMakePresets.json (backend-* mixin) or auto-defaulted.
 target_sources(${PROJECT_NAME}
     PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/base/inference-engine.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/factory/factory-${INFERENCE_BACKEND}.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/onnx/onnx.cpp"
 )

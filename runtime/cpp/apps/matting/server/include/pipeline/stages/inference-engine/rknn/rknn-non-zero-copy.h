@@ -47,11 +47,9 @@ public:
 
     void Load(const std::string& model_path) override;
 
-    // N-input / M-output inference (general interface).
-    void Infer(
-        const std::vector<TensorData>& inputs,
-              std::vector<TensorData>& outputs
-    ) override;
+protected:
+    void InferImpl(const std::vector<TensorData>& inputs,
+                   std::vector<TensorData>& outputs) override;
 
 private:
     void release();

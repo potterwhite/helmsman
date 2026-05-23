@@ -29,7 +29,6 @@
 #include "DmaKit/dma_buffer.h"
 #include "Utils/timing/timer.h"
 #include "common/types.h"
-#include "pipeline/infra/recurrent-state-manager.h"
 #include "pipeline/stages/backend/backend.h"
 #include "pipeline/stages/frontend/00-base/frontend.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
@@ -54,21 +53,15 @@ class RVMMode {
 
    private:
 	/**
-     * Load the model, resolve model input dimensions, initialise recurrent
-     * states, and wire up frontend / backend paths.
+     * Load the model and resolve model input dimensions.
      * Returns the resolved model dimensions needed by the prefetch worker.
      */
 	RvmModelState InitModelState(InferenceEngine* engine);
-
-	void _InitRecurrentStates(InferenceEngine* engine);
 
 	bool _OpenVideoWriter(cv::VideoWriter& writer, const std::string& path, int width,
 	                      int height, double fps);
 
 	void InitBackgroundImage(int width, int height);
-
-	cv::Mat _InferOneFrame(InferenceEngine* engine, const TensorData& src,
-	                       const cv::Mat& guide_bgr);
 
 	// Returns total composite time in ms (for per-frame logging).
 	double _CompositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
@@ -125,8 +118,6 @@ class RVMMode {
 	FrontendBase* frontend_ = nullptr;   // Non-owning; owned by Pipeline
 	MattingBackend* backend_ = nullptr;  // Non-owning; owned by Pipeline
 	AppConfig config_;                   // Copy of the app config, set via SetConfig()
-	float dsr_ = 0.25f;                 ///< downsample_ratio, overwritten in Run()
-	RecurrentStateManager state_mgr_;
 	// DMA zero-copy output buffer (allocated once, reused every frame)
 	std::unique_ptr<helmsman::dmakit::DmaBuffer> dma_output_buf_;
 

@@ -25,12 +25,11 @@
 target_sources(${PROJECT_NAME}
     PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/rvm.cpp"
-        # "${CMAKE_CURRENT_SOURCE_DIR}/matting-server.cpp"  # Disabled 2026-05-21
+        # matting-server.cpp → archived/ (not used by Pipeline, kept for reference)
 )
 
 #
-# MattingServer — standalone DMA fd-based API for per-frame inference.
-# Provides zero-copy interface (processFrame(fd) → fd) independent of Pipeline.
-# Disabled: not used by Pipeline; reduces build scope during refactoring.
-# To re-enable: uncomment the source line above.
+# MattingServer — archived to ./archived/ (2026-05-23).
+# Standalone DMA fd-based API for per-frame inference.
+# Not used by Pipeline; kept for reference only.
 #
