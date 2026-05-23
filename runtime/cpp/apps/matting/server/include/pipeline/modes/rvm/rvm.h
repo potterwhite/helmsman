@@ -66,7 +66,7 @@ class RVMMode {
 	bool _OpenVideoWriter(cv::VideoWriter& writer, const std::string& path, int width,
 	                      int height, double fps);
 
-	cv::Mat InitBackgroundImage(int width, int height);
+	void InitBackgroundImage(int width, int height);
 
 	cv::Mat _InferOneFrame(InferenceEngine* engine, const TensorData& src,
 	                       const cv::Mat& guide_bgr);
@@ -117,10 +117,6 @@ class RVMMode {
 	void InitOutputSink(const int src_width, const int src_height, const double src_fps,
 	                          const std::string& output_video_path, const OutputMode output_mode);
 
-	/**
-	 * Preprocess the background image into a uint8 BGR cv::Mat at model resolution for fast compositing.
-	 */
-	void _PreprocessBgUint8(cv::Mat bg_bgr, const int src_width, const int src_height);
 
    private:
 	// Member variables

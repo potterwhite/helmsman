@@ -82,17 +82,17 @@ bool RVMMode::_OpenVideoWriter(cv::VideoWriter& writer, const std::string& path,
 	return true;
 }
 
-cv::Mat RVMMode::InitBackgroundImage(int width, int height) {
+void RVMMode::InitBackgroundImage(int width, int height) {
 	cv::Mat bg;
 	if (!config_.background_path.empty()) {
 		bg = cv::imread(config_.background_path, cv::IMREAD_COLOR);
-		if (!bg.empty()) {
-			cv::resize(bg, bg, cv::Size(width, height));
-			return bg;
-		}
 	}
-	// Default fallback background: BGR(155,255,120) = RGB(120,255,155), matches e.py baseline
-	return cv::Mat(height, width, CV_8UC3, kDefaultBgColor);
+	if (bg.empty()) {
+		bg = cv::Mat(height, width, CV_8UC3, kDefaultBgColor);
+	} else {
+		cv::resize(bg, bg, cv::Size(width, height));
+	}
+	bg_model_u8_ = bg.clone();
 }
 
 cv::Mat RVMMode::_InferOneFrame(InferenceEngine* engine, const TensorData& src,
@@ -545,18 +545,6 @@ void RVMMode::InitOutputSink(const int src_width, const int src_height,
 	}
 }
 
-void RVMMode::_PreprocessBgUint8(cv::Mat bg_bgr, const int src_width,
-                                   const int src_height) {
-	// Pre-compute background at model resolution for fast compositing in _CompositeAndWrite().
-	// Avoids converting bg from uint8→float32 at full resolution every frame.
-
-	cv::Mat bg_model;
-	cv::resize(bg_bgr, bg_model,
-	           cv::Size(src_width, src_height), 0, 0,
-	           cv::INTER_LINEAR);
-	bg_model_u8_ = bg_model.clone();  // uint8 copy for fast compositing
-}
-
 int RVMMode::Run() {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
@@ -581,12 +569,7 @@ int RVMMode::Run() {
 	InitOutputSink(setup.model_input_width, setup.model_input_height, frontend_->fps(),
 	                     config_.output_bin_path + "/output_composited.mp4", config_.output_mode);
 
-	cv::Mat bg_bgr = InitBackgroundImage(setup.model_input_width, setup.model_input_height);
-
-	// Preprocess the background once at model resolution,
-	// so we can skip this step in the main loop and save time on the CPU→GPU path.
-	// The background is static so we only need
-	_PreprocessBgUint8(bg_bgr, setup.model_input_width, setup.model_input_height);
+	InitBackgroundImage(setup.model_input_width, setup.model_input_height);
 
 	// Create RGA hardware operations (stateless, reused every frame).
 	// RGA resize replaces cv::resize for the downscale/upscale steps.
