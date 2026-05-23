@@ -66,7 +66,7 @@ class RVMMode {
 	bool _OpenVideoWriter(cv::VideoWriter& writer, const std::string& path, int width,
 	                      int height, double fps);
 
-	cv::Mat _LoadOrCreateBackground(int width, int height);
+	cv::Mat InitBackgroundImage(int width, int height);
 
 	cv::Mat _InferOneFrame(InferenceEngine* engine, const TensorData& src,
 	                       const cv::Mat& guide_bgr);

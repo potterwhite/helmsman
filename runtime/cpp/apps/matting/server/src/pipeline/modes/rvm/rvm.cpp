@@ -82,7 +82,7 @@ bool RVMMode::_OpenVideoWriter(cv::VideoWriter& writer, const std::string& path,
 	return true;
 }
 
-cv::Mat RVMMode::_LoadOrCreateBackground(int width, int height) {
+cv::Mat RVMMode::InitBackgroundImage(int width, int height) {
 	cv::Mat bg;
 	if (!config_.background_path.empty()) {
 		bg = cv::imread(config_.background_path, cv::IMREAD_COLOR);
@@ -581,7 +581,7 @@ int RVMMode::Run() {
 	InitOutputSink(setup.model_input_width, setup.model_input_height, frontend_->fps(),
 	                     config_.output_bin_path + "/output_composited.mp4", config_.output_mode);
 
-	cv::Mat bg_bgr = _LoadOrCreateBackground(setup.model_input_width, setup.model_input_height);
+	cv::Mat bg_bgr = InitBackgroundImage(setup.model_input_width, setup.model_input_height);
 
 	// Preprocess the background once at model resolution,
 	// so we can skip this step in the main loop and save time on the CPU→GPU path.
