@@ -63,30 +63,10 @@ class RVMMode {
 
 	void InitBackgroundImage(int width, int height);
 
-	// Returns total composite time in ms (for per-frame logging).
-	double _CompositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
-	                          const cv::Mat& alpha_8u, int model_w, int model_h);
-
-	// DRM composite: blend + upscale + BGR→XRGB + ShowARGB.
+	// Composite + deliver: blend alpha with background, then deliver to output sink.
 	// Returns total composite time in ms.
-	double _CompositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u,
-	                       int panel_w, int panel_h, int model_w, int model_h);
-
-	// DMA zero-copy composite: composites into a pre-allocated DMA buffer.
-	// Returns the DMA buffer fd (valid until next call or destruction).
-	// The buffer is allocated once at _InitOutputDma() and reused every frame.
-	int _CompositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u,
-	                    int model_w, int model_h);
-
-	// Allocate the output DMA buffer for the given source dimensions.
-	// Must be called before _CompositeToDma(). Returns false on failure.
-	bool _InitOutputDma(int src_width, int src_height);
-
-	/**
-	 * Process one frame: infer → composite → log. Shared by both prefetch and serial loops.
-	 */
-	void _ProcessOneFrame(InferenceEngine* engine, const TensorData& tensor,
-	                       const cv::Mat& current_frame, int model_w, int model_h);
+	double _CompositeAndDeliver(const cv::Mat& frame, const cv::Mat& alpha_8u,
+	                            int model_w, int model_h, int output_w, int output_h);
 
 	/**
 	 * Unified main loop. Uses Frontend::ProcessOneFrame() which handles

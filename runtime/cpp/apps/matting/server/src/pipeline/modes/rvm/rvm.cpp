@@ -73,69 +73,50 @@ void RVMMode::InitBackgroundImage(int width, int height) {
 	backend_->SetBackgroundModelImage(bg.clone());
 }
 
-void RVMMode::_ProcessOneFrame(InferenceEngine* engine, const TensorData& tensor,
-                               const cv::Mat& current_frame, int model_w, int model_h) {
+double RVMMode::_CompositeAndDeliver(const cv::Mat& frame, const cv::Mat& alpha_8u,
+                                     int model_w, int model_h, int output_w, int output_h) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
-	// --------------- infer one frame ---------------
-	ManualTimer infer_t;
-	infer_t.start();
-	std::vector<TensorData> outputs;
-	engine->Infer({tensor}, outputs);
-	cv::Mat alpha_8u = backend_->Postprocess(outputs, current_frame);
-	const double infer_ms = infer_t.stop();
-	acc_lv02_01_03_main_infer_.record(infer_ms);
-
-	// --------------- composite one frame ---------------
-	double comp_ms;
-	if (use_dma_output_) {
-		ManualTimer dma_t;
-		dma_t.start();
-		const int output_fd = _CompositeToDma(current_frame, alpha_8u, model_w, model_h);
-		comp_ms = dma_t.stop();
-		if (frame_count_ == 0) {
-			logger.Info("DMA output fd=" + std::to_string(output_fd), kRvmModuleName);
-		}
-	} else if (config_.output_mode == OutputMode::kDrm) {
-		comp_ms = _CompositeToDrm(current_frame, alpha_8u, drm_panel_w_, drm_panel_h_,
-		                          model_w, model_h);
-	} else {
-		comp_ms = _CompositeAndWrite(video_writer_, current_frame, alpha_8u, model_w, model_h);
-	}
-	acc_lv02_01_04_main_composite_.record(comp_ms);
-
-	// --------------- log per-frame stats ---------------
-	logger.Info("[PerFrame] frame=" + std::to_string(frame_count_) +
-	                "  infer=" + std::to_string(infer_ms) + "ms" +
-	                "  composite=" + std::to_string(comp_ms) + "ms",
-	            kRvmModuleName);
-
-	// FPS measurement: report every 30 frames
-	if (frame_count_ % 30 == 0) {
-		auto now = std::chrono::steady_clock::now();
-		double elapsed = std::chrono::duration<double>(now - fps_window_start_).count();
-		logger.Info("[FPS] " + std::to_string(30.0 / elapsed) + " fps (last 30 frames in " +
-		                std::to_string(elapsed) + "s)",
-		            kRvmModuleName);
-		fps_window_start_ = now;
-	}
-}
-
-double RVMMode::_CompositeAndWrite(cv::VideoWriter& writer, const cv::Mat& frame,
-                                   const cv::Mat& alpha_8u, int model_w, int model_h) {
-	if (!writer.isOpened() || alpha_8u.empty())
+	if (alpha_8u.empty())
 		return 0.0;
 
 	ManualTimer total_t;
 	total_t.start();
 
 	cv::Mat composed = backend_->Composite(frame, alpha_8u, model_w, model_h,
-	                                       frame.cols, frame.rows);
+	                                       output_w, output_h);
 
-	ManualTimer t;
-	t.start();
-	writer.write(composed);
-	acc_lv02_01_04_05_writer_.record(t.stop());
+	if (use_dma_output_) {
+		void* dma_ptr = dma_output_buf_->map();
+		if (dma_ptr) {
+			memcpy(dma_ptr, composed.data, composed.total() * composed.elemSize());
+		}
+		if (frame_count_ == 0) {
+			logger.Info("DMA output fd=" + std::to_string(dma_output_buf_->fd()), kRvmModuleName);
+		}
+	} else if (config_.output_mode == OutputMode::kDrm) {
+		ManualTimer t;
+		t.start();
+		const int n_pixels = output_w * output_h;
+		argb_buf_.resize(static_cast<size_t>(n_pixels) * 4);
+		const uint8_t* bgr = composed.ptr<uint8_t>(0);
+		uint8_t* xrgb = argb_buf_.data();
+		for (int i = 0; i < n_pixels; ++i) {
+			xrgb[0] = bgr[0];  // B → B
+			xrgb[1] = bgr[1];  // G → G
+			xrgb[2] = bgr[2];  // R → R
+			xrgb[3] = 0xFF;    // X (padding)
+			bgr += 3;
+			xrgb += 4;
+		}
+		drm_display_.ShowARGB(argb_buf_.data());
+		acc_lv02_01_04_06_drm_.record(t.stop());
+	} else {
+		ManualTimer t;
+		t.start();
+		video_writer_.write(composed);
+		acc_lv02_01_04_05_writer_.record(t.stop());
+	}
 
 	return total_t.elapsed_ms();
 }
@@ -158,56 +139,6 @@ bool RVMMode::_InitOutputDma(int src_width, int src_height) {
 	                "x" + std::to_string(src_height) + " BGR)",
 	            kRvmModuleName);
 	return true;
-}
-
-int RVMMode::_CompositeToDma(const cv::Mat& frame, const cv::Mat& alpha_8u,
-                             int model_w, int model_h) {
-	if (!dma_output_buf_ || alpha_8u.empty())
-		return -1;
-
-	cv::Mat composed = backend_->Composite(frame, alpha_8u, model_w, model_h,
-	                                       frame.cols, frame.rows);
-
-	void* dma_ptr = dma_output_buf_->map();
-	if (dma_ptr) {
-		memcpy(dma_ptr, composed.data, composed.total() * composed.elemSize());
-	}
-
-	return dma_output_buf_->fd();
-}
-
-double RVMMode::_CompositeToDrm(const cv::Mat& frame, const cv::Mat& alpha_8u,
-                                int panel_w, int panel_h, int model_w, int model_h) {
-	if (!drm_display_.IsOpen() || alpha_8u.empty())
-		return 0.0;
-
-	ManualTimer total_t;
-	total_t.start();
-
-	cv::Mat composed = backend_->Composite(frame, alpha_8u, model_w, model_h,
-	                                       panel_w, panel_h);
-
-	// BGR888 → XRGB8888 + ShowARGB
-	ManualTimer t;
-	t.start();
-	{
-		const int n_pixels = panel_w * panel_h;
-		argb_buf_.resize(static_cast<size_t>(n_pixels) * 4);
-		const uint8_t* bgr = composed.ptr<uint8_t>(0);
-		uint8_t* xrgb = argb_buf_.data();
-		for (int i = 0; i < n_pixels; ++i) {
-			xrgb[0] = bgr[0];  // B → B
-			xrgb[1] = bgr[1];  // G → G
-			xrgb[2] = bgr[2];  // R → R
-			xrgb[3] = 0xFF;    // X (padding)
-			bgr += 3;
-			xrgb += 4;
-		}
-		drm_display_.ShowARGB(argb_buf_.data());
-	}
-	acc_lv02_01_04_06_drm_.record(t.stop());
-
-	return total_t.elapsed_ms();
 }
 
 RvmModelState RVMMode::InitModelState(InferenceEngine* engine) {
@@ -332,8 +263,40 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 
 		logger.Info("=== RVM Frame " + std::to_string(frame_count_ + 1) + " ===", kRvmModuleName);
 
-		_ProcessOneFrame(engine, result->tensor, result->frame, setup.model_input_width,
-		                 setup.model_input_height);
+		const int model_w = setup.model_input_width;
+		const int model_h = setup.model_input_height;
+
+		// --- infer ---
+		ManualTimer infer_t;
+		infer_t.start();
+		std::vector<TensorData> outputs;
+		engine->Infer({result->tensor}, outputs);
+		cv::Mat alpha_8u = backend_->Postprocess(outputs, result->frame);
+		const double infer_ms = infer_t.stop();
+		acc_lv02_01_03_main_infer_.record(infer_ms);
+
+		// --- composite + deliver ---
+		const int output_w = (config_.output_mode == OutputMode::kDrm) ? drm_panel_w_ : result->frame.cols;
+		const int output_h = (config_.output_mode == OutputMode::kDrm) ? drm_panel_h_ : result->frame.rows;
+		const double comp_ms = _CompositeAndDeliver(result->frame, alpha_8u, model_w, model_h,
+		                                            output_w, output_h);
+		acc_lv02_01_04_main_composite_.record(comp_ms);
+
+		// --- log per-frame stats ---
+		logger.Info("[PerFrame] frame=" + std::to_string(frame_count_) +
+		                "  infer=" + std::to_string(infer_ms) + "ms" +
+		                "  composite=" + std::to_string(comp_ms) + "ms",
+		            kRvmModuleName);
+
+		// FPS measurement: report every 30 frames
+		if (frame_count_ % 30 == 0) {
+			auto now = std::chrono::steady_clock::now();
+			double elapsed = std::chrono::duration<double>(now - fps_window_start_).count();
+			logger.Info("[FPS] " + std::to_string(30.0 / elapsed) + " fps (last 30 frames in " +
+			                std::to_string(elapsed) + "s)",
+			            kRvmModuleName);
+			fps_window_start_ = now;
+		}
 
 		acc_lv02_01_main_loop_total_.record(loop_t.stop());
 
@@ -363,7 +326,7 @@ int RVMMode::Run() {
 	// 2nd - Video I/O setup
 	//    - read source dimensions and fps from the InputSource abstraction
 	//      (works for both Mp4InputSource and any future camera/IPC source)
-	//    - open the VideoWriter; if it fails, _CompositeAndWrite() is a no-op
+	//    - open the VideoWriter; if it fails, _CompositeAndDeliver() is a no-op
 	//    - load or synthesise a solid-colour background for alpha compositing
 	// =========================================================================
 	InitOutputSink(setup.model_input_width, setup.model_input_height, frontend_->fps(),
