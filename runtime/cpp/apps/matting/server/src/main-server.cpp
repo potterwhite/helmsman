@@ -135,6 +135,19 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 			cfg.use_hardware_decoder = true;
 		} else if (std::strcmp(argv[i], "--no-prefetch") == 0) {
 			cfg.use_prefetch_thread = false;
+		} else if (std::strncmp(argv[i], "--core-mask=", 12) == 0) {
+			std::string val = argv[i] + 12;
+			if      (val == "auto") cfg.rknn_core_mask = 0;   // RKNN_NPU_CORE_AUTO
+			else if (val == "0")    cfg.rknn_core_mask = 1;   // RKNN_NPU_CORE_0
+			else if (val == "1")    cfg.rknn_core_mask = 2;   // RKNN_NPU_CORE_1
+			else if (val == "2")    cfg.rknn_core_mask = 4;   // RKNN_NPU_CORE_2
+			else if (val == "0_1")  cfg.rknn_core_mask = 3;   // RKNN_NPU_CORE_0_1
+			else if (val == "0_1_2" || val == "all") cfg.rknn_core_mask = 7; // RKNN_NPU_CORE_0_1_2
+			else {
+				std::cerr << "Unknown --core-mask value: " << val
+				          << " (expected: auto|0|1|2|0_1|0_1_2|all)\n";
+				return std::nullopt;
+			}
 		} else {
 			positional_args.push_back(argv[i]);
 		}
@@ -172,6 +185,8 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 	std::string prefetch_str = cfg.use_prefetch_thread ? "enabled (dual-buffer)" : "disabled (main thread only)";
 	logger.Info("Model type: " + mode_str, kcurrent_module_name);
 	logger.Info("Output mode: " + output_str, kcurrent_module_name);
+	std::string core_mask_str = (cfg.rknn_core_mask < 0) ? "default (engine decides)" : std::to_string(cfg.rknn_core_mask);
+	logger.Info("Core mask:  " + core_mask_str, kcurrent_module_name);
 	logger.Info("Decode path: " + decode_str, kcurrent_module_name);
 	logger.Info("Prefetch:   " + prefetch_str, kcurrent_module_name);
 	logger.Info("Input:      " + cfg.input_path + (cfg.is_video ? " (video)" : " (image)"),

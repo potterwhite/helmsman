@@ -64,6 +64,7 @@ struct AppConfig {
 	bool use_hardware_decoder = false;
 	bool use_prefetch_thread = true;
 	bool is_video = false;
+	int rknn_core_mask = -1;  // -1 = default (engine decides); 0 = CORE_ALL
 	std::string input_path;
 	std::string model_path;
 	std::string output_bin_path;

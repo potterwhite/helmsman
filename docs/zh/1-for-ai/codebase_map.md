@@ -378,15 +378,15 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 
 | 文件 | 用途 |
 |---|---|
-| `src/main-server.cpp` | 入口点；配置 logger、SIGINT 信号处理，调用 `Pipeline::Init()` + `Run()` |
+| `src/main-server.cpp` | 入口点；配置 logger、SIGINT 信号处理，解析 CLI（含 `--core-mask`），调用 `Pipeline::Init()` + `Run()` |
 | `include/pipeline/pipeline.h` | `Pipeline` 单例：`Init()` 创建+加载+注入，`Run()` 纯执行 |
 | `src/pipeline/pipeline.cpp` 🔒 | Init(): FrontendBase::Create + engine->Load + Backend 配置 + 注入到 modes |
 | `include/pipeline/modes/rvm/rvm.h` | `RVMMode`：setter 注入 + `Run()` 无参数 |
 | `include/pipeline/modes/modnet/modnet.h` | `MODNetMode`：setter 注入 + `Run()` 无参数 |
 | `include/pipeline/infra/recurrent-state-manager.h` ★ | `RecurrentStateManager`：RVM 递归状态持久化 |
 | `include/pipeline/stages/inference-engine/base/inference-engine.h` 🔒 | `InferenceEngine` 抽象基类：`Load()`, `Infer()` — N→M 泛化接口 |
-| `include/pipeline/inference-engine/rknn/rknn-zero-copy.h` | `InferenceEngineRKNNZeroCP` — 多组 zero-copy buffer |
-| `src/pipeline/inference-engine/rknn/rknn-zero-copy.cpp` | N 输入 × M 输出 zero-copy：遍历 input_mems_/output_mems_，自适应 INT8/FP16/FP32 |
+| `include/pipeline/inference-engine/rknn/rknn-zero-copy.h` | `InferenceEngineRKNNZeroCP` — 多组 zero-copy buffer；`SetCoreMask(int)` |
+| `src/pipeline/inference-engine/rknn/rknn-zero-copy.cpp` | N 输入 × M 输出 zero-copy：遍历 input_mems_/output_mems_，自适应 INT8/FP16/FP32；`COLLECT_PERF_MASK` + 每帧 perf_run/perf_detail 查询 |
 | `include/pipeline/inference-engine/rknn/rknn-non-zero-copy.h` | `InferenceEngineRKNN`（备选）|
 | `src/pipeline/inference-engine/rknn/rknn-non-zero-copy.cpp` | N→M non-zero-copy：rknn_inputs_set 多组 + rknn_outputs_get 多组 |
 | `include/pipeline/inference-engine/onnx/onnx.h` | `InferenceEngineONNX` |

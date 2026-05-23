@@ -21,6 +21,10 @@
 #include "pipeline/stages/inference-engine/inference-engine-factory.h"
 #include "pipeline/stages/inference-engine/rknn/rknn-zero-copy.h"
 
-std::unique_ptr<InferenceEngine> createInferenceEngine() {
-    return std::make_unique<InferenceEngineRKNNZeroCP>();
+std::unique_ptr<InferenceEngine> createInferenceEngine(int core_mask) {
+    auto engine = std::make_unique<InferenceEngineRKNNZeroCP>();
+    if (core_mask >= 0) {
+        engine->SetCoreMask(core_mask);
+    }
+    return engine;
 }

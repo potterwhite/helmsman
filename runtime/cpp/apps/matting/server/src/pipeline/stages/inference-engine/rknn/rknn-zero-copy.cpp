@@ -82,11 +82,18 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// Phase I - RKNN Context Initialization (file path mode)
 	// ----------------------------------------------------------------
 	int ret = rknn_init(&ctx_, const_cast<void*>(static_cast<const void*>(model_path.c_str())), 0,
-	                    0, nullptr);
+	                    RKNN_FLAG_COLLECT_PERF_MASK, nullptr);
 	if (ret < 0) {
 		throw std::runtime_error("rknn_init failed!");
 	}
-	logger.Info("RKNN model loaded and context initialized.", kcurrent_module_name);
+	logger.Info("RKNN model loaded and context initialized. (COLLECT_PERF_MASK enabled)", kcurrent_module_name);
+
+	// --- One-time: SDK version ---
+	rknn_sdk_version sdk_ver;
+	memset(&sdk_ver, 0, sizeof(sdk_ver));
+	rknn_query(ctx_, RKNN_QUERY_SDK_VERSION, &sdk_ver, sizeof(sdk_ver));
+	logger.Info("[RKNN] SDK api: " + std::string(sdk_ver.api_version) +
+	            "  drv: " + std::string(sdk_ver.drv_version), kcurrent_module_name);
 
 	// ----------------------------------------------------------------
 	// Phase II - Query model input/output counts and attributes
@@ -151,15 +158,8 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// ----------------------------------------------------------------
 	// Phase V - Set NPU core mask
 	// ----------------------------------------------------------------
-	rknn_core_mask mask = RKNN_NPU_CORE_ALL;
-	// rknn_core_mask mask = RKNN_NPU_CORE_0_1_2;
-	// rknn_core_mask mask = RKNN_NPU_CORE_0_1;
-	// rknn_core_mask mask = RKNN_NPU_CORE_2;
-	// rknn_core_mask mask = RKNN_NPU_CORE_1;
-	// rknn_core_mask mask = RKNN_NPU_CORE_0;
-	// rknn_core_mask mask = RKNN_NPU_CORE_AUTO;
-
-
+	rknn_core_mask mask = (core_mask_ < 0) ? RKNN_NPU_CORE_ALL
+	                                        : static_cast<rknn_core_mask>(core_mask_);
 	auto retval = rknn_set_core_mask(ctx_, mask);
 	if (retval == RKNN_SUCC) {
 		logger.Info("Set core to " + helmsman::runtime::to_string(mask) + " Successfully");
@@ -170,6 +170,22 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	logger.Info("Zero-copy buffers allocated and bound: " +
 	            std::to_string(n_in) + " inputs, " +
 	            std::to_string(n_out) + " outputs.", kcurrent_module_name);
+
+	// --- One-time: memory info ---
+	rknn_mem_size mem_size;
+	memset(&mem_size, 0, sizeof(mem_size));
+	int qret = rknn_query(ctx_, RKNN_QUERY_MEM_SIZE, &mem_size, sizeof(mem_size));
+	if (qret == 0) {
+		logger.Info("[RKNN] mem_size: weight=" + std::to_string(mem_size.total_weight_size) +
+		            " internal=" + std::to_string(mem_size.total_internal_size) +
+		            " dma_total=" + std::to_string(mem_size.total_dma_allocated_size) +
+		            " sram_total=" + std::to_string(mem_size.total_sram_size) +
+		            " sram_free=" + std::to_string(mem_size.free_sram_size),
+		            kcurrent_module_name);
+	} else {
+		logger.Warning("[RKNN] RKNN_QUERY_MEM_SIZE failed (need MEM_ALLOC_OUTSIDE flag?)",
+		               kcurrent_module_name);
+	}
 }
 
 // ============================================================================
@@ -256,6 +272,28 @@ void InferenceEngineRKNNZeroCP::InferImpl(
 	int ret = rknn_run(ctx_, nullptr);
 	if (ret < 0) {
 		throw std::runtime_error("rknn_run failed!");
+	}
+
+	// --- Per-frame: RKNN pure run time (us) ---
+	rknn_perf_run perf_run;
+	memset(&perf_run, 0, sizeof(perf_run));
+	ret = rknn_query(ctx_, RKNN_QUERY_PERF_RUN, &perf_run, sizeof(perf_run));
+	if (ret == 0) {
+		logger.Info("   [RKNN] perf_run (NPU only, us): " +
+		            std::to_string(perf_run.run_duration), kcurrent_module_name);
+	} else {
+		logger.Warning("   [RKNN] RKNN_QUERY_PERF_RUN failed", kcurrent_module_name);
+	}
+
+	// --- Per-frame: per-layer op timing ---
+	rknn_perf_detail perf_detail;
+	memset(&perf_detail, 0, sizeof(perf_detail));
+	ret = rknn_query(ctx_, RKNN_QUERY_PERF_DETAIL, &perf_detail, sizeof(perf_detail));
+	if (ret == 0 && perf_detail.data_len > 0) {
+		std::string detail_str(perf_detail.perf_data, perf_detail.data_len);
+		logger.Info("   [RKNN] perf_detail:\n" + detail_str, kcurrent_module_name);
+	} else {
+		logger.Warning("   [RKNN] RKNN_QUERY_PERF_DETAIL failed or empty", kcurrent_module_name);
 	}
 
 	auto t2 = std::chrono::high_resolution_clock::now();

@@ -21,6 +21,6 @@
 #include "pipeline/stages/inference-engine/inference-engine-factory.h"
 #include "pipeline/stages/inference-engine/rknn/rknn-non-zero-copy.h"
 
-std::unique_ptr<InferenceEngine> createInferenceEngine() {
+std::unique_ptr<InferenceEngine> createInferenceEngine(int core_mask) {
     return std::make_unique<InferenceEngineRKNN>();
 }

@@ -49,7 +49,7 @@ private:
 
     void VerifyParametersNecessary();
 
-    static std::unique_ptr<InferenceEngine> MakeEngine();
+    std::unique_ptr<InferenceEngine> MakeEngine();
 
 private:
     AppConfig config_;
