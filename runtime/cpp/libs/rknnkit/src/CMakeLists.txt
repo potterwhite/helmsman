@@ -1,4 +1,4 @@
-# Copyright (c) 2025 PotterWhite
+# Copyright (c) 2026 PotterWhite
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +18,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+#
+# rknnkit/src/CMakeLists.txt
+#
 
-# ---------------------------------
-# I. Main Executes
-# ---------------------------------
-
-# Common libraries (all platforms)
-add_subdirectory(utils)
-add_subdirectory(network)
-add_subdirectory(cvkit)
-
-# Rockchip-specific libraries
-if("rockchip" IN_LIST CMAKE_PLATFORM)
-    add_subdirectory(mppkit)
-    add_subdirectory(rgakit)
-    add_subdirectory(rknnkit)
-endif()
-
-# Linux-specific libraries
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    add_subdirectory(dmakit)
-    add_subdirectory(drmkit)
-endif()
-
-# Runtime (all platforms, internal RKNN condition control)
-add_subdirectory(runtime)
-
-# ---------------------------------
-#               End
-# ---------------------------------
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/rknn-query.cpp
+)

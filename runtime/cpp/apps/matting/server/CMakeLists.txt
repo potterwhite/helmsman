@@ -117,10 +117,16 @@ if("rockchip" IN_LIST CMAKE_PLATFORM)
         find_package(${PROJECT_NAMESPACE}_MPPKit REQUIRED)
     endif()
 
+    if(NOT TARGET ${PROJECT_NAMESPACE}::RKNNKit)
+        message(STATUS "Can`t find ${PROJECT_NAMESPACE}::RKNNKit, start searching")
+        find_package(${PROJECT_NAMESPACE}_RKNNKit REQUIRED)
+    endif()
+
     target_link_libraries(${PROJECT_NAME}
         PUBLIC
             ${PROJECT_NAMESPACE}::RGAKit
             ${PROJECT_NAMESPACE}::MPPKit
+            ${PROJECT_NAMESPACE}::RKNNKit
     )
 
     # FFmpeg: needed for MPP hardware decode path

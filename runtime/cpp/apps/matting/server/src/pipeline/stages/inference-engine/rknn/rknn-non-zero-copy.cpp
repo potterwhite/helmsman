@@ -22,8 +22,11 @@
 #include <cstring>
 #include <fstream>
 #include <stdexcept>
-#include "Runtime/rknn.h/rknn.h"
+#include "RKNNKit/rknn-query.h"
+#include "RKNNKit/utils.h"
 #include "common/common-define.h"
+
+using helmsman::rknnkit::RKNNQuery;
 
 // ============================================================================
 // InferenceEngineRKNN — N-input / M-output Non-Zero-Copy Mode
@@ -78,36 +81,10 @@ void InferenceEngineRKNN::Load(const std::string& model_path) {
 		throw std::runtime_error("rknn_init failed");
 	}
 
-	// Step 3: Query model metadata
-	ret = rknn_query(ctx_, RKNN_QUERY_IN_OUT_NUM, &io_num_, sizeof(io_num_));
-	if (ret < 0) {
-		throw std::runtime_error("rknn_query IN_OUT_NUM failed");
-	}
-	logger.Info("Model Input Num: " + std::to_string(io_num_.n_input) +
-	                ", Output Num: " + std::to_string(io_num_.n_output),
-	            kcurrent_module_name);
-
-	// Query each input tensor attribute
-	input_attrs_.clear();
-	for (uint32_t i = 0; i < io_num_.n_input; i++) {
-		rknn_tensor_attr attr;
-		memset(&attr, 0, sizeof(attr));
-		attr.index = i;
-		rknn_query(ctx_, RKNN_QUERY_INPUT_ATTR, &attr, sizeof(attr));
-		input_attrs_.push_back(attr);
-		logger.Info("Input attr: " + helmsman::runtime::to_string(attr));
-	}
-
-	// Query each output tensor attribute
-	output_attrs_.clear();
-	for (uint32_t i = 0; i < io_num_.n_output; i++) {
-		rknn_tensor_attr attr;
-		memset(&attr, 0, sizeof(attr));
-		attr.index = i;
-		rknn_query(ctx_, RKNN_QUERY_OUTPUT_ATTR, &attr, sizeof(attr));
-		output_attrs_.push_back(attr);
-		logger.Info("Output attr: " + helmsman::runtime::to_string(attr));
-	}
+	// Step 3: Query model metadata via RKNNKit
+	io_num_ = RKNNQuery::IoNum(ctx_);
+	input_attrs_ = RKNNQuery::InputAttrs(ctx_, io_num_.n_input);
+	output_attrs_ = RKNNQuery::OutputAttrs(ctx_, io_num_.n_output);
 }
 
 // ============================================================================
