@@ -102,7 +102,7 @@ void InferenceEngineONNX::Load(const std::string& model_path) {
 // Output layout:
 //   - all outputs are NCHW float32 as returned by ORT
 // ============================================================================
-void InferenceEngineONNX::InferImpl(
+void InferenceEngineONNX::DoInfer(
     const std::vector<TensorData>& inputs,
           std::vector<TensorData>& outputs)
 {

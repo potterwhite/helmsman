@@ -73,7 +73,7 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 	}
 
    protected:
-	void InferImpl(const std::vector<TensorData>& inputs,
+	void DoInfer(const std::vector<TensorData>& inputs,
 	               std::vector<TensorData>& outputs) override;
 
    private:

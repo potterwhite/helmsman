@@ -113,7 +113,7 @@ void InferenceEngineRKNN::Load(const std::string& model_path) {
 // ============================================================================
 // Inference — N inputs → M outputs (Non-Zero-Copy)
 // ============================================================================
-void InferenceEngineRKNN::InferImpl(
+void InferenceEngineRKNN::DoInfer(
     const std::vector<TensorData>& inputs,
           std::vector<TensorData>& outputs)
 {

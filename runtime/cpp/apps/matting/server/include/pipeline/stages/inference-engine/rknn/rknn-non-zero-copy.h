@@ -48,7 +48,7 @@ public:
     void Load(const std::string& model_path) override;
 
 protected:
-    void InferImpl(const std::vector<TensorData>& inputs,
+    void DoInfer(const std::vector<TensorData>& inputs,
                    std::vector<TensorData>& outputs) override;
 
 private:

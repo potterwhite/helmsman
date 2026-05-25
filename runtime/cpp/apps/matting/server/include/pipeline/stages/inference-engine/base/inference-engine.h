@@ -37,7 +37,9 @@
 //
 // Stateful inference: Infer() automatically handles recurrent state
 // injection/capture and downsample_ratio injection. Subclasses implement
-// InferImpl() for the pure stateless inference step.
+// DoInfer() for the pure stateless inference step.
+// Stateless models (MODNet) skip InitRecurrentStates() — Infer() detects
+// empty states and skips injection/capture automatically.
 // ---------------------------------------------------------------------------
 
 class InferenceEngine {
@@ -48,11 +50,11 @@ class InferenceEngine {
 
 	// --- Stateful inference (public interface) ---
 	// Automatically handles recurrent state injection/capture + dsr injection.
-	// Delegates to InferImpl() for the actual model execution.
+	// Delegates to DoInfer() for the actual model execution.
 	void Infer(const std::vector<TensorData>& inputs,
 	           std::vector<TensorData>& outputs);
 
-	// --- Initialization (RVM-specific, MODNet does not call) ---
+	// --- Initialization (RVM-specific; MODNet and other stateless models skip this) ---
 	void InitRecurrentStates();
 	void SetDownsampleRatio(float dsr);
 
@@ -66,8 +68,9 @@ class InferenceEngine {
 	virtual void SetOutputBinPath(const std::string& path) { output_bin_path_ = path; }
 
    protected:
-	// Subclasses implement: pure stateless inference (N inputs → M outputs).
-	virtual void InferImpl(const std::vector<TensorData>& inputs,
+	// NVI hook: subclasses implement pure stateless inference (N inputs → M outputs).
+	// Google Style: DoX() is the virtual body of public X().
+	virtual void DoInfer(const std::vector<TensorData>& inputs,
 	                       std::vector<TensorData>& outputs) = 0;
 
 	std::string output_bin_path_;

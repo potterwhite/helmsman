@@ -37,6 +37,10 @@ void InferenceEngine::SetDownsampleRatio(float dsr) {
 void InferenceEngine::Infer(const std::vector<TensorData>& inputs,
                             std::vector<TensorData>& outputs) {
     std::vector<TensorData> mutable_inputs = inputs;
+
+    // Inject recurrent states (r1i~r4i) if initialized.
+    // Stateless models (e.g. MODNet) never call InitRecurrentStates(),
+    // so states_ is empty and inject() is a no-op — this is by design.
     state_mgr_.inject(mutable_inputs);
 
     if (NeedsDownsampleRatio()) {
@@ -47,6 +51,12 @@ void InferenceEngine::Infer(const std::vector<TensorData>& inputs,
         mutable_inputs.push_back(std::move(dsr));
     }
 
-    InferImpl(mutable_inputs, outputs);
-    state_mgr_.update(outputs);
+    DoInfer(mutable_inputs, outputs);
+
+    // Capture recurrent states (r1o~r4o) from outputs.
+    // Skip for stateless models — update() requires outputs to have
+    // at least state_output_offset (2) + state_count elements.
+    if (state_mgr_.stateCount() > 0) {
+        state_mgr_.update(outputs);
+    }
 }

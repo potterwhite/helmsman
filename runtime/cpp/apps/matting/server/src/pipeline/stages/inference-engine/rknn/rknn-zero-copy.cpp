@@ -85,6 +85,8 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	uint32_t init_flags = RKNN_FLAG_COLLECT_PERF_MASK;
 	int ret = rknn_init(&ctx_, const_cast<void*>(static_cast<const void*>(model_path.c_str())), 0,
 	                    init_flags, nullptr);
+
+	// int ret = rknn_init(&ctx, model_data, model_data_size, RKNN_FLAG_COLLECT_PERF_MASK, NULL);
 	if (ret < 0) {
 		logger.Warning("rknn_init with COLLECT_PERF_MASK failed (ret=" + std::to_string(ret) +
 		               "), retrying without it.", kcurrent_module_name);
@@ -212,7 +214,7 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 //   - FP16:  FLOAT32 → __fp16
 //   - FP32:  direct memcpy
 // ============================================================================
-void InferenceEngineRKNNZeroCP::InferImpl(
+void InferenceEngineRKNNZeroCP::DoInfer(
     const std::vector<TensorData>& inputs,
           std::vector<TensorData>& outputs)
 {
