@@ -49,6 +49,9 @@ class InferenceEngine {
 	virtual void Load(const std::string& model_path) = 0;
 
 	// --- Stateful inference (public interface) ---
+	// NVI(Non-Virtual Interface) :
+	//		Infer() is the public entry point that handles state management and delegates to DoInfer().
+	//
 	// Automatically handles recurrent state injection/capture + dsr injection.
 	// Delegates to DoInfer() for the actual model execution.
 	void Infer(const std::vector<TensorData>& inputs,
