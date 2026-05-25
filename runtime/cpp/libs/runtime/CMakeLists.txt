@@ -95,40 +95,15 @@ target_link_libraries(${PROJECT_NAME}
 #   rknn-zerocopy      → RKNN zero-copy    (production on RK/RV devices)
 #   rknn-non-zerocopy  → RKNN non-zero-copy (on-device debug / profiling)
 #
-# Default: if INFERENCE_BACKEND is not set and LibRKNNRT is available,
-# fall back to rknn-zerocopy for backward compatibility.
+# Default: if INFERENCE_BACKEND is not set, fall back to onnx.
+# RKNN support is provided by the RKNNKit library (libs/rknnkit/).
 # ---------------------------------------------------------------------------
 if(NOT DEFINED INFERENCE_BACKEND OR INFERENCE_BACKEND STREQUAL "")
-    if(TARGET ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
-        set(INFERENCE_BACKEND "rknn-zerocopy")
-        message(STATUS "[Runtime] INFERENCE_BACKEND not set; defaulting to rknn-zerocopy")
-    else()
-        set(INFERENCE_BACKEND "onnx")
-        message(STATUS "[Runtime] INFERENCE_BACKEND not set; defaulting to onnx")
-    endif()
+    set(INFERENCE_BACKEND "onnx")
+    message(STATUS "[Runtime] INFERENCE_BACKEND not set; defaulting to onnx")
 endif()
 
 message(STATUS "[Runtime] INFERENCE_BACKEND = ${INFERENCE_BACKEND}")
-
-if(INFERENCE_BACKEND STREQUAL "rknn-zerocopy")
-    if(NOT TARGET ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
-        message(FATAL_ERROR "[Runtime] INFERENCE_BACKEND=rknn-zerocopy but LibRKNNRT target not found.")
-    endif()
-    target_link_libraries(${PROJECT_NAME} PUBLIC ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
-
-elseif(INFERENCE_BACKEND STREQUAL "rknn-non-zerocopy")
-    if(NOT TARGET ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
-        message(FATAL_ERROR "[Runtime] INFERENCE_BACKEND=rknn-non-zerocopy but LibRKNNRT target not found.")
-    endif()
-    target_link_libraries(${PROJECT_NAME} PUBLIC ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
-
-elseif(INFERENCE_BACKEND STREQUAL "onnx")
-    # ONNXRuntime is always linked (already above); nothing extra needed.
-
-else()
-    message(FATAL_ERROR "[Runtime] Unknown INFERENCE_BACKEND value: '${INFERENCE_BACKEND}'. "
-                        "Valid values: onnx | rknn-zerocopy | rknn-non-zerocopy")
-endif()
 
 # ---------------------------------
 # VIII. installation rules
