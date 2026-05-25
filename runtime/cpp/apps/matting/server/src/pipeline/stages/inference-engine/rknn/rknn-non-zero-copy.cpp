@@ -82,9 +82,9 @@ void InferenceEngineRKNN::Load(const std::string& model_path) {
 	}
 
 	// Step 3: Query model metadata via RKNNKit
-	io_num_ = RKNNQuery::IoNum(ctx_);
-	input_attrs_ = RKNNQuery::InputAttrs(ctx_, io_num_.n_input);
-	output_attrs_ = RKNNQuery::OutputAttrs(ctx_, io_num_.n_output);
+	io_num_ = RKNNQuery::IoNum2nd(ctx_);
+	input_attrs_ = RKNNQuery::InputAttrs3rd(ctx_, io_num_.n_input);
+	output_attrs_ = RKNNQuery::OutputAttrs4th(ctx_, io_num_.n_output);
 }
 
 // ============================================================================

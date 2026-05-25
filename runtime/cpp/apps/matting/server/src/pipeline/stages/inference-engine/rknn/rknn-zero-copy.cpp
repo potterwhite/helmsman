@@ -110,10 +110,10 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// Phase II - Query model metadata via RKNNKit
 	// ----------------------------------------------------------------
 
-	RKNNQuery::SdkVersion(ctx_);
-	io_num_ = RKNNQuery::IoNum(ctx_);
-	input_attrs_ = RKNNQuery::InputAttrs(ctx_, io_num_.n_input, perf_enabled_);
-	output_attrs_ = RKNNQuery::OutputAttrs(ctx_, io_num_.n_output, perf_enabled_);
+	RKNNQuery::SdkVersion1st(ctx_);
+	io_num_ = RKNNQuery::IoNum2nd(ctx_);
+	input_attrs_ = RKNNQuery::InputAttrs3rd(ctx_, io_num_.n_input, perf_enabled_);
+	output_attrs_ = RKNNQuery::OutputAttrs4th(ctx_, io_num_.n_output, perf_enabled_);
 
 	// ----------------------------------------------------------------
 	// Phase III - Allocate zero-copy buffers for all inputs and outputs
@@ -166,17 +166,17 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// Diagnostic queries — via RKNNKit (all require Phase III buffers)
 	// ----------------------------------------------------------------
 	if (perf_enabled_) {
-		RKNNQuery::LogNativeInputAttrs(ctx_, io_num_.n_input);
-		RKNNQuery::LogNativeOutputAttrs(ctx_, io_num_.n_output);
-		RKNNQuery::LogNhwcInputAttrs(ctx_, io_num_.n_input);
-		RKNNQuery::LogNhwcOutputAttrs(ctx_, io_num_.n_output);
-		RKNNQuery::LogMemSize(ctx_);
-		RKNNQuery::LogCustomString(ctx_);
-		RKNNQuery::LogInputDynamicRange(ctx_, io_num_.n_input);
-		RKNNQuery::LogCurrentInputAttrs(ctx_, io_num_.n_input);
-		RKNNQuery::LogCurrentOutputAttrs(ctx_, io_num_.n_output);
-		RKNNQuery::LogCurrentNativeInputAttrs(ctx_, io_num_.n_input);
-		RKNNQuery::LogCurrentNativeOutputAttrs(ctx_, io_num_.n_output);
+		RKNNQuery::LogMemSize7th(ctx_);
+		RKNNQuery::LogCustomString8th(ctx_);
+		RKNNQuery::LogNativeInputAttrs9th(ctx_, io_num_.n_input);
+		RKNNQuery::LogNativeOutputAttrs10th(ctx_, io_num_.n_output);
+		RKNNQuery::LogNhwcInputAttrs11th(ctx_, io_num_.n_input);
+		RKNNQuery::LogNhwcOutputAttrs12th(ctx_, io_num_.n_output);
+		RKNNQuery::LogInputDynamicRange14th(ctx_, io_num_.n_input);
+		RKNNQuery::LogCurrentInputAttrs15th(ctx_, io_num_.n_input);
+		RKNNQuery::LogCurrentOutputAttrs16th(ctx_, io_num_.n_output);
+		RKNNQuery::LogCurrentNativeInputAttrs17th(ctx_, io_num_.n_input);
+		RKNNQuery::LogCurrentNativeOutputAttrs18th(ctx_, io_num_.n_output);
 	}
 }
 
@@ -276,11 +276,11 @@ void InferenceEngineRKNNZeroCP::DoInfer(
 	}
 
 	// --- Per-frame: RKNN pure run time (us) ---
-	RKNNQuery::PerfRun(ctx_);
+	RKNNQuery::PerfRun5th(ctx_);
 
 	// --- Per-frame: per-layer op timing (only when COLLECT_PERF_MASK was accepted) ---
 	if (perf_enabled_) {
-		RKNNQuery::PerfDetail(ctx_);
+		RKNNQuery::PerfDetail6th(ctx_);
 	}
 
 	auto t2 = std::chrono::high_resolution_clock::now();
