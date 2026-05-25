@@ -22,9 +22,9 @@
 
 #pragma once
 
-#include <rknn_api.h>                                         // rknn_xxx APIs
-#include <string>                                             // for std::string
-#include <vector>                                             // for std::vector
+#include <rknn_api.h>                                                // rknn_xxx APIs
+#include <string>                                                    // for std::string
+#include <vector>                                                    // for std::vector
 #include "pipeline/stages/inference-engine/base/inference-engine.h"  // InferenceEngine
 
 // ---------------------------------------------------------------------------
@@ -74,8 +74,7 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 	}
 
    protected:
-	void DoInfer(const std::vector<TensorData>& inputs,
-	               std::vector<TensorData>& outputs) override;
+	void DoInfer(const std::vector<TensorData>& inputs, std::vector<TensorData>& outputs) override;
 
    private:
 	// member functions
