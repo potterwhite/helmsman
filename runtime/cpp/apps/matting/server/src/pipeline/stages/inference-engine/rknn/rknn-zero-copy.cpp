@@ -107,7 +107,7 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	rknn_sdk_version sdk_ver;
 	memset(&sdk_ver, 0, sizeof(sdk_ver));
 	rknn_query(ctx_, RKNN_QUERY_SDK_VERSION, &sdk_ver, sizeof(sdk_ver));
-	logger.Info("[RKNN] SDK api: " + std::string(sdk_ver.api_version) +
+	logger.Info("[RKNN 1st Query] SDK api: " + std::string(sdk_ver.api_version) +
 	            "  drv: " + std::string(sdk_ver.drv_version), kcurrent_module_name);
 
 	// ----------------------------------------------------------------

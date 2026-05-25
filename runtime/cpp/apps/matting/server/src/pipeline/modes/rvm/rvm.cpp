@@ -245,7 +245,7 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 			break;
 		}
 
-		// frontend_->ProcessOneFrame
+		// 1st: frontend_->ProcessOneFrame
 		// - In sync mode: reads one frame, preprocesses it, and returns the tensor and frame.
 		// - In pipeline mode: waits for the next completed frame from the pipeline, and returns the tensor and frame.
 		//
@@ -259,23 +259,25 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		const int model_w = setup.model_input_width;
 		const int model_h = setup.model_input_height;
 
-		// --- infer ---
+		// --- 2nd: inference engine - infer ---
 		ManualTimer infer_t;
 		infer_t.start();
 		std::vector<TensorData> outputs;
 		engine->Infer({result->tensor}, outputs);
+
+		// --- 3rd: backend - postprocess ---
 		cv::Mat alpha_8u = backend_->Postprocess(outputs, result->frame);
 		const double infer_ms = infer_t.stop();
 		acc_lv02_01_03_main_infer_.record(infer_ms);
 
-		// --- composite + deliver ---
+		// --- 4th: backend - composite + deliver ---
 		const int output_w = (config_.output_mode == OutputMode::kDrm) ? drm_panel_w_ : result->frame.cols;
 		const int output_h = (config_.output_mode == OutputMode::kDrm) ? drm_panel_h_ : result->frame.rows;
 		const double comp_ms = _CompositeAndDeliver(result->frame, alpha_8u, model_w, model_h,
 		                                            output_w, output_h);
 		acc_lv02_01_04_main_composite_.record(comp_ms);
 
-		// --- log per-frame stats ---
+		// --- end: log per-frame stats ---
 		GetLogger().Info("[PerFrame] frame=" + std::to_string(frame_count_) +
 		                    "  infer=" + std::to_string(infer_ms) + "ms" +
 		                    "  composite=" + std::to_string(comp_ms) + "ms",
