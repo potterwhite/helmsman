@@ -135,6 +135,8 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 			cfg.use_hardware_decoder = true;
 		} else if (std::strcmp(argv[i], "--no-prefetch") == 0) {
 			cfg.use_prefetch_thread = false;
+		} else if (std::strcmp(argv[i], "--perf-enabled") == 0) {
+			cfg.rknn_perf_enabled = true;
 		} else if (std::strncmp(argv[i], "--core-mask=", 12) == 0) {
 			std::string val = argv[i] + 12;
 			if      (val == "auto") cfg.rknn_core_mask = 0;   // RKNN_NPU_CORE_AUTO
@@ -166,7 +168,8 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 		          << "  --timing=off   Disable pipeline timing statistics (default: on)\n"
 		          << "  --timing=on    Enable pipeline timing statistics (default)\n"
 		          << "  --hwdecoder    Use hardware decode path (requires FFmpeg + MPPKit)\n"
-		          << "  --no-prefetch  Disable prefetch worker thread (all work on main thread)\n";
+		          << "  --no-prefetch  Disable prefetch worker thread (all work on main thread)\n"
+		          << "  --perf-enabled Enable RKNN per-layer NPU profiling (COLLECT_PERF_MASK)\n";
 		return std::nullopt;
 	}
 
@@ -187,6 +190,8 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 	logger.Info("Output mode: " + output_str, kcurrent_module_name);
 	std::string core_mask_str = (cfg.rknn_core_mask < 0) ? "default (engine decides)" : std::to_string(cfg.rknn_core_mask);
 	logger.Info("Core mask:  " + core_mask_str, kcurrent_module_name);
+	logger.Info("Perf profiling: " + std::string(cfg.rknn_perf_enabled ? "enabled" : "disabled"),
+	            kcurrent_module_name);
 	logger.Info("Decode path: " + decode_str, kcurrent_module_name);
 	logger.Info("Prefetch:   " + prefetch_str, kcurrent_module_name);
 	logger.Info("Input:      " + cfg.input_path + (cfg.is_video ? " (video)" : " (image)"),

@@ -46,6 +46,7 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 	void Load(const std::string& model_path) override;
 
 	void SetCoreMask(int mask) { core_mask_ = mask; }
+	void SetPerfEnabled(bool enabled) { perf_enabled_ = enabled; }
 
 	// Get model input dimensions from the FIRST input tensor (image/src).
 	// RKNN reports NHWC layout: dims[0]=batch, dims[1]=height, dims[2]=width, dims[3]=channels

@@ -81,23 +81,25 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// ----------------------------------------------------------------
 	// Phase I - RKNN Context Initialization (file path mode)
 	// ----------------------------------------------------------------
-	// Try with COLLECT_PERF_MASK first; some SDK versions reject this flag in file-path mode.
-	uint32_t init_flags = RKNN_FLAG_COLLECT_PERF_MASK;
+	// perf_enabled_ is set via --perf-enabled CLI flag (SetPerfEnabled()).
+	// When enabled, pass RKNN_FLAG_COLLECT_PERF_MASK to rknn_init() so that
+	// per-layer NPU profiling data is available via RKNN_QUERY_PERF_DETAIL.
+	// Some SDK versions reject this flag in file-path mode — retry without it.
+	uint32_t init_flags = perf_enabled_ ? RKNN_FLAG_COLLECT_PERF_MASK : 0;
 	int ret = rknn_init(&ctx_, const_cast<void*>(static_cast<const void*>(model_path.c_str())), 0,
 	                    init_flags, nullptr);
 
-	// int ret = rknn_init(&ctx, model_data, model_data_size, RKNN_FLAG_COLLECT_PERF_MASK, NULL);
-	if (ret < 0) {
+	if (ret < 0 && init_flags != 0) {
 		logger.Warning("rknn_init with COLLECT_PERF_MASK failed (ret=" + std::to_string(ret) +
 		               "), retrying without it.", kcurrent_module_name);
 		init_flags = 0;
+		perf_enabled_ = false;
 		ret = rknn_init(&ctx_, const_cast<void*>(static_cast<const void*>(model_path.c_str())), 0,
 		                init_flags, nullptr);
 	}
 	if (ret < 0) {
 		throw std::runtime_error("rknn_init failed! (ret=" + std::to_string(ret) + ")");
 	}
-	perf_enabled_ = (init_flags & RKNN_FLAG_COLLECT_PERF_MASK) != 0;
 	logger.Info("RKNN model loaded and context initialized. (COLLECT_PERF_MASK " +
 	            std::string(perf_enabled_ ? "enabled" : "disabled") + ")", kcurrent_module_name);
 
@@ -232,7 +234,13 @@ void InferenceEngineRKNNZeroCP::DoInfer(
 
 	auto t0 = std::chrono::high_resolution_clock::now();
 
-	// ----------------------------------------------------------------
+	// ================================================================
+	// INFERENCE ENGINE SCOPE — Step 1: Input Data Transfer (CPU → NPU)
+	//
+	// Convert float32 tensors into the model's native precision and
+	// write directly into RKNN zero-copy DMA buffers.
+	// This is the CPU→device data transfer; no model execution yet.
+	// ================================================================
 	// Step 1 - Write data into zero-copy input buffers
 	// ----------------------------------------------------------------
 	for (uint32_t i = 0; i < n_in; ++i) {
@@ -279,7 +287,13 @@ void InferenceEngineRKNNZeroCP::DoInfer(
 
 	auto t1 = std::chrono::high_resolution_clock::now();
 
-	// ----------------------------------------------------------------
+	// ================================================================
+	// INFERENCE ENGINE SCOPE — Step 2: NPU Execution
+	//
+	// rknn_run() dispatches the model graph to the NPU hardware.
+	// The per-layer profiling queries (PERF_RUN, PERF_DETAIL) are
+	// also engine-internal — they measure NPU kernel timing only.
+	// ================================================================
 	// Step 2 - Execute inference on NPU
 	// ----------------------------------------------------------------
 	int ret = rknn_run(ctx_, nullptr);
@@ -313,7 +327,14 @@ void InferenceEngineRKNNZeroCP::DoInfer(
 
 	auto t2 = std::chrono::high_resolution_clock::now();
 
-	// ----------------------------------------------------------------
+	// ================================================================
+	// INFERENCE ENGINE SCOPE — Step 3: Output Data Transfer (NPU → CPU)
+	//
+	// Read raw NPU output buffers and convert from model precision
+	// (INT8/FP16) back to float32 for the downstream MattingBackend.
+	// After this step, ownership of `outputs` transfers to the caller
+	// (InferenceEngine::Infer → MattingBackend::Postprocess).
+	// ================================================================
 	// Step 3 - Read outputs from zero-copy buffers
 	// ----------------------------------------------------------------
 	outputs.clear();
@@ -384,7 +405,7 @@ void InferenceEngineRKNNZeroCP::DoInfer(
 	auto t4 = std::chrono::high_resolution_clock::now();
 
 	// ----------------------------------------------------------------
-	// Profiling timestamps
+	// INFERENCE ENGINE SCOPE — Profiling timestamps (engine-internal)
 	// ----------------------------------------------------------------
 	std::chrono::duration<double, std::milli> cast_in_time  = t1 - t0;
 	std::chrono::duration<double, std::milli> npu_run_time  = t2 - t1;

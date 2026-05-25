@@ -36,6 +36,12 @@ void InferenceEngine::SetDownsampleRatio(float dsr) {
 
 void InferenceEngine::Infer(const std::vector<TensorData>& inputs,
                             std::vector<TensorData>& outputs) {
+    // ================================================================
+    // INFERENCE ENGINE SCOPE — Pre-inference: prepare model inputs
+    //
+    // Inject recurrent states (RVM) and downsample ratio (ONNX).
+    // Stateless models (MODNet): inject() is a no-op, dsr skipped.
+    // ================================================================
     std::vector<TensorData> mutable_inputs = inputs;
 
     // Inject recurrent states (r1i~r4i) if initialized.
@@ -51,12 +57,25 @@ void InferenceEngine::Infer(const std::vector<TensorData>& inputs,
         mutable_inputs.push_back(std::move(dsr));
     }
 
+    // ================================================================
+    // INFERENCE ENGINE SCOPE — Model execution (subclass-specific)
+    //
+    // DoInfer() handles: input conversion → NPU/ORT run → output conversion.
+    // After this call, `outputs` contains float32 tensors ready for
+    // the MattingBackend (Postprocess = resize + composite + write).
+    // ================================================================
     DoInfer(mutable_inputs, outputs);
 
-    // Capture recurrent states (r1o~r4o) from outputs.
-    // Skip for stateless models — update() requires outputs to have
-    // at least state_output_offset (2) + state_count elements.
+    // ================================================================
+    // INFERENCE ENGINE SCOPE — Post-inference: capture recurrent states
+    //
+    // Copy r1o~r4o from model outputs back into persistent buffers
+    // for the next frame. Skip for stateless models.
+    // ================================================================
     if (state_mgr_.stateCount() > 0) {
         state_mgr_.update(outputs);
     }
+    // --- END INFERENCE ENGINE SCOPE ---
+    // Caller (RVMMode/MODNetMode) will pass `outputs` to
+    // MattingBackend::Postprocess() for resize + composite + write.
 }

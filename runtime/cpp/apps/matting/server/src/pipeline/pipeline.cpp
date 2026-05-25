@@ -25,7 +25,7 @@
 using helmsman::utils::timing::ScopedTimer;
 
 std::unique_ptr<InferenceEngine> Pipeline::MakeEngine() {
-	return createInferenceEngine(config_.rknn_core_mask);
+	return createInferenceEngine(config_.rknn_core_mask, config_.rknn_perf_enabled);
 }
 
 Pipeline& Pipeline::GetInstance() {

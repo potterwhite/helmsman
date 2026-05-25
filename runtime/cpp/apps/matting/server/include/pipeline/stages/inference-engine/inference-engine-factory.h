@@ -27,4 +27,5 @@
 // CMake selects which factory-*.cpp to compile based on the INFERENCE_BACKEND
 // variable (set via CMakePresets.json backend-* mixin or auto-defaulted).
 // Valid values: "onnx" | "rknn-zerocopy" | "rknn-non-zerocopy"
-std::unique_ptr<InferenceEngine> createInferenceEngine(int core_mask = -1);
+std::unique_ptr<InferenceEngine> createInferenceEngine(int core_mask = -1,
+                                                       bool perf_enabled = false);
