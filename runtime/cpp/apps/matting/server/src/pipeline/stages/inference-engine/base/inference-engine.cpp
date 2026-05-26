@@ -80,7 +80,7 @@ void InferenceEngine::Infer(const std::vector<TensorData>& inputs,
     if (state_mgr_.stateCount() > 0) {
         state_mgr_.update(outputs);
 
-        // --- 5.8-s22 A1 swap (disabled) ---
+        // // --- 5.8-s22 A1 swap (disabled) ---
         // std::size_t input_offset = mutable_inputs.size() - state_mgr_.stateCount();
         // std::size_t output_offset = 2;  // after fgr and pha
         // if (DoSwapStateBuffers(state_mgr_.stateCount(), input_offset, output_offset)) {

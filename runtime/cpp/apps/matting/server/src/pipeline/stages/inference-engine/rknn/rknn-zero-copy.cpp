@@ -24,10 +24,10 @@
 #include <fstream>
 #include "RKNNKit/rknn-query.h"
 #include "RKNNKit/utils.h"
-#include "common/common-define.h"
 #include "Utils/file/file-utils.h"
 #include "Utils/logger/logger.h"
 #include "Utils/other/other-utils.h"
+#include "common/common-define.h"
 
 using helmsman::rknnkit::RKNNQuery;
 
@@ -59,12 +59,14 @@ InferenceEngineRKNNZeroCP::~InferenceEngineRKNNZeroCP() {
 // ============================================================================
 void InferenceEngineRKNNZeroCP::ReleaseBuffers() {
 	for (auto* mem : input_mems_) {
-		if (mem) rknn_destroy_mem(ctx_, mem);
+		if (mem)
+			rknn_destroy_mem(ctx_, mem);
 	}
 	input_mems_.clear();
 
 	for (auto* mem : output_mems_) {
-		if (mem) rknn_destroy_mem(ctx_, mem);
+		if (mem)
+			rknn_destroy_mem(ctx_, mem);
 	}
 	output_mems_.clear();
 }
@@ -94,7 +96,8 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 
 	if (ret < 0 && init_flags != 0) {
 		logger.Warning("rknn_init with COLLECT_PERF_MASK failed (ret=" + std::to_string(ret) +
-		               "), retrying without it.", kcurrent_module_name);
+		                   "), retrying without it.",
+		               kcurrent_module_name);
 		init_flags = 0;
 		perf_enabled_ = false;
 		ret = rknn_init(&ctx_, const_cast<void*>(static_cast<const void*>(model_path.c_str())), 0,
@@ -104,7 +107,8 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 		throw std::runtime_error("rknn_init failed! (ret=" + std::to_string(ret) + ")");
 	}
 	logger.Info("RKNN model loaded and context initialized. (COLLECT_PERF_MASK " +
-	            std::string(perf_enabled_ ? "enabled" : "disabled") + ")", kcurrent_module_name);
+	                std::string(perf_enabled_ ? "enabled" : "disabled") + ")",
+	            kcurrent_module_name);
 
 	// ----------------------------------------------------------------
 	// Phase II - Query model metadata via RKNNKit
@@ -119,8 +123,10 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// Phase III - Allocate zero-copy buffers for all inputs and outputs
 	// ----------------------------------------------------------------
 	input_mems_.resize(io_num_.n_input, nullptr);
+	rknn_mem_alloc_flags flag = RKNN_FLAG_MEMORY_CACHEABLE;
 	for (uint32_t i = 0; i < io_num_.n_input; ++i) {
-		input_mems_[i] = rknn_create_mem(ctx_, static_cast<uint32_t>(input_attrs_[i].size));
+		// input_mems_[i] = rknn_create_mem(ctx_, static_cast<uint32_t>(input_attrs_[i].size));
+		input_mems_[i] = rknn_create_mem2(ctx_, static_cast<uint32_t>(input_attrs_[i].size), flag);
 		if (!input_mems_[i]) {
 			throw std::runtime_error("rknn_create_mem failed for input[" + std::to_string(i) + "]");
 		}
@@ -128,9 +134,12 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 
 	output_mems_.resize(io_num_.n_output, nullptr);
 	for (uint32_t i = 0; i < io_num_.n_output; ++i) {
-		output_mems_[i] = rknn_create_mem(ctx_, static_cast<uint32_t>(output_attrs_[i].size));
+		// output_mems_[i] = rknn_create_mem(ctx_, static_cast<uint32_t>(output_attrs_[i].size));
+		output_mems_[i] =
+		    rknn_create_mem2(ctx_, static_cast<uint32_t>(output_attrs_[i].size), flag);
 		if (!output_mems_[i]) {
-			throw std::runtime_error("rknn_create_mem failed for output[" + std::to_string(i) + "]");
+			throw std::runtime_error("rknn_create_mem failed for output[" + std::to_string(i) +
+			                         "]");
 		}
 	}
 
@@ -147,8 +156,8 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// ----------------------------------------------------------------
 	// Phase V - Set NPU core mask
 	// ----------------------------------------------------------------
-	rknn_core_mask mask = (core_mask_ < 0) ? RKNN_NPU_CORE_ALL
-	                                        : static_cast<rknn_core_mask>(core_mask_);
+	rknn_core_mask mask =
+	    (core_mask_ < 0) ? RKNN_NPU_CORE_ALL : static_cast<rknn_core_mask>(core_mask_);
 	auto retval = rknn_set_core_mask(ctx_, mask);
 	if (retval == RKNN_SUCC) {
 		logger.Info("Set core to " + helmsman::rknnkit::to_string(mask) + " Successfully",
@@ -158,9 +167,9 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 		               kcurrent_module_name);
 	}
 
-	logger.Info("Zero-copy buffers allocated and bound: " +
-	            std::to_string(io_num_.n_input) + " inputs, " +
-	            std::to_string(io_num_.n_output) + " outputs.", kcurrent_module_name);
+	logger.Info("Zero-copy buffers allocated and bound: " + std::to_string(io_num_.n_input) +
+	                " inputs, " + std::to_string(io_num_.n_output) + " outputs.",
+	            kcurrent_module_name);
 
 	// ----------------------------------------------------------------
 	// Diagnostic queries — via RKNNKit (all require Phase III buffers)
@@ -192,32 +201,30 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 //   - FP16:  FLOAT32 → __fp16
 //   - FP32:  direct memcpy
 // ============================================================================
-void InferenceEngineRKNNZeroCP::WriteInputBuffers1st(
-    const std::vector<TensorData>& inputs)
-{
+void InferenceEngineRKNNZeroCP::WriteInputBuffers1st(const std::vector<TensorData>& inputs) {
 	if (inputs.size() != static_cast<std::size_t>(io_num_.n_input)) {
-		throw std::runtime_error(
-		    "Input count mismatch: model expects " + std::to_string(io_num_.n_input) +
-		    " inputs, got " + std::to_string(inputs.size()));
+		throw std::runtime_error("Input count mismatch: model expects " +
+		                         std::to_string(io_num_.n_input) + " inputs, got " +
+		                         std::to_string(inputs.size()));
 	}
 
 	for (uint32_t i = 0; i < io_num_.n_input; ++i) {
-		const TensorData& td    = inputs[i];
+		const TensorData& td = inputs[i];
 		const rknn_tensor_attr& attr = input_attrs_[i];
 
-		bool is_int8  = (attr.type == RKNN_TENSOR_INT8 || attr.type == RKNN_TENSOR_UINT8);
-		bool is_fp16  = (attr.type == RKNN_TENSOR_FLOAT16);
+		bool is_int8 = (attr.type == RKNN_TENSOR_INT8 || attr.type == RKNN_TENSOR_UINT8);
+		bool is_fp16 = (attr.type == RKNN_TENSOR_FLOAT16);
 
 		if (is_int8) {
 			int8_t* dst = reinterpret_cast<int8_t*>(input_mems_[i]->virt_addr);
 			float scale = attr.scale;
-			float zp    = static_cast<float>(attr.zp);
+			float zp = static_cast<float>(attr.zp);
 
 			if (i == 0) {
 				// Image tensor: normalize [0,255] → [-1,1] then quantize
 				for (size_t j = 0; j < td.data.size(); ++j) {
 					float normalized = (td.data[j] - 127.5f) / 127.5f;
-					float quantized  = (normalized / scale) + zp;
+					float quantized = (normalized / scale) + zp;
 					quantized = std::max(-128.0f, std::min(127.0f, quantized));
 					dst[j] = static_cast<int8_t>(std::round(quantized));
 				}
@@ -270,10 +277,8 @@ void InferenceEngineRKNNZeroCP::ExecuteNpu2nd() {
 // After this step, ownership of `outputs` transfers to the caller
 // (InferenceEngine::Infer → MattingBackend::Postprocess).
 // ============================================================================
-void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(
-    const std::vector<TensorData>& inputs,
-          std::vector<TensorData>& outputs)
-{
+void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(const std::vector<TensorData>& inputs,
+                                                     std::vector<TensorData>& outputs) {
 	outputs.clear();
 	outputs.reserve(io_num_.n_output);
 
@@ -284,16 +289,19 @@ void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(
 		bool is_fp16_out = (attr.type == RKNN_TENSOR_FLOAT16);
 
 		size_t element_count;
-		if (is_int8_out)       element_count = attr.size / sizeof(int8_t);
-		else if (is_fp16_out)  element_count = attr.size / sizeof(__fp16);
-		else                   element_count = attr.size / sizeof(float);
+		if (is_int8_out)
+			element_count = attr.size / sizeof(int8_t);
+		else if (is_fp16_out)
+			element_count = attr.size / sizeof(__fp16);
+		else
+			element_count = attr.size / sizeof(float);
 
 		std::vector<float> out_data(element_count);
 
 		if (is_int8_out) {
 			int8_t* src = reinterpret_cast<int8_t*>(output_mems_[i]->virt_addr);
 			float scale = attr.scale;
-			float zp    = static_cast<float>(attr.zp);
+			float zp = static_cast<float>(attr.zp);
 			for (size_t j = 0; j < element_count; ++j) {
 				out_data[j] = (static_cast<float>(src[j]) - zp) * scale;
 			}
@@ -317,12 +325,12 @@ void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(
 		}
 
 		// Propagate letterbox metadata from the primary input (src)
-		td.orig_width  = inputs[0].orig_width;
+		td.orig_width = inputs[0].orig_width;
 		td.orig_height = inputs[0].orig_height;
-		td.pad_top     = inputs[0].pad_top;
-		td.pad_bottom  = inputs[0].pad_bottom;
-		td.pad_left    = inputs[0].pad_left;
-		td.pad_right   = inputs[0].pad_right;
+		td.pad_top = inputs[0].pad_top;
+		td.pad_bottom = inputs[0].pad_bottom;
+		td.pad_left = inputs[0].pad_left;
+		td.pad_right = inputs[0].pad_right;
 
 		outputs.push_back(std::move(td));
 	}
@@ -334,26 +342,22 @@ void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(
 // Log per-step timing: input conversion, NPU execution, output conversion,
 // and binary dump. Also logs the primary input's precision type.
 // ============================================================================
-void InferenceEngineRKNNZeroCP::LogInferenceProfile4th(
-    double cast_in_ms, double npu_run_ms,
-    double cast_out_ms, double dump_ms)
-{
+void InferenceEngineRKNNZeroCP::LogInferenceProfile4th(double cast_in_ms, double npu_run_ms,
+                                                       double cast_out_ms, double dump_ms) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
-	bool is_int8_primary = (input_attrs_[0].type == RKNN_TENSOR_INT8 ||
-	                        input_attrs_[0].type == RKNN_TENSOR_UINT8);
+	bool is_int8_primary =
+	    (input_attrs_[0].type == RKNN_TENSOR_INT8 || input_attrs_[0].type == RKNN_TENSOR_UINT8);
 	bool is_fp16_primary = (input_attrs_[0].type == RKNN_TENSOR_FLOAT16);
 	std::string precision_str = is_int8_primary ? "INT8" : (is_fp16_primary ? "FP16" : "FP32");
 
 	logger.Info("   [Profiler] Input conversion (" + precision_str +
 	                ") cost: " + std::to_string(cast_in_ms) + " ms.",
 	            kcurrent_module_name);
-	logger.Info(
-	    "   [Profiler] Pure RKNN Run cost:   " + std::to_string(npu_run_ms) + " ms.",
-	    kcurrent_module_name);
-	logger.Info(
-	    "   [Profiler] Output conversion cost: " + std::to_string(cast_out_ms) + " ms.",
-	    kcurrent_module_name);
+	logger.Info("   [Profiler] Pure RKNN Run cost:   " + std::to_string(npu_run_ms) + " ms.",
+	            kcurrent_module_name);
+	logger.Info("   [Profiler] Output conversion cost: " + std::to_string(cast_out_ms) + " ms.",
+	            kcurrent_module_name);
 
 	if (dump_ms > 0.0) {
 		logger.Info("   [Profiler] Binary Dump cost:     " + std::to_string(dump_ms) + " ms.",
@@ -373,10 +377,8 @@ void InferenceEngineRKNNZeroCP::LogInferenceProfile4th(
 //   3rd: NPU → CPU output conversion
 //   4th: profiling log
 // ============================================================================
-void InferenceEngineRKNNZeroCP::DoInfer(
-    const std::vector<TensorData>& inputs,
-          std::vector<TensorData>& outputs)
-{
+void InferenceEngineRKNNZeroCP::DoInfer(const std::vector<TensorData>& inputs,
+                                        std::vector<TensorData>& outputs) {
 	auto t0 = std::chrono::high_resolution_clock::now();
 
 	// Step 1 - CPU → NPU: convert and write input buffers
@@ -404,15 +406,14 @@ void InferenceEngineRKNNZeroCP::DoInfer(
 	}
 
 	// Step 4 - Profiling
-	LogInferenceProfile4th(
-	    std::chrono::duration<double, std::milli>(t1 - t0).count(),
-	    std::chrono::duration<double, std::milli>(t2 - t1).count(),
-	    std::chrono::duration<double, std::milli>(t3 - t2).count(),
-	    dump_ms);
+	LogInferenceProfile4th(std::chrono::duration<double, std::milli>(t1 - t0).count(),
+	                       std::chrono::duration<double, std::milli>(t2 - t1).count(),
+	                       std::chrono::duration<double, std::milli>(t3 - t2).count(), dump_ms);
 
 	helmsman::utils::Logger::GetInstance().Info(
 	    "infer() complete: " + std::to_string(io_num_.n_input) + " in / " +
-	    std::to_string(io_num_.n_output) + " out", kcurrent_module_name);
+	        std::to_string(io_num_.n_output) + " out",
+	    kcurrent_module_name);
 }
 
 // ============================================================================
@@ -427,11 +428,8 @@ void InferenceEngineRKNNZeroCP::DoInfer(
 // After the swap, rknn_set_io_mem() re-binds the buffers to the correct
 // tensor descriptors so the NPU reads from the right memory on the next run.
 // ============================================================================
-bool InferenceEngineRKNNZeroCP::DoSwapStateBuffers(
-    std::size_t n_states,
-    std::size_t input_offset,
-    std::size_t output_offset)
-{
+bool InferenceEngineRKNNZeroCP::DoSwapStateBuffers(std::size_t n_states, std::size_t input_offset,
+                                                   std::size_t output_offset) {
 	if (input_offset + n_states > input_mems_.size() ||
 	    output_offset + n_states > output_mems_.size()) {
 		return false;
@@ -444,11 +442,10 @@ bool InferenceEngineRKNNZeroCP::DoSwapStateBuffers(
 	}
 
 	helmsman::utils::Logger::GetInstance().Info(
-	    "DoSwapStateBuffers: swapped " + std::to_string(n_states) +
-	    " state DMA buffers (input[" + std::to_string(input_offset) + ".." +
-	    std::to_string(input_offset + n_states - 1) + "] ↔ output[" +
-	    std::to_string(output_offset) + ".." +
-	    std::to_string(output_offset + n_states - 1) + "])",
+	    "DoSwapStateBuffers: swapped " + std::to_string(n_states) + " state DMA buffers (input[" +
+	        std::to_string(input_offset) + ".." + std::to_string(input_offset + n_states - 1) +
+	        "] ↔ output[" + std::to_string(output_offset) + ".." +
+	        std::to_string(output_offset + n_states - 1) + "])",
 	    kcurrent_module_name);
 
 	return true;
