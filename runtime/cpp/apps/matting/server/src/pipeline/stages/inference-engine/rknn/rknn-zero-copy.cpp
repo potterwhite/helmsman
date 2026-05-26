@@ -22,6 +22,7 @@
 #include <cmath>
 #include <cstring>
 #include <fstream>
+#include "RKNNKit/rknn-memory.h"
 #include "RKNNKit/rknn-query.h"
 #include "RKNNKit/utils.h"
 #include "Utils/file/file-utils.h"
@@ -29,6 +30,7 @@
 #include "Utils/other/other-utils.h"
 #include "common/common-define.h"
 
+using helmsman::rknnkit::RKNNMemory;
 using helmsman::rknnkit::RKNNQuery;
 
 // ============================================================================
@@ -58,17 +60,8 @@ InferenceEngineRKNNZeroCP::~InferenceEngineRKNNZeroCP() {
 // Release all zero-copy buffers
 // ============================================================================
 void InferenceEngineRKNNZeroCP::ReleaseBuffers() {
-	for (auto* mem : input_mems_) {
-		if (mem)
-			rknn_destroy_mem(ctx_, mem);
-	}
-	input_mems_.clear();
-
-	for (auto* mem : output_mems_) {
-		if (mem)
-			rknn_destroy_mem(ctx_, mem);
-	}
-	output_mems_.clear();
+	RKNNMemory::FreeAll(ctx_, input_mems_);
+	RKNNMemory::FreeAll(ctx_, output_mems_);
 }
 
 // ============================================================================
@@ -91,15 +84,11 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// per-layer NPU profiling data is available via RKNN_QUERY_PERF_DETAIL.
 	// Some SDK versions reject this flag in file-path mode — retry without it.
 	//
-	// A5: DISABLE_FLUSH flags disable runtime's automatic cache flush/invalidate
-	// for ALL buffers. Cacheable buffers (src, fgr, pha) are manually synced
-	// via rknn_mem_sync() in DoInfer(). Non-cacheable buffers (r-state) need
-	// no sync — eliminating the cache coherency overhead for A1 swap.
-	uint32_t init_flags = RKNN_FLAG_DISABLE_FLUSH_INPUT_MEM_CACHE
-	                    | RKNN_FLAG_DISABLE_FLUSH_OUTPUT_MEM_CACHE;
-	if (perf_enabled_) {
-		init_flags |= RKNN_FLAG_COLLECT_PERF_MASK;
-	}
+	// History: §5.4 attempted RKNN_FLAG_DISABLE_FLUSH_*_MEM_CACHE together with
+	// selective non-cacheable r-state buffers and A1 swap; result was 184ms →
+	// 316ms infer regression (pkb §5.4). Reverted — runtime auto cache flush
+	// stays on; all buffers stay cacheable.
+	uint32_t init_flags = perf_enabled_ ? RKNN_FLAG_COLLECT_PERF_MASK : 0;
 	int ret = rknn_init(&ctx_, const_cast<void*>(static_cast<const void*>(model_path.c_str())), 0,
 	                    init_flags, nullptr);
 
@@ -107,7 +96,7 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 		logger.Warning("rknn_init with COLLECT_PERF_MASK failed (ret=" + std::to_string(ret) +
 		                   "), retrying without it.",
 		               kcurrent_module_name);
-		init_flags &= ~static_cast<uint32_t>(RKNN_FLAG_COLLECT_PERF_MASK);
+		init_flags = 0;
 		perf_enabled_ = false;
 		ret = rknn_init(&ctx_, const_cast<void*>(static_cast<const void*>(model_path.c_str())), 0,
 		                init_flags, nullptr);
@@ -131,33 +120,14 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// ----------------------------------------------------------------
 	// Phase III - Allocate zero-copy buffers for all inputs and outputs
 	//
-	// A5: Split cacheability by access pattern:
-	//   - input[0]  (src)       : cacheable  — CPU heavy write (letterbox)
-	//   - input[1..4] (r1i~r4i): non-cacheable — CPU rarely touches, A1 swap target
-	//   - output[0..1] (fgr,pha): cacheable  — CPU heavy read (resize+composite)
-	//   - output[2..5] (r1o~r4o): non-cacheable — CPU rarely touches, A1 swap target
+	// Default: all buffers cacheable (matches legacy rknn_create_mem behaviour).
+	// To experiment with non-cacheable for selected tensor indices, pass the
+	// indices as the third argument to RKNNMemory::AllocAll, e.g.:
+	//     RKNNMemory::AllocAll(ctx_, input_attrs_, {1, 2, 3, 4});  // RVM r1i~r4i
+	// See pkb §5.4 for the (failed) A5 experiment that motivated this hook.
 	// ----------------------------------------------------------------
-	input_mems_.resize(io_num_.n_input, nullptr);
-	for (uint32_t i = 0; i < io_num_.n_input; ++i) {
-		rknn_mem_alloc_flags flag = (i == 0) ? RKNN_FLAG_MEMORY_CACHEABLE
-		                                     : RKNN_FLAG_MEMORY_NON_CACHEABLE;
-		input_mems_[i] = rknn_create_mem2(ctx_, static_cast<uint32_t>(input_attrs_[i].size), flag);
-		if (!input_mems_[i]) {
-			throw std::runtime_error("rknn_create_mem failed for input[" + std::to_string(i) + "]");
-		}
-	}
-
-	output_mems_.resize(io_num_.n_output, nullptr);
-	for (uint32_t i = 0; i < io_num_.n_output; ++i) {
-		rknn_mem_alloc_flags flag = (i < 2) ? RKNN_FLAG_MEMORY_CACHEABLE
-		                                    : RKNN_FLAG_MEMORY_NON_CACHEABLE;
-		output_mems_[i] =
-		    rknn_create_mem2(ctx_, static_cast<uint32_t>(output_attrs_[i].size), flag);
-		if (!output_mems_[i]) {
-			throw std::runtime_error("rknn_create_mem failed for output[" + std::to_string(i) +
-			                         "]");
-		}
-	}
+	input_mems_ = RKNNMemory::AllocAll(ctx_, input_attrs_);
+	output_mems_ = RKNNMemory::AllocAll(ctx_, output_attrs_);
 
 	// ----------------------------------------------------------------
 	// Phase IV - Bind memory to tensor descriptors
@@ -262,10 +232,6 @@ void InferenceEngineRKNNZeroCP::WriteInputBuffers1st(const std::vector<TensorDat
 			std::memcpy(dst, td.data.data(), td.data.size() * sizeof(float));
 		}
 	}
-
-	// A5: Flush cacheable input[0] (src) so NPU reads fresh data from DDR.
-	// Non-cacheable inputs (r1i~r4i) bypass cache — no sync needed.
-	rknn_mem_sync(ctx_, input_mems_[0], RKNN_MEMORY_SYNC_TO_DEVICE);
 }
 
 // ============================================================================
@@ -299,11 +265,6 @@ void InferenceEngineRKNNZeroCP::ExecuteNpu2nd() {
 // ============================================================================
 void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(const std::vector<TensorData>& inputs,
                                                      std::vector<TensorData>& outputs) {
-	// A5: Invalidate cacheable outputs (fgr, pha) so CPU reads fresh data from DDR.
-	// Non-cacheable outputs (r1o~r4o) bypass cache — no sync needed.
-	rknn_mem_sync(ctx_, output_mems_[0], RKNN_MEMORY_SYNC_FROM_DEVICE);
-	rknn_mem_sync(ctx_, output_mems_[1], RKNN_MEMORY_SYNC_FROM_DEVICE);
-
 	outputs.clear();
 	outputs.reserve(io_num_.n_output);
 

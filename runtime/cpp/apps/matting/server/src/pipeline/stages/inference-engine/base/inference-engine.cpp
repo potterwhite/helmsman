@@ -69,23 +69,24 @@ void InferenceEngine::Infer(const std::vector<TensorData>& inputs,
     // ================================================================
     // INFERENCE ENGINE SCOPE — Post-inference: capture recurrent states
     //
-    // 5.8-s22 A1+A5: DMA buffer pointer swap (zero-copy optimization).
-    // A5 uses non-cacheable r-state buffers to eliminate cache miss
-    // regression that caused A1-only to fail (+4.6ms on output conversion).
+    // 5.8-s22 §5.1 A1 swap experiment: DMA buffer pointer swap to avoid
+    // the per-frame D→H→D copy + NCHW→NHWC transpose for r-states.
+    // Result (pkb §5.1): no net gain — output conversion +4.6ms cancelled
+    // out the saved transpose. §5.4 retry with non-cacheable + DISABLE_FLUSH
+    // regressed even harder (184→316ms). Swap path is kept in code (see
+    // DoSwapStateBuffers) but disabled here; fall through to the legacy
+    // state_mgr_.update(outputs) path.
     // ================================================================
     if (state_mgr_.stateCount() > 0) {
-        // 5.8-s22 A1+A5: DMA buffer pointer swap (zero-copy r-state transfer).
-        // First frame: must copy (states initialized to zero via update()).
-        // Subsequent frames: swap DMA buffer pointers so output r-states
-        // become input r-states for the next frame, eliminating D→H→D copy.
-        // Non-cacheable r-state buffers (A5) prevent cache miss regression.
-        std::size_t input_offset = mutable_inputs.size() - state_mgr_.stateCount();
-        std::size_t output_offset = 2;  // after fgr and pha
-        if (state_mgr_.isFirstFrame() ||
-            !DoSwapStateBuffers(state_mgr_.stateCount(), input_offset, output_offset)) {
-            state_mgr_.update(outputs);
-        }
-        state_mgr_.markFirstFrameFalse();
+        // // --- 5.8-s22 A1 swap (disabled, see pkb §5.1 / §5.4) ---
+        // std::size_t input_offset = mutable_inputs.size() - state_mgr_.stateCount();
+        // std::size_t output_offset = 2;  // after fgr and pha
+        // if (state_mgr_.isFirstFrame() ||
+        //     !DoSwapStateBuffers(state_mgr_.stateCount(), input_offset, output_offset)) {
+        //     state_mgr_.update(outputs);
+        // }
+        // state_mgr_.markFirstFrameFalse();
+        state_mgr_.update(outputs);
     }
     // --- END INFERENCE ENGINE SCOPE ---
     // Caller (RVMMode/MODNetMode) will pass `outputs` to
