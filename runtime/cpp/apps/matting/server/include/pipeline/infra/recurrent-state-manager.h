@@ -81,6 +81,7 @@ class RecurrentStateManager {
 	            std::size_t state_output_offset = 2);
 
 	bool isFirstFrame() const { return first_frame_; }
+	void markFirstFrameFalse() { first_frame_ = false; }
 	std::size_t stateCount() const { return states_.size(); }
 
    private:

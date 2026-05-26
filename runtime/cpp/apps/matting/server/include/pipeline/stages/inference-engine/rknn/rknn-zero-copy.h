@@ -75,6 +75,9 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 
    protected:
 	void DoInfer(const std::vector<TensorData>& inputs, std::vector<TensorData>& outputs) override;
+	bool DoSwapStateBuffers(std::size_t n_states,
+	                        std::size_t input_offset,
+	                        std::size_t output_offset) override;
 
    private:
 	// member functions

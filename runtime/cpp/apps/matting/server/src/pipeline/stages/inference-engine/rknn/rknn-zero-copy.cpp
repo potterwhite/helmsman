@@ -414,3 +414,42 @@ void InferenceEngineRKNNZeroCP::DoInfer(
 	    "infer() complete: " + std::to_string(io_num_.n_input) + " in / " +
 	    std::to_string(io_num_.n_output) + " out", kcurrent_module_name);
 }
+
+// ============================================================================
+// DoSwapStateBuffers — Zero-copy recurrent state optimization
+//
+// After NPU execution, the output DMA buffers for r1o~r4o already contain
+// the new recurrent state data. Instead of copying D→H→D (read output →
+// store in TensorData → write back to input DMA buffer), we swap the DMA
+// buffer pointers so the output buffers become the input buffers for the
+// next frame. This eliminates 3.20 MB/frame of redundant memory traffic.
+//
+// After the swap, rknn_set_io_mem() re-binds the buffers to the correct
+// tensor descriptors so the NPU reads from the right memory on the next run.
+// ============================================================================
+bool InferenceEngineRKNNZeroCP::DoSwapStateBuffers(
+    std::size_t n_states,
+    std::size_t input_offset,
+    std::size_t output_offset)
+{
+	if (input_offset + n_states > input_mems_.size() ||
+	    output_offset + n_states > output_mems_.size()) {
+		return false;
+	}
+
+	for (std::size_t i = 0; i < n_states; ++i) {
+		std::swap(input_mems_[input_offset + i], output_mems_[output_offset + i]);
+		rknn_set_io_mem(ctx_, input_mems_[input_offset + i], &input_attrs_[input_offset + i]);
+		rknn_set_io_mem(ctx_, output_mems_[output_offset + i], &output_attrs_[output_offset + i]);
+	}
+
+	helmsman::utils::Logger::GetInstance().Info(
+	    "DoSwapStateBuffers: swapped " + std::to_string(n_states) +
+	    " state DMA buffers (input[" + std::to_string(input_offset) + ".." +
+	    std::to_string(input_offset + n_states - 1) + "] ↔ output[" +
+	    std::to_string(output_offset) + ".." +
+	    std::to_string(output_offset + n_states - 1) + "])",
+	    kcurrent_module_name);
+
+	return true;
+}

@@ -69,11 +69,25 @@ void InferenceEngine::Infer(const std::vector<TensorData>& inputs,
     // ================================================================
     // INFERENCE ENGINE SCOPE — Post-inference: capture recurrent states
     //
-    // Copy r1o~r4o from model outputs back into persistent buffers
-    // for the next frame. Skip for stateless models.
+    // 5.8-s22 A1: DMA buffer pointer swap (zero-copy optimization).
+    // Experimentally tested — no net benefit: output conversion regressed
+    // +4.6ms (cache effect after rknn_set_io_mem rebinding), offsetting
+    // the ~0.5ms saved by skipping NCHW→NHWC transpose.
+    // Swap code preserved below but disabled; always falls through to
+    // state_mgr_.update() copy path. Re-enable after A3 (skip r-state
+    // D→H entirely) to see if combined A1+A3 has net benefit.
     // ================================================================
     if (state_mgr_.stateCount() > 0) {
         state_mgr_.update(outputs);
+
+        // --- 5.8-s22 A1 swap (disabled) ---
+        // std::size_t input_offset = mutable_inputs.size() - state_mgr_.stateCount();
+        // std::size_t output_offset = 2;  // after fgr and pha
+        // if (DoSwapStateBuffers(state_mgr_.stateCount(), input_offset, output_offset)) {
+        //     state_mgr_.markFirstFrameFalse();
+        // } else {
+        //     state_mgr_.update(outputs);
+        // }
     }
     // --- END INFERENCE ENGINE SCOPE ---
     // Caller (RVMMode/MODNetMode) will pass `outputs` to

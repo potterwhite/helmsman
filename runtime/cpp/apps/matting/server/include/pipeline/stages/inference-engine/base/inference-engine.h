@@ -76,6 +76,20 @@ class InferenceEngine {
 	virtual void DoInfer(const std::vector<TensorData>& inputs,
 	                       std::vector<TensorData>& outputs) = 0;
 
+	// NVI hook: swap recurrent state DMA buffers in-place (zero-copy optimization).
+	// Called after DoInfer() when recurrent states are present.
+	// Parameters:
+	//   n_states     — number of recurrent states (e.g. 4 for RVM)
+	//   input_offset — index of first state in input_mems_ (after image/src)
+	//   output_offset — index of first state in output_mems_ (after fgr/pha)
+	// Returns true if swap was performed (caller skips update()), false otherwise.
+	// Default: not supported — base class falls back to copy via state_mgr_.update().
+	virtual bool DoSwapStateBuffers(std::size_t /*n_states*/,
+	                                 std::size_t /*input_offset*/,
+	                                 std::size_t /*output_offset*/) {
+		return false;
+	}
+
 	std::string output_bin_path_;
 
    private:
