@@ -181,11 +181,10 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 }
 
 // ============================================================================
-// Inference — N inputs → M outputs (Zero-Copy)
+// Step 1 — Input Data Transfer (CPU → NPU)
 //
-// For each input tensor:
-//   - inputs[0] (image/src): FLOAT32 0~255 → type-dependent conversion
-//   - inputs[1..N-1] (recurrent states): FLOAT32 → type-dependent conversion
+// Convert float32 tensors into the model's native precision and
+// write directly into RKNN zero-copy DMA buffers.
 //
 // Type conversion adapts to the model's compiled precision per tensor:
 //   - INT8:  normalize [0,255]→[-1,1], quantize with scale/zp (image only)
@@ -193,30 +192,15 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 //   - FP16:  FLOAT32 → __fp16
 //   - FP32:  direct memcpy
 // ============================================================================
-void InferenceEngineRKNNZeroCP::DoInfer(
-    const std::vector<TensorData>& inputs,
-          std::vector<TensorData>& outputs)
+void InferenceEngineRKNNZeroCP::WriteInputBuffers1st(
+    const std::vector<TensorData>& inputs)
 {
-	auto& logger = helmsman::utils::Logger::GetInstance();
-	auto& file_utils_ = helmsman::utils::FileUtils::GetInstance();
-
 	if (inputs.size() != static_cast<std::size_t>(io_num_.n_input)) {
 		throw std::runtime_error(
 		    "Input count mismatch: model expects " + std::to_string(io_num_.n_input) +
 		    " inputs, got " + std::to_string(inputs.size()));
 	}
 
-	auto t0 = std::chrono::high_resolution_clock::now();
-
-	// ================================================================
-	// INFERENCE ENGINE SCOPE — Step 1: Input Data Transfer (CPU → NPU)
-	//
-	// Convert float32 tensors into the model's native precision and
-	// write directly into RKNN zero-copy DMA buffers.
-	// This is the CPU→device data transfer; no model execution yet.
-	// ================================================================
-	// Step 1 - Write data into zero-copy input buffers
-	// ----------------------------------------------------------------
 	for (uint32_t i = 0; i < io_num_.n_input; ++i) {
 		const TensorData& td    = inputs[i];
 		const rknn_tensor_attr& attr = input_attrs_[i];
@@ -225,7 +209,6 @@ void InferenceEngineRKNNZeroCP::DoInfer(
 		bool is_fp16  = (attr.type == RKNN_TENSOR_FLOAT16);
 
 		if (is_int8) {
-			// INT8 model: quantize input
 			int8_t* dst = reinterpret_cast<int8_t*>(input_mems_[i]->virt_addr);
 			float scale = attr.scale;
 			float zp    = static_cast<float>(attr.zp);
@@ -247,54 +230,50 @@ void InferenceEngineRKNNZeroCP::DoInfer(
 				}
 			}
 		} else if (is_fp16) {
-			// FP16 model: FLOAT32 → __fp16
 			__fp16* dst = reinterpret_cast<__fp16*>(input_mems_[i]->virt_addr);
 			for (size_t j = 0; j < td.data.size(); ++j) {
 				dst[j] = static_cast<__fp16>(td.data[j]);
 			}
 		} else {
-			// FP32 model: direct copy
 			float* dst = reinterpret_cast<float*>(input_mems_[i]->virt_addr);
 			std::memcpy(dst, td.data.data(), td.data.size() * sizeof(float));
 		}
 	}
+}
 
-	auto t1 = std::chrono::high_resolution_clock::now();
-
-	// ================================================================
-	// INFERENCE ENGINE SCOPE — Step 2: NPU Execution
-	//
-	// rknn_run() dispatches the model graph to the NPU hardware.
-	// The per-layer profiling queries (PERF_RUN, PERF_DETAIL) are
-	// also engine-internal — they measure NPU kernel timing only.
-	// ================================================================
-	// Step 2 - Execute inference on NPU
-	// ----------------------------------------------------------------
+// ============================================================================
+// Step 2 — NPU Execution
+//
+// Dispatch the model graph to the NPU hardware and collect per-frame
+// performance metrics (PERF_RUN, PERF_DETAIL).
+// ============================================================================
+void InferenceEngineRKNNZeroCP::ExecuteNpu2nd() {
 	int ret = rknn_run(ctx_, nullptr);
 	if (ret < 0) {
 		throw std::runtime_error("rknn_run failed!");
 	}
 
-	// --- Per-frame: RKNN pure run time (us) ---
+	// Per-frame: RKNN pure run time (us)
 	RKNNQuery::PerfRun5th(ctx_);
 
-	// --- Per-frame: per-layer op timing (only when COLLECT_PERF_MASK was accepted) ---
+	// Per-frame: per-layer op timing (only when COLLECT_PERF_MASK was accepted)
 	if (perf_enabled_) {
 		RKNNQuery::PerfDetail6th(ctx_);
 	}
+}
 
-	auto t2 = std::chrono::high_resolution_clock::now();
-
-	// ================================================================
-	// INFERENCE ENGINE SCOPE — Step 3: Output Data Transfer (NPU → CPU)
-	//
-	// Read raw NPU output buffers and convert from model precision
-	// (INT8/FP16) back to float32 for the downstream MattingBackend.
-	// After this step, ownership of `outputs` transfers to the caller
-	// (InferenceEngine::Infer → MattingBackend::Postprocess).
-	// ================================================================
-	// Step 3 - Read outputs from zero-copy buffers
-	// ----------------------------------------------------------------
+// ============================================================================
+// Step 3 — Output Data Transfer (NPU → CPU)
+//
+// Read raw NPU output buffers and convert from model precision
+// (INT8/FP16) back to float32 for the downstream MattingBackend.
+// After this step, ownership of `outputs` transfers to the caller
+// (InferenceEngine::Infer → MattingBackend::Postprocess).
+// ============================================================================
+void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(
+    const std::vector<TensorData>& inputs,
+          std::vector<TensorData>& outputs)
+{
 	outputs.clear();
 	outputs.reserve(io_num_.n_output);
 
@@ -312,7 +291,6 @@ void InferenceEngineRKNNZeroCP::DoInfer(
 		std::vector<float> out_data(element_count);
 
 		if (is_int8_out) {
-			// INT8 → FLOAT32 dequantization
 			int8_t* src = reinterpret_cast<int8_t*>(output_mems_[i]->virt_addr);
 			float scale = attr.scale;
 			float zp    = static_cast<float>(attr.zp);
@@ -320,13 +298,11 @@ void InferenceEngineRKNNZeroCP::DoInfer(
 				out_data[j] = (static_cast<float>(src[j]) - zp) * scale;
 			}
 		} else if (is_fp16_out) {
-			// FP16 → FLOAT32
 			__fp16* src = reinterpret_cast<__fp16*>(output_mems_[i]->virt_addr);
 			for (size_t j = 0; j < element_count; ++j) {
 				out_data[j] = static_cast<float>(src[j]);
 			}
 		} else {
-			// FP32 direct copy
 			float* src = reinterpret_cast<float*>(output_mems_[i]->virt_addr);
 			std::memcpy(out_data.data(), src, element_count * sizeof(float));
 		}
@@ -335,7 +311,6 @@ void InferenceEngineRKNNZeroCP::DoInfer(
 		td.name = attr.name;
 		td.data = std::move(out_data);
 
-		// Assemble shape from tensor metadata
 		td.shape.clear();
 		for (uint32_t d = 0; d < attr.n_dims; ++d) {
 			td.shape.push_back(attr.dims[d]);
@@ -351,24 +326,19 @@ void InferenceEngineRKNNZeroCP::DoInfer(
 
 		outputs.push_back(std::move(td));
 	}
+}
 
-	auto t3 = std::chrono::high_resolution_clock::now();
-
-	// Debug dump for primary output (index 0)
-	if (IsDumpEnabled() && !output_bin_path_.empty()) {
-		file_utils_.dumpBinary(outputs[0].data,
-		    output_bin_path_ + "cpp_08_inference-Output.bin");
-	}
-
-	auto t4 = std::chrono::high_resolution_clock::now();
-
-	// ----------------------------------------------------------------
-	// INFERENCE ENGINE SCOPE — Profiling timestamps (engine-internal)
-	// ----------------------------------------------------------------
-	std::chrono::duration<double, std::milli> cast_in_time  = t1 - t0;
-	std::chrono::duration<double, std::milli> npu_run_time  = t2 - t1;
-	std::chrono::duration<double, std::milli> cast_out_time = t3 - t2;
-	std::chrono::duration<double, std::milli> dump_time     = t4 - t3;
+// ============================================================================
+// Step 4 — Inference Profiling
+//
+// Log per-step timing: input conversion, NPU execution, output conversion,
+// and binary dump. Also logs the primary input's precision type.
+// ============================================================================
+void InferenceEngineRKNNZeroCP::LogInferenceProfile4th(
+    double cast_in_ms, double npu_run_ms,
+    double cast_out_ms, double dump_ms)
+{
+	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	bool is_int8_primary = (input_attrs_[0].type == RKNN_TENSOR_INT8 ||
 	                        input_attrs_[0].type == RKNN_TENSOR_UINT8);
@@ -376,17 +346,71 @@ void InferenceEngineRKNNZeroCP::DoInfer(
 	std::string precision_str = is_int8_primary ? "INT8" : (is_fp16_primary ? "FP16" : "FP32");
 
 	logger.Info("   [Profiler] Input conversion (" + precision_str +
-	                ") cost: " + std::to_string(cast_in_time.count()) + " ms.",
+	                ") cost: " + std::to_string(cast_in_ms) + " ms.",
 	            kcurrent_module_name);
 	logger.Info(
-	    "   [Profiler] Pure RKNN Run cost:   " + std::to_string(npu_run_time.count()) + " ms.",
+	    "   [Profiler] Pure RKNN Run cost:   " + std::to_string(npu_run_ms) + " ms.",
 	    kcurrent_module_name);
 	logger.Info(
-	    "   [Profiler] Output conversion cost: " + std::to_string(cast_out_time.count()) + " ms.",
+	    "   [Profiler] Output conversion cost: " + std::to_string(cast_out_ms) + " ms.",
 	    kcurrent_module_name);
-	logger.Info("   [Profiler] Binary Dump cost:     " + std::to_string(dump_time.count()) + " ms.",
-	            kcurrent_module_name);
 
-	logger.Info("infer() complete: " + std::to_string(io_num_.n_input) + " in / " +
-	            std::to_string(io_num_.n_output) + " out", kcurrent_module_name);
+	if (dump_ms > 0.0) {
+		logger.Info("   [Profiler] Binary Dump cost:     " + std::to_string(dump_ms) + " ms.",
+		            kcurrent_module_name);
+	} else {
+		logger.Info("   [Profiler] Binary Dump:           disabled (no stats)",
+		            kcurrent_module_name);
+	}
+}
+
+// ============================================================================
+// Inference — N inputs → M outputs (Zero-Copy)
+//
+// Orchestrates the 4-step inference pipeline:
+//   1st: CPU → NPU input conversion
+//   2nd: NPU execution
+//   3rd: NPU → CPU output conversion
+//   4th: profiling log
+// ============================================================================
+void InferenceEngineRKNNZeroCP::DoInfer(
+    const std::vector<TensorData>& inputs,
+          std::vector<TensorData>& outputs)
+{
+	auto t0 = std::chrono::high_resolution_clock::now();
+
+	// Step 1 - CPU → NPU: convert and write input buffers
+	WriteInputBuffers1st(inputs);
+
+	auto t1 = std::chrono::high_resolution_clock::now();
+
+	// Step 2 - NPU execution
+	ExecuteNpu2nd();
+
+	auto t2 = std::chrono::high_resolution_clock::now();
+
+	// Step 3 - NPU → CPU: read and convert output buffers
+	ReadOutputBuffers3rd(inputs, outputs);
+
+	auto t3 = std::chrono::high_resolution_clock::now();
+
+	// Debug dump for primary output (index 0)
+	double dump_ms = 0.0;
+	if (IsDumpEnabled() && !output_bin_path_.empty()) {
+		helmsman::utils::FileUtils::GetInstance().dumpBinary(
+		    outputs[0].data, output_bin_path_ + "cpp_08_inference-Output.bin");
+		auto t4 = std::chrono::high_resolution_clock::now();
+		dump_ms = std::chrono::duration<double, std::milli>(t4 - t3).count();
+	}
+
+	// Step 4 - Profiling
+	LogInferenceProfile4th(
+	    std::chrono::duration<double, std::milli>(t1 - t0).count(),
+	    std::chrono::duration<double, std::milli>(t2 - t1).count(),
+	    std::chrono::duration<double, std::milli>(t3 - t2).count(),
+	    dump_ms);
+
+	helmsman::utils::Logger::GetInstance().Info(
+	    "infer() complete: " + std::to_string(io_num_.n_input) + " in / " +
+	    std::to_string(io_num_.n_output) + " out", kcurrent_module_name);
 }

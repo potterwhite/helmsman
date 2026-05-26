@@ -79,6 +79,12 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
    private:
 	// member functions
 	void ReleaseBuffers();
+	void WriteInputBuffers1st(const std::vector<TensorData>& inputs);
+	void ExecuteNpu2nd();
+	void ReadOutputBuffers3rd(const std::vector<TensorData>& inputs,
+	                          std::vector<TensorData>& outputs);
+	void LogInferenceProfile4th(double cast_in_ms, double npu_run_ms,
+	                            double cast_out_ms, double dump_ms);
 
    private:
 	// member variables

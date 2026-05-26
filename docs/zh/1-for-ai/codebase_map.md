@@ -6,7 +6,7 @@
 >
 > **维护规则：** 任何修改本文件中所列文件的 AI Agent，必须在同一 commit/会话中更新本文档的对应章节。
 >
-> 最后更新：2026-04-20（新增 Utils/timing/timer.h；pipeline 全流程计时；--timing=off CLI 标志）
+> 最后更新：2026-05-25（新增 RKNNKit 库；RKNN 查询函数封装；清理 Runtime 中死代码）
 >
 
 ---
@@ -44,6 +44,7 @@ helmsman.git/
 │   │   ├── cvkit/              ← OpenCV 封装（加载、颜色转换、缩放、二进制转储）
 │   │   ├── utils/              ← Logger、FileUtils、MathUtils、OtherUtils
 │   │   ├── runtime/            ← ONNX Runtime 会话封装
+│   │   ├── rknnkit/            ← RKNN SDK 封装（查询、to_string；Rockchip 平台专用）
 │   │   └── network/            ← TCP socket 客户端/服务端
 │   ├── cmake/
 │   │   ├── ArcFunctions.cmake  ← 自定义 CMake 宏（arc_init_*、arc_extract_version_*）
@@ -243,7 +244,7 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 | `include/Utils/file/file-utils.h` | `FileUtils::GetInstance()`, `dumpBinary()` |
 | `include/Utils/timing/timer.h` ★ | **header-only** 计时工具（无外部依赖）：`ScopedTimer`（RAII，析构时打日志）、`ManualTimer`（手动 start/stop，返回 ms）、`StageAccumulator`（线程安全，collect+report min/avg/max） |
 
-### `libs/runtime/` — ONNX Runtime 封装
+### `libs/runtime/` — ONNX Runtime 封装（仅 ONNX）
 **CMake 目标**：`Helmsman::Lib::Runtime`
 
 | 文件 | 关键类/函数 |
@@ -251,6 +252,25 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 | `include/Runtime/onnx/onnx.h` | `helmsman::runtime::RuntimeONNX::GetInstance()` |
 | `src/onnx/onnx.cpp` | ONNX Runtime 会话管理 |
 | `src/onnx/impl/impl.{h,cpp}` | Pimpl：创建会话、运行推理、`GetInputNameAllocated()` |
+
+### `libs/rknnkit/` — RKNN SDK 封装（Rockchip 平台专用）
+**CMake 目标**：`Helmsman::RKNNKit`
+**平台守卫**：非 Rockchip 平台自动跳过
+
+| 文件 | 关键类/函数 |
+|---|---|
+| `include/RKNNKit/rknn-query.h` ★ | `RKNNQuery` — 无状态工具类（deleted ctor + private dtor + static 方法），封装 17 个 `rknn_query` 调用 |
+| `include/RKNNKit/utils.h` | `helmsman::rknnkit::to_string()` — RKNN 结构体转字符串（`rknn_tensor_attr`, `rknn_input_output_num`, `rknn_core_mask` 等） |
+| `src/rknn-query.cpp` | 所有查询实现，日志前缀 `[RKNN Nth]` |
+
+**RKNNQuery 方法分组**：
+
+| 分组 | 调用时机 | 方法 |
+|---|---|---|
+| Group 1 (1st–4th) | `Load()` Phase I/II | `SdkVersion1st()`, `IoNum2nd()`, `InputAttrs3rd()`, `OutputAttrs4th()` |
+| Group 2 (5th–6th) | `DoInfer()` 每帧 | `PerfRun5th()`, `PerfDetail6th()` |
+| Group 3 (7th–8th) | `Load()` post-bind | `LogMemSize7th()`, `LogCustomString8th()` |
+| Group 4 (9th–18th) | `Load()` post-bind 诊断 | `LogNativeInputAttrs9th()`, `LogNativeOutputAttrs10th()`, `LogNhwcInputAttrs11th()`, `LogNhwcOutputAttrs12th()`, `LogInputDynamicRange14th()`, `LogCurrentInputAttrs15th()`, `LogCurrentOutputAttrs16th()`, `LogCurrentNativeInputAttrs17th()`, `LogCurrentNativeOutputAttrs18th()` |
 
 ### `libs/network/` — TCP Socket 库
 **CMake 目标**：`Helmsman::Lib::Network`
@@ -318,11 +338,12 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 │   .infer(vector<in>,        │  ★ N-input / M-output 泛化接口
 │          vector<out>)       │    MODNet: 1→1,  RVM: 5→6
 │                             │
-│  RKNN 路径（ENABLE_RKNN_BACKEND）:
+│  RKNN 路径（INFERENCE_BACKEND=rknn-*）:
 │  ├─ InferenceEngineRKNNZeroCP  ← 生产环境主选
 │  │   - 多组 rknn_create_mem（N 输入 + M 输出缓冲区）
 │  │   - 遍历 inputs 逐个 memcpy 到 input_mems_[i]->virt_addr
 │  │   - rknn_run()
+│  │   - 元数据查询通过 RKNNQuery（libs/rknnkit/）
 │  └─ InferenceEngineRKNN       ← 非零拷贝（备选）
 │
 │  ONNX 路径（native/x86 默认）:
@@ -386,9 +407,9 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 | `include/pipeline/infra/recurrent-state-manager.h` ★ | `RecurrentStateManager`：RVM 递归状态持久化 |
 | `include/pipeline/stages/inference-engine/base/inference-engine.h` 🔒 | `InferenceEngine` 抽象基类：`Load()`, `Infer()` — N→M 泛化接口 |
 | `include/pipeline/inference-engine/rknn/rknn-zero-copy.h` | `InferenceEngineRKNNZeroCP` — 多组 zero-copy buffer；`SetCoreMask(int)` |
-| `src/pipeline/inference-engine/rknn/rknn-zero-copy.cpp` | N 输入 × M 输出 zero-copy：遍历 input_mems_/output_mems_，自适应 INT8/FP16/FP32；`COLLECT_PERF_MASK` + 每帧 perf_run/perf_detail 查询 |
+| `src/pipeline/inference-engine/rknn/rknn-zero-copy.cpp` | N 输入 × M 输出 zero-copy：通过 `RKNNQuery` 查询元数据，遍历 input_mems_/output_mems_，自适应 INT8/FP16/FP32；`COLLECT_PERF_MASK` + 每帧 `PerfRun5th`/`PerfDetail6th` 查询 |
 | `include/pipeline/inference-engine/rknn/rknn-non-zero-copy.h` | `InferenceEngineRKNN`（备选）|
-| `src/pipeline/inference-engine/rknn/rknn-non-zero-copy.cpp` | N→M non-zero-copy：rknn_inputs_set 多组 + rknn_outputs_get 多组 |
+| `src/pipeline/inference-engine/rknn/rknn-non-zero-copy.cpp` | N→M non-zero-copy：通过 `RKNNQuery` 查询元数据，rknn_inputs_set 多组 + rknn_outputs_get 多组 |
 | `include/pipeline/inference-engine/onnx/onnx.h` | `InferenceEngineONNX` |
 | `src/pipeline/inference-engine/onnx/onnx.cpp` | N→M ORT Run：inputs[0] NHWC→NCHW+归一化，inputs[1..N] 直通 |
 | `include/pipeline/backend/backend.h` | `MattingBackend`: `postprocess(vector<TensorData>)` → `cv::Mat` — 按名选 pha |
@@ -523,8 +544,10 @@ Helmsman_Matting_Server
 ├── Helmsman::Lib::Utils        （Logger, Math, File）
 ├── Helmsman::Lib::Runtime      （ONNX Runtime 封装）
 │   └── ThirdParty::ONNXRuntime （FetchContent 1.16.3）
-├── [仅 ENABLE_RKNN_BACKEND]
-│   └── ThirdParty::LibRKNNRT   （FetchContent 2.3.2, aarch64 only）
+├── [仅 INFERENCE_BACKEND=rknn-*]
+│   ├── Helmsman::RKNNKit       （RKNN SDK 封装：查询、to_string）
+│   │   └── ThirdParty::LibRKNNRT （FetchContent 2.3.2, aarch64 only）
+│   └── ThirdParty::LibRKNNRT
 └── arc_base_settings           （C++17, 警告, PIC）
 
 Helmsman_ASR_Server
@@ -543,6 +566,6 @@ Helmsman_ASR_Server
 3. **单例 Logger**：`Logger::GetInstance()`、`RuntimeONNX::GetInstance()`、`MathUtils::GetInstance()` — 每个进程一个实例。
 4. **所有 C++ 依赖使用 FetchContent**：`runtime/cpp/` 中无子模块或源码内置。所有内容在 CMake 配置时通过固定 URL 和 SHA 哈希下载。
 5. **MODNet 符号链接注入**：自定义 Python 脚本位于 `third-party/scripts/modnet/`，由 `func_3_0_setup_modnet_softlinks()` 符号链接到只读子模块中。
-6. **编译期后端选择**：RKNN 与 ONNX 由 `ENABLE_RKNN_BACKEND` CMake 定义决定——无运行时分支。
+6. **编译期后端选择**：RKNN 与 ONNX 由 `INFERENCE_BACKEND` CMake 变量决定（`onnx` / `rknn-zerocopy` / `rknn-non-zerocopy`）——无运行时分支。
 7. **RKNN 反融合**：将 InstanceNorm 替换为算术原语 `Var(x) = E[x²] − (E[x])²`，防止 RKNN 编译器重构 `InstanceNormalization` 导致 CPU 回退。
 8. **InputSource 抽象**：视频/图片/IPC 输入通过 `InputSource` 接口统一，`std::unique_ptr` 所有权转移（禁用 shared_ptr/raw pointer），为 Phase-6 V4L2/IPC 预留扩展点。
