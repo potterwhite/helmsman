@@ -84,9 +84,9 @@ class InferenceEngine {
 	//   output_offset — index of first state in output_mems_ (after fgr/pha)
 	// Returns true if swap was performed (caller skips update()), false otherwise.
 	// Default: not supported — base class falls back to copy via state_mgr_.update().
-	virtual bool DoSwapStateBuffers(std::size_t /*n_states*/,
-	                                 std::size_t /*input_offset*/,
-	                                 std::size_t /*output_offset*/) {
+	virtual bool SwapRecurrentStateBuffers(std::size_t /*n_states*/,
+	                                       std::size_t /*input_offset*/,
+	                                       std::size_t /*output_offset*/) {
 		return false;
 	}
 

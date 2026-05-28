@@ -43,8 +43,8 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 	InferenceEngineRKNNZeroCP();
 	~InferenceEngineRKNNZeroCP();
 
-	void Load(const std::string& model_path) override;
-
+	// ------------------------------------------------------------------
+	// getter & setter
 	void SetCoreMask(int mask) { core_mask_ = mask; }
 	void SetPerfEnabled(bool enabled) { perf_enabled_ = enabled; }
 
@@ -56,6 +56,10 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 	int GetInputWidth() const override {
 		return input_attrs_.empty() ? 0 : static_cast<int>(input_attrs_[0].dims[2]);
 	}
+
+	// ------------------------------------------------------------------
+	//
+	void Load(const std::string& model_path) override;
 
 	// Return the shapes of recurrent state inputs (inputs 1..N).
 	// For RVM: inputs[1]=r1i, inputs[2]=r2i, inputs[3]=r3i, inputs[4]=r4i.
@@ -75,19 +79,19 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 
    protected:
 	void DoInfer(const std::vector<TensorData>& inputs, std::vector<TensorData>& outputs) override;
-	bool DoSwapStateBuffers(std::size_t n_states,
-	                        std::size_t input_offset,
-	                        std::size_t output_offset) override;
+	bool SwapRecurrentStateBuffers(std::size_t n_states, std::size_t input_offset,
+	                              std::size_t output_offset) override;
 
    private:
 	// member functions
-	void ReleaseBuffers();
 	void WriteInputBuffers1st(const std::vector<TensorData>& inputs);
 	void ExecuteNpu2nd();
 	void ReadOutputBuffers3rd(const std::vector<TensorData>& inputs,
 	                          std::vector<TensorData>& outputs);
-	void LogInferenceProfile4th(double cast_in_ms, double npu_run_ms,
-	                            double cast_out_ms, double dump_ms);
+	void LogInferenceProfile4th(double cast_in_ms, double npu_run_ms, double cast_out_ms,
+	                            double dump_ms);
+
+	void ReleaseBuffers();
 
    private:
 	// member variables

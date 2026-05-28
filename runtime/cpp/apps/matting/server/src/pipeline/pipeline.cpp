@@ -96,10 +96,11 @@ void Pipeline::Init(const AppConfig& config) {
 	backend_.SetBackgroundPath(config_.background_path);
 
 	// 4. Inject dependencies into modes
-	rvm_mode_.SetEngine(engine_.get());
-	rvm_mode_.SetFrontend(frontend_.get());
-	rvm_mode_.SetBackend(&backend_);
 	rvm_mode_.SetConfig(config_);
+
+	rvm_mode_.SetFrontend(frontend_.get());
+	rvm_mode_.SetEngine(engine_.get());
+	rvm_mode_.SetBackend(&backend_);
 
 	modnet_mode_.SetEngine(engine_.get());
 	modnet_mode_.SetBackend(&backend_);

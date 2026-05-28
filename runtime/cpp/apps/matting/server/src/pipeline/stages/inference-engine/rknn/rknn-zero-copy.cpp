@@ -403,7 +403,7 @@ void InferenceEngineRKNNZeroCP::DoInfer(const std::vector<TensorData>& inputs,
 }
 
 // ============================================================================
-// DoSwapStateBuffers — Zero-copy recurrent state optimization
+// SwapRecurrentStateBuffers — Zero-copy recurrent state optimization
 //
 // After NPU execution, the output DMA buffers for r1o~r4o already contain
 // the new recurrent state data. Instead of copying D→H→D (read output →
@@ -414,7 +414,7 @@ void InferenceEngineRKNNZeroCP::DoInfer(const std::vector<TensorData>& inputs,
 // After the swap, rknn_set_io_mem() re-binds the buffers to the correct
 // tensor descriptors so the NPU reads from the right memory on the next run.
 // ============================================================================
-bool InferenceEngineRKNNZeroCP::DoSwapStateBuffers(std::size_t n_states, std::size_t input_offset,
+bool InferenceEngineRKNNZeroCP::SwapRecurrentStateBuffers(std::size_t n_states, std::size_t input_offset,
                                                    std::size_t output_offset) {
 	if (input_offset + n_states > input_mems_.size() ||
 	    output_offset + n_states > output_mems_.size()) {
@@ -428,7 +428,7 @@ bool InferenceEngineRKNNZeroCP::DoSwapStateBuffers(std::size_t n_states, std::si
 	}
 
 	helmsman::utils::Logger::GetInstance().Info(
-	    "DoSwapStateBuffers: swapped " + std::to_string(n_states) + " state DMA buffers (input[" +
+	    "SwapRecurrentStateBuffers: swapped " + std::to_string(n_states) + " state DMA buffers (input[" +
 	        std::to_string(input_offset) + ".." + std::to_string(input_offset + n_states - 1) +
 	        "] ↔ output[" + std::to_string(output_offset) + ".." +
 	        std::to_string(output_offset + n_states - 1) + "])",

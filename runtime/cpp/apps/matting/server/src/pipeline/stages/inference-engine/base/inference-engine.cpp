@@ -74,7 +74,7 @@ void InferenceEngine::Infer(const std::vector<TensorData>& inputs,
     // Result (pkb §5.1): no net gain — output conversion +4.6ms cancelled
     // out the saved transpose. §5.4 retry with non-cacheable + DISABLE_FLUSH
     // regressed even harder (184→316ms). Swap path is kept in code (see
-    // DoSwapStateBuffers) but disabled here; fall through to the legacy
+    // SwapRecurrentStateBuffers) but disabled here; fall through to the legacy
     // state_mgr_.update(outputs) path.
     // ================================================================
     if (state_mgr_.stateCount() > 0) {
@@ -82,7 +82,7 @@ void InferenceEngine::Infer(const std::vector<TensorData>& inputs,
         // std::size_t input_offset = mutable_inputs.size() - state_mgr_.stateCount();
         // std::size_t output_offset = 2;  // after fgr and pha
         // if (state_mgr_.isFirstFrame() ||
-        //     !DoSwapStateBuffers(state_mgr_.stateCount(), input_offset, output_offset)) {
+        //     !SwapRecurrentStateBuffers(state_mgr_.stateCount(), input_offset, output_offset)) {
         //     state_mgr_.update(outputs);
         // }
         // state_mgr_.markFirstFrameFalse();
