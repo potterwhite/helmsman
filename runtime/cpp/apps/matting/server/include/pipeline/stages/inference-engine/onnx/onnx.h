@@ -39,7 +39,7 @@ class InferenceEngineONNX : public InferenceEngine {
 
 	void Load(const std::string& model_path) override;
 
-	bool NeedsDownsampleRatio() const override { return true; }
+	bool NeedsDownsampleRatio() const override;
 
    protected:
 	void DoInfer(const std::vector<TensorData>& inputs,

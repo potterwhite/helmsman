@@ -56,6 +56,32 @@ InferenceEngineRKNNZeroCP::~InferenceEngineRKNNZeroCP() {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Accessors
+// ---------------------------------------------------------------------------
+void InferenceEngineRKNNZeroCP::SetCoreMask(int mask) { core_mask_ = mask; }
+void InferenceEngineRKNNZeroCP::SetPerfEnabled(bool enabled) { perf_enabled_ = enabled; }
+
+int InferenceEngineRKNNZeroCP::GetInputHeight() const {
+	return input_attrs_.empty() ? 0 : static_cast<int>(input_attrs_[0].dims[1]);
+}
+
+int InferenceEngineRKNNZeroCP::GetInputWidth() const {
+	return input_attrs_.empty() ? 0 : static_cast<int>(input_attrs_[0].dims[2]);
+}
+
+std::vector<std::vector<int64_t>> InferenceEngineRKNNZeroCP::GetRecurrentStateShapes() const {
+	std::vector<std::vector<int64_t>> shapes;
+	for (size_t i = 1; i < input_attrs_.size(); ++i) {
+		std::vector<int64_t> shape;
+		for (uint32_t d = 0; d < input_attrs_[i].n_dims; ++d) {
+			shape.push_back(static_cast<int64_t>(input_attrs_[i].dims[d]));
+		}
+		shapes.push_back(std::move(shape));
+	}
+	return shapes;
+}
+
 // ============================================================================
 // Release all zero-copy buffers
 // ============================================================================

@@ -57,6 +57,8 @@ InferenceEngineONNX::~InferenceEngineONNX() {
 	helmsman::utils::Logger::GetInstance().Info("InferenceEngineONNX cleaned up.");
 }
 
+bool InferenceEngineONNX::NeedsDownsampleRatio() const { return true; }
+
 // ============================================================================
 // Step 1 - Load ONNX Model and Create Session
 // ============================================================================

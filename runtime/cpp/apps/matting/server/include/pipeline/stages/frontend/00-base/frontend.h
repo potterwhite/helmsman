@@ -78,12 +78,12 @@ public:
     virtual const helmsman::utils::timing::StageAccumulator& preprocess_acc() const = 0;
 
     // Whether the hardware decode path is active.
-    bool IsHardwarePath() const { return use_hardware_; }
+    bool IsHardwarePath() const;
 
     // Source properties (available after construction).
-    int width() const { return width_; }
-    int height() const { return height_; }
-    double fps() const { return fps_; }
+    int width() const;
+    int height() const;
+    double fps() const;
 
     // Static factory: creates the platform-specific FrontendBase subclass.
     // If use_hardware is true, uses the hardware decode path (platform-dependent).

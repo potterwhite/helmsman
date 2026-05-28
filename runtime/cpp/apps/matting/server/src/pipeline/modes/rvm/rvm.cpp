@@ -45,6 +45,11 @@ inline constexpr int kDefaultModelInputWidth = 512;
 // Default fallback background color: BGR(155,255,120) = RGB(120,255,155)
 inline const cv::Scalar kDefaultBgColor{155, 255, 120};
 
+void RVMMode::SetEngine(InferenceEngine* engine) { engine_ = engine; }
+void RVMMode::SetFrontend(FrontendBase* frontend) { frontend_ = frontend; }
+void RVMMode::SetBackend(MattingBackend* backend) { backend_ = backend; }
+void RVMMode::SetConfig(const AppConfig& config) { config_ = config; }
+
 bool RVMMode::_OpenVideoWriter(cv::VideoWriter& writer, const std::string& path, int width,
                                int height, double fps) {
 

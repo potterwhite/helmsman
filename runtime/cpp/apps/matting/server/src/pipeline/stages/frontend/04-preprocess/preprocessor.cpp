@@ -44,6 +44,8 @@ void Preprocessor::SetOutputBinPath(const std::string& path) {
     output_bin_path_ = path;
 }
 
+bool Preprocessor::IsDumpEnabled() const { return !output_bin_path_.empty(); }
+
 TensorData Preprocessor::preprocess(const cv::Mat& bgr_frame,
                                      int model_width,
                                      int model_height) {

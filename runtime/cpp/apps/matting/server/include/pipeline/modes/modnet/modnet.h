@@ -28,9 +28,9 @@
 
 class MODNetMode {
 public:
-    void SetEngine(InferenceEngine* engine) { engine_ = engine; }
-    void SetBackend(MattingBackend* backend) { backend_ = backend; }
-    void SetConfig(const AppConfig& config) { config_ = config; }
+    void SetEngine(InferenceEngine* engine);
+    void SetBackend(MattingBackend* backend);
+    void SetConfig(const AppConfig& config);
 
     int Run();
 

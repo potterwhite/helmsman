@@ -40,8 +40,8 @@ public:
 
     int Run();
 
-    void SetTimingEnabled(bool enabled) { config_.timing_enabled = enabled; }
-    bool IsTimingEnabled() const { return config_.timing_enabled; }
+    void SetTimingEnabled(bool enabled);
+    bool IsTimingEnabled() const;
 
 private:
     Pipeline();

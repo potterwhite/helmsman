@@ -84,3 +84,26 @@ void InferenceEngine::Infer(const std::vector<TensorData>& inputs,
     // Caller (RVMMode/MODNetMode) will pass `outputs` to
     // MattingBackend::Postprocess() for resize + composite + write.
 }
+
+// ---------------------------------------------------------------------------
+// Virtual method default implementations
+// ---------------------------------------------------------------------------
+
+int InferenceEngine::GetInputHeight() const { return 0; }
+int InferenceEngine::GetInputWidth() const { return 0; }
+
+std::vector<std::vector<int64_t>> InferenceEngine::GetRecurrentStateShapes() const {
+    return {};
+}
+
+bool InferenceEngine::NeedsDownsampleRatio() const { return false; }
+
+void InferenceEngine::SetOutputBinPath(const std::string& path) {
+    output_bin_path_ = path;
+}
+
+bool InferenceEngine::SwapRecurrentStateBuffers(std::size_t /*n_states*/,
+                                                 std::size_t /*input_offset*/,
+                                                 std::size_t /*output_offset*/) {
+    return false;
+}

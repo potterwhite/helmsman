@@ -92,7 +92,7 @@ class RecurrentStateManager {
 	// Throws std::runtime_error if an expected output tensor is not found.
 	void update(const std::vector<TensorData>& outputs);
 
-	std::size_t stateCount() const { return states_.size(); }
+	std::size_t stateCount() const;
 
    private:
 	struct StateEntry {

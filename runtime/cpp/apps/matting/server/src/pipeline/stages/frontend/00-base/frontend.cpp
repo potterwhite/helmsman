@@ -46,3 +46,11 @@ void FrontendBase::SetSourceProperties(int width, int height, double fps) {
     height_ = height;
     fps_ = fps;
 }
+
+// ---------------------------------------------------------------------------
+// Accessors
+// ---------------------------------------------------------------------------
+bool FrontendBase::IsHardwarePath() const { return use_hardware_; }
+int FrontendBase::width() const { return width_; }
+int FrontendBase::height() const { return height_; }
+double FrontendBase::fps() const { return fps_; }

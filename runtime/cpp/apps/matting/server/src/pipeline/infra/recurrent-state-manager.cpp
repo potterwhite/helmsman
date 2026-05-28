@@ -105,3 +105,7 @@ void RecurrentStateManager::update(const std::vector<TensorData>& outputs) {
 		}
 	}
 }
+
+std::size_t RecurrentStateManager::stateCount() const {
+	return states_.size();
+}

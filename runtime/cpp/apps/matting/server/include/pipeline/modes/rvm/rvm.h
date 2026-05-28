@@ -44,10 +44,10 @@ struct RvmModelState {
 
 class RVMMode {
    public:
-	void SetEngine(InferenceEngine* engine) { engine_ = engine; }
-	void SetFrontend(FrontendBase* frontend) { frontend_ = frontend; }
-	void SetBackend(MattingBackend* backend) { backend_ = backend; }
-	void SetConfig(const AppConfig& config) { config_ = config; }
+	void SetEngine(InferenceEngine* engine);
+	void SetFrontend(FrontendBase* frontend);
+	void SetBackend(MattingBackend* backend);
+	void SetConfig(const AppConfig& config);
 
 	int Run();
 

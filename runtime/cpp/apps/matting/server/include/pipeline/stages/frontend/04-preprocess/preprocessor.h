@@ -48,7 +48,7 @@ public:
 private:
     TensorData PreprocessCore(cv::Mat img, int model_width, int model_height);
 
-    bool IsDumpEnabled() const { return !output_bin_path_.empty(); }
+    bool IsDumpEnabled() const;
 
     std::string output_bin_path_;
     helmsman::cvkit::Base cvkit_;

@@ -62,13 +62,13 @@ class InferenceEngine {
 	void SetDownsampleRatio(float dsr);
 
 	// --- Query (unchanged) ---
-	virtual int GetInputHeight() const { return 0; }
-	virtual int GetInputWidth()  const { return 0; }
-	virtual std::vector<std::vector<int64_t>> GetRecurrentStateShapes() const { return {}; }
-	virtual bool NeedsDownsampleRatio() const { return false; }
+	virtual int GetInputHeight() const;
+	virtual int GetInputWidth()  const;
+	virtual std::vector<std::vector<int64_t>> GetRecurrentStateShapes() const;
+	virtual bool NeedsDownsampleRatio() const;
 
 	// Optional: path for debug binary dumps.
-	virtual void SetOutputBinPath(const std::string& path) { output_bin_path_ = path; }
+	virtual void SetOutputBinPath(const std::string& path);
 
    protected:
 	// NVI hook: subclasses implement pure stateless inference (N inputs → M outputs).
@@ -84,11 +84,9 @@ class InferenceEngine {
 	//   output_offset — index of first state in output_mems_ (after fgr/pha)
 	// Returns true if swap was performed (caller skips update()), false otherwise.
 	// Default: not supported — base class falls back to copy via state_mgr_.update().
-	virtual bool SwapRecurrentStateBuffers(std::size_t /*n_states*/,
-	                                       std::size_t /*input_offset*/,
-	                                       std::size_t /*output_offset*/) {
-		return false;
-	}
+	virtual bool SwapRecurrentStateBuffers(std::size_t n_states,
+	                                       std::size_t input_offset,
+	                                       std::size_t output_offset);
 
 	std::string output_bin_path_;
 
