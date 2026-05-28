@@ -66,6 +66,7 @@ struct AppConfig {
 	bool is_video = false;
 	int rknn_core_mask = -1;  // -1 = default (engine decides); 0 = CORE_ALL
 	bool rknn_perf_enabled = false;  // true = collect per-layer NPU profiling data
+	bool dump_enabled = false;       // true = enable binary dump for debugging
 	std::string input_path;
 	std::string model_path;
 	std::string output_bin_path;

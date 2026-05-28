@@ -44,12 +44,12 @@ public:
 
     // Configure output binary dump directory.
     void SetOutputBinPath(const std::string& path);
+    void SetDumpEnabled(bool enabled);
 
 private:
     TensorData PreprocessCore(cv::Mat img, int model_width, int model_height);
 
-    bool IsDumpEnabled() const;
-
     std::string output_bin_path_;
+    bool dump_enabled_ = false;
     helmsman::cvkit::Base cvkit_;
 };

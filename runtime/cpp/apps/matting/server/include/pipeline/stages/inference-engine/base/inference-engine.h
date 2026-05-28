@@ -70,6 +70,9 @@ class InferenceEngine {
 	// Optional: path for debug binary dumps.
 	virtual void SetOutputBinPath(const std::string& path);
 
+	// Enable/disable debug binary dumps.
+	void SetDumpEnabled(bool enabled);
+
    protected:
 	// NVI hook: subclasses implement pure stateless inference (N inputs → M outputs).
 	// Google Style: DoX() is the virtual body of public X().
@@ -89,6 +92,7 @@ class InferenceEngine {
 	                                       std::size_t output_offset);
 
 	std::string output_bin_path_;
+	bool dump_enabled_ = false;
 
    private:
 	RecurrentStateManager state_mgr_;

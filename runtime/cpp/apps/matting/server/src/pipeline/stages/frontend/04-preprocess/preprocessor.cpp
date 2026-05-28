@@ -44,7 +44,7 @@ void Preprocessor::SetOutputBinPath(const std::string& path) {
     output_bin_path_ = path;
 }
 
-bool Preprocessor::IsDumpEnabled() const { return !output_bin_path_.empty(); }
+void Preprocessor::SetDumpEnabled(bool enabled) { dump_enabled_ = enabled; }
 
 TensorData Preprocessor::preprocess(const cv::Mat& bgr_frame,
                                      int model_width,
@@ -62,12 +62,12 @@ TensorData Preprocessor::PreprocessCore(cv::Mat img,
 
     // Step 1: BGR → RGB
     img = cvkit_.bgrToRgb(img);
-    if (IsDumpEnabled())
+    if (dump_enabled_)
         cvkit_.dumpBinary(img, output_bin_path_ + "/cpp_02_bgrToRgb.bin");
 
     // Step 2: Ensure 3 channels
     img = cvkit_.ensure3Channel(img);
-    if (IsDumpEnabled())
+    if (dump_enabled_)
         cvkit_.dumpBinary(img, output_bin_path_ + "/cpp_03_ensure3Channel.bin");
 
     int original_w = img.cols;
@@ -110,7 +110,7 @@ TensorData Preprocessor::PreprocessCore(cv::Mat img,
         padded_u8.convertTo(img, CV_32FC3);
     }
 
-    if (IsDumpEnabled())
+    if (dump_enabled_)
         cvkit_.dumpBinary(img, output_bin_path_ + "/cpp_05_resized.bin");
 
     // Step 4: Copy HWC continuous memory
@@ -129,7 +129,7 @@ TensorData Preprocessor::PreprocessCore(cv::Mat img,
 
     tensor_data.data.assign(ptr, ptr + total);
 
-    if (IsDumpEnabled())
+    if (dump_enabled_)
         file_utils.dumpBinary(tensor_data.data,
                               output_bin_path_ + "/cpp_06-07_hwc_direct.bin");
 

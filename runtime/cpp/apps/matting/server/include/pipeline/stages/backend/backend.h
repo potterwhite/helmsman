@@ -42,6 +42,7 @@ class MattingBackend {
 	void SetOutputPath(const std::string& path);
 	void SetBackgroundPath(const std::string& path);
 	void SetForegroundImagePath(const std::string& path);
+	void SetDumpEnabled(bool enabled);
 
 	/**
 	 * Attach an optional post-processor (e.g. GuidedFilterPostProcessor).
@@ -104,6 +105,7 @@ class MattingBackend {
 	std::string output_path_;
 	std::string background_path_;
 	std::string foreground_image_path_;
+	bool dump_enabled_ = false;
 
 	std::shared_ptr<BasePostProcessor> post_processor_;  // nullptr = no post-processing
 	int process_count_ = 0;  // counts postprocess() calls; used for per-frame debug dump

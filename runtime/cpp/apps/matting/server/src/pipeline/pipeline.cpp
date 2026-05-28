@@ -88,6 +88,7 @@ void Pipeline::Init(const AppConfig& config) {
 	// 2. InferenceEngine + model load
 	engine_ = MakeEngine();
 	engine_->SetOutputBinPath(config_.output_bin_path);
+	engine_->SetDumpEnabled(config_.dump_enabled);
 	{
 		ScopedTimer t("Pipeline::Init() model load", config_.timing_enabled, logger,
 		              kcurrent_module_name);
@@ -97,6 +98,7 @@ void Pipeline::Init(const AppConfig& config) {
 	// 3. Backend base configuration
 	backend_.SetOutputPath(config_.output_bin_path);
 	backend_.SetBackgroundPath(config_.background_path);
+	backend_.SetDumpEnabled(config_.dump_enabled);
 
 	// 4. Inject dependencies into modes
 	rvm_mode_.SetConfig(config_);
@@ -108,6 +110,7 @@ void Pipeline::Init(const AppConfig& config) {
 	modnet_mode_.SetEngine(engine_.get());
 	modnet_mode_.SetBackend(&backend_);
 	modnet_mode_.SetConfig(config_);
+	modnet_mode_.SetDumpEnabled(config_.dump_enabled);
 }
 
 int Pipeline::Run() {

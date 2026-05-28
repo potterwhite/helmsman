@@ -71,14 +71,44 @@ int InferenceEngineRKNNZeroCP::GetInputWidth() const {
 }
 
 std::vector<std::vector<int64_t>> InferenceEngineRKNNZeroCP::GetRecurrentStateShapes() const {
+	// Extract recurrent state shapes from input_attrs_ (skip input[0] = image/src).
+	//
+	// RVM model has 5 inputs, all NHWC FP16:
+	//   Input[0] "src" : [1, H, W, 3]       — image tensor (skipped)
+	//   Input[1] "r1i": [1, H/4,  W/4,  16] — recurrent state 1
+	//   Input[2] "r2i": [1, H/8,  W/8,  20] — recurrent state 2
+	//   Input[3] "r3i": [1, H/16, W/16, 40] — recurrent state 3
+	//   Input[4] "r4i": [1, H/32, W/32, 64] — recurrent state 4
+	//
+	// For 960x544 input: r1i=[1,136,240,16] r2i=[1,68,120,20]
+	//                    r3i=[1,34,60,40]   r4i=[1,17,30,64]
+	//
+	// Returns shapes in model's native NHWC layout (batch, height, width, channels).
+	// These shapes are used by RecurrentStateManager to allocate zero-filled
+	// state buffers on the first frame.
+
 	std::vector<std::vector<int64_t>> shapes;
 	for (size_t i = 1; i < input_attrs_.size(); ++i) {
 		std::vector<int64_t> shape;
 		for (uint32_t d = 0; d < input_attrs_[i].n_dims; ++d) {
-			shape.push_back(static_cast<int64_t>(input_attrs_[i].dims[d]));
+			int64_t dim = static_cast<int64_t>(input_attrs_[i].dims[d]);
+			shape.push_back(dim);
 		}
 		shapes.push_back(std::move(shape));
 	}
+
+	if (dump_enabled_) {
+		for (size_t i = 0; i < shapes.size(); ++i) {
+			std::string dims;
+			for (size_t d = 0; d < shapes[i].size(); ++d) {
+				if (d > 0) dims += ", ";
+				dims += std::to_string(shapes[i][d]);
+			}
+			GetLogger().Info("GetRecurrentStateShapes: shapes[" + std::to_string(i) + "] = {" + dims + "}",
+			                 kcurrent_module_name);
+		}
+	}
+
 	return shapes;
 }
 
@@ -410,7 +440,7 @@ void InferenceEngineRKNNZeroCP::DoInfer(const std::vector<TensorData>& inputs,
 
 	// Debug dump for primary output (index 0)
 	double dump_ms = 0.0;
-	if (IsDumpEnabled() && !output_bin_path_.empty()) {
+	if (dump_enabled_ && !output_bin_path_.empty()) {
 		helmsman::utils::FileUtils::GetInstance().dumpBinary(
 		    outputs[0].data, output_bin_path_ + "cpp_08_inference-Output.bin");
 		auto t4 = std::chrono::high_resolution_clock::now();

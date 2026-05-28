@@ -107,13 +107,6 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 
 	signal(SIGINT, SignalHandler);
 
-	if (IsDumpEnabled()) {
-		logger.Info(
-		    "[DEBUG] Binary dump ENABLED (HELMSMAN_DUMP is set). "
-		    "Unset to disable for production runs.",
-		    kcurrent_module_name);
-	}
-
 	// --- Parse arguments ---
 	AppConfig cfg;
 	std::vector<std::string> positional_args;
@@ -137,6 +130,8 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 			cfg.use_prefetch_thread = false;
 		} else if (std::strcmp(argv[i], "--perf-enabled") == 0) {
 			cfg.rknn_perf_enabled = true;
+		} else if (std::strcmp(argv[i], "--dump-enabled") == 0) {
+			cfg.dump_enabled = true;
 		} else if (std::strncmp(argv[i], "--core-mask=", 12) == 0) {
 			std::string val = argv[i] + 12;
 			if (val == "auto") {
@@ -175,7 +170,8 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 		          << "  --timing=on    Enable pipeline timing statistics (default)\n"
 		          << "  --hwdecoder    Use hardware decode path (requires FFmpeg + MPPKit)\n"
 		          << "  --no-prefetch  Disable prefetch worker thread (all work on main thread)\n"
-		          << "  --perf-enabled Enable RKNN per-layer NPU profiling (COLLECT_PERF_MASK)\n";
+		          << "  --perf-enabled Enable RKNN per-layer NPU profiling (COLLECT_PERF_MASK)\n"
+		          << "  --dump-enabled Enable binary dump for debugging (default: off)\n";
 		return std::nullopt;
 	}
 
@@ -199,6 +195,8 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 	    (cfg.rknn_core_mask < 0) ? "default (engine decides)" : std::to_string(cfg.rknn_core_mask);
 	logger.Info("Core mask:  " + core_mask_str, kcurrent_module_name);
 	logger.Info("Perf profiling: " + std::string(cfg.rknn_perf_enabled ? "enabled" : "disabled"),
+	            kcurrent_module_name);
+	logger.Info("Binary dump:    " + std::string(cfg.dump_enabled ? "enabled (--dump-enabled)" : "disabled"),
 	            kcurrent_module_name);
 	logger.Info("Decode path: " + decode_str, kcurrent_module_name);
 	logger.Info("Prefetch:   " + prefetch_str, kcurrent_module_name);
