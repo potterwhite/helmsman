@@ -42,6 +42,7 @@
 #include <vector>
 #include "common/common-define.h"
 #include "pipeline/pipeline.h"
+#include "system-info.h"
 
 using namespace helmsman;
 
@@ -156,6 +157,15 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 		} else {
 			positional_args.push_back(argv[i]);
 		}
+	}
+
+	// Handle --info: print all build info and exit
+	if (argc == 2 && std::strcmp(argv[1], "--info") == 0) {
+		std::cout << "=== Helmsman Build Info ===" << std::endl;
+#define X(label, var) std::cout << "  " << label << ": " << var << std::endl;
+		SYSTEM_INFO_FIELDS
+#undef X
+		return std::nullopt;
 	}
 
 	if (positional_args.size() < 3 || positional_args.size() > 4) {
