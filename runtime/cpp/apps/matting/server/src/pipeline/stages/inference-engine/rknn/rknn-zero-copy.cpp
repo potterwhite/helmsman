@@ -59,8 +59,12 @@ InferenceEngineRKNNZeroCP::~InferenceEngineRKNNZeroCP() {
 // ---------------------------------------------------------------------------
 // Accessors
 // ---------------------------------------------------------------------------
-void InferenceEngineRKNNZeroCP::SetCoreMask(int mask) { core_mask_ = mask; }
-void InferenceEngineRKNNZeroCP::SetPerfEnabled(bool enabled) { perf_enabled_ = enabled; }
+void InferenceEngineRKNNZeroCP::SetCoreMask(int mask) {
+	core_mask_ = mask;
+}
+void InferenceEngineRKNNZeroCP::SetPerfEnabled(bool enabled) {
+	perf_enabled_ = enabled;
+}
 
 int InferenceEngineRKNNZeroCP::GetInputHeight() const {
 	return input_attrs_.empty() ? 0 : static_cast<int>(input_attrs_[0].dims[1]);
@@ -101,11 +105,13 @@ std::vector<std::vector<int64_t>> InferenceEngineRKNNZeroCP::GetRecurrentStateSh
 		for (size_t i = 0; i < shapes.size(); ++i) {
 			std::string dims;
 			for (size_t d = 0; d < shapes[i].size(); ++d) {
-				if (d > 0) dims += ", ";
+				if (d > 0)
+					dims += ", ";
 				dims += std::to_string(shapes[i][d]);
 			}
-			GetLogger().Info("GetRecurrentStateShapes: shapes[" + std::to_string(i) + "] = {" + dims + "}",
-			                 kcurrent_module_name);
+			GetLogger().Info(
+			    "GetRecurrentStateShapes: shapes[" + std::to_string(i) + "] = {" + dims + "}",
+			    kcurrent_module_name);
 		}
 	}
 
@@ -327,6 +333,27 @@ void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(const std::vector<TensorDat
 	for (uint32_t i = 0; i < io_num_.n_output; ++i) {
 		const rknn_tensor_attr& attr = output_attrs_[i];
 
+		// §5.5: Backend only uses pha; fgr is never consumed.
+		// Skip fgr D→H transfer to save ~8.36 MB per frame.
+		if (std::string(attr.name) == "fgr") {
+			static bool logged_skip = false;
+			if (!logged_skip) {
+				GetLogger().Info("§5.5: Skipped output '" + std::string(attr.name) + "' (" +
+				                     std::to_string(attr.n_elems) + " elems)",
+				                 kcurrent_module_name);
+				logged_skip = true;
+			}
+			continue;
+		}
+
+		// Log output names on first frame for diagnostics
+		static bool logged_names = false;
+		if (!logged_names) {
+			GetLogger().Info("§5.5: Reading output '" + std::string(attr.name) + "' (" +
+			                     std::to_string(attr.n_elems) + " elems)",
+			                 kcurrent_module_name);
+		}
+
 		bool is_int8_out = (attr.type == RKNN_TENSOR_INT8 || attr.type == RKNN_TENSOR_UINT8);
 		bool is_fp16_out = (attr.type == RKNN_TENSOR_FLOAT16);
 
@@ -375,6 +402,9 @@ void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(const std::vector<TensorDat
 		td.pad_right = inputs[0].pad_right;
 
 		outputs.push_back(std::move(td));
+
+		if (!logged_names)
+			logged_names = true;
 	}
 }
 
@@ -438,11 +468,16 @@ void InferenceEngineRKNNZeroCP::DoInfer(const std::vector<TensorData>& inputs,
 
 	auto t3 = std::chrono::high_resolution_clock::now();
 
-	// Debug dump for primary output (index 0)
+	// Debug dump for pha output (name-based lookup)
 	double dump_ms = 0.0;
 	if (dump_enabled_ && !output_bin_path_.empty()) {
-		helmsman::utils::FileUtils::GetInstance().dumpBinary(
-		    outputs[0].data, output_bin_path_ + "cpp_08_inference-Output.bin");
+		for (const auto& td : outputs) {
+			if (td.name == "pha") {
+				helmsman::utils::FileUtils::GetInstance().dumpBinary(
+				    td.data, output_bin_path_ + "cpp_08_inference-Output.bin");
+				break;
+			}
+		}
 		auto t4 = std::chrono::high_resolution_clock::now();
 		dump_ms = std::chrono::duration<double, std::milli>(t4 - t3).count();
 	}
@@ -470,8 +505,9 @@ void InferenceEngineRKNNZeroCP::DoInfer(const std::vector<TensorData>& inputs,
 // After the swap, rknn_set_io_mem() re-binds the buffers to the correct
 // tensor descriptors so the NPU reads from the right memory on the next run.
 // ============================================================================
-bool InferenceEngineRKNNZeroCP::SwapRecurrentStateBuffers(std::size_t n_states, std::size_t input_offset,
-                                                   std::size_t output_offset) {
+bool InferenceEngineRKNNZeroCP::SwapRecurrentStateBuffers(std::size_t n_states,
+                                                          std::size_t input_offset,
+                                                          std::size_t output_offset) {
 	if (input_offset + n_states > input_mems_.size() ||
 	    output_offset + n_states > output_mems_.size()) {
 		return false;
@@ -484,10 +520,11 @@ bool InferenceEngineRKNNZeroCP::SwapRecurrentStateBuffers(std::size_t n_states, 
 	}
 
 	helmsman::utils::Logger::GetInstance().Info(
-	    "SwapRecurrentStateBuffers: swapped " + std::to_string(n_states) + " state DMA buffers (input[" +
-	        std::to_string(input_offset) + ".." + std::to_string(input_offset + n_states - 1) +
-	        "] ↔ output[" + std::to_string(output_offset) + ".." +
-	        std::to_string(output_offset + n_states - 1) + "])",
+	    "SwapRecurrentStateBuffers: swapped " + std::to_string(n_states) +
+	        " state DMA buffers (input[" + std::to_string(input_offset) + ".." +
+	        std::to_string(input_offset + n_states - 1) + "] ↔ output[" +
+	        std::to_string(output_offset) + ".." + std::to_string(output_offset + n_states - 1) +
+	        "])",
 	    kcurrent_module_name);
 
 	return true;

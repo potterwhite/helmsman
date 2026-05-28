@@ -72,9 +72,10 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 
 	// -------------------------
 	// Select the pha (alpha matte) tensor from outputs.
-	// Strategy: first try by name ("pha"), then fall back to positional convention.
+	// Strategy: first try by name ("pha"), then fall back to first output.
 	//   - MODNet: outputs[0] = pha (only output)
-	//   - RVM:    outputs[0] = fgr, outputs[1] = pha
+	//   - RVM:    fgr is skipped at ReadOutputBuffers3rd (§5.5),
+	//             so outputs = [pha, r1o, r2o, r3o, r4o]
 	const TensorData* pha_ptr = nullptr;
 	for (const auto& td : outputs) {
 		if (td.name == "pha") {
@@ -83,8 +84,9 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 		}
 	}
 	if (!pha_ptr) {
-		// Fall back: if single output, use [0]; otherwise use [1] (RVM convention)
-		pha_ptr = (outputs.size() == 1) ? &outputs[0] : &outputs[1];
+		throw std::runtime_error(
+		    "Backend: output tensor 'pha' not found in " +
+		    std::to_string(outputs.size()) + " outputs");
 	}
 
 	const TensorData& output = *pha_ptr;
