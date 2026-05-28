@@ -112,6 +112,10 @@ void InferenceEngine::SetDumpEnabled(bool enabled) {
 	dump_enabled_ = enabled;
 }
 
+void InferenceEngine::SetDiagEnabled(bool enabled) {
+	diag_enabled_ = enabled;
+}
+
 bool InferenceEngine::SwapRecurrentStateBuffers(std::size_t /*n_states*/,
                                                 std::size_t /*input_offset*/,
                                                 std::size_t /*output_offset*/) {

@@ -132,6 +132,8 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 			cfg.rknn_perf_enabled = true;
 		} else if (std::strcmp(argv[i], "--dump-enabled") == 0) {
 			cfg.dump_enabled = true;
+		} else if (std::strcmp(argv[i], "--diag-enabled") == 0) {
+			cfg.diag_enabled = true;
 		} else if (std::strncmp(argv[i], "--core-mask=", 12) == 0) {
 			std::string val = argv[i] + 12;
 			if (val == "auto") {
@@ -171,7 +173,8 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 		          << "  --hwdecoder    Use hardware decode path (requires FFmpeg + MPPKit)\n"
 		          << "  --no-prefetch  Disable prefetch worker thread (all work on main thread)\n"
 		          << "  --perf-enabled Enable RKNN per-layer NPU profiling (COLLECT_PERF_MASK)\n"
-		          << "  --dump-enabled Enable binary dump for debugging (default: off)\n";
+		          << "  --dump-enabled Enable binary dump for debugging (default: off)\n"
+		          << "  --diag-enabled Enable diagnostic logging for internal state inspection (default: off)\n";
 		return std::nullopt;
 	}
 
@@ -197,6 +200,8 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 	logger.Info("Perf profiling: " + std::string(cfg.rknn_perf_enabled ? "enabled" : "disabled"),
 	            kcurrent_module_name);
 	logger.Info("Binary dump:    " + std::string(cfg.dump_enabled ? "enabled (--dump-enabled)" : "disabled"),
+	            kcurrent_module_name);
+	logger.Info("Diagnostic:     " + std::string(cfg.diag_enabled ? "enabled (--diag-enabled)" : "disabled"),
 	            kcurrent_module_name);
 	logger.Info("Decode path: " + decode_str, kcurrent_module_name);
 	logger.Info("Prefetch:   " + prefetch_str, kcurrent_module_name);

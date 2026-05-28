@@ -73,6 +73,9 @@ class InferenceEngine {
 	// Enable/disable debug binary dumps.
 	void SetDumpEnabled(bool enabled);
 
+	// Enable/disable diagnostic logging (internal state inspection).
+	void SetDiagEnabled(bool enabled);
+
    protected:
 	// NVI hook: subclasses implement pure stateless inference (N inputs → M outputs).
 	// Google Style: DoX() is the virtual body of public X().
@@ -93,6 +96,7 @@ class InferenceEngine {
 
 	std::string output_bin_path_;
 	bool dump_enabled_ = false;
+	bool diag_enabled_ = false;
 
    private:
 	RecurrentStateManager state_mgr_;

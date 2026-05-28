@@ -97,7 +97,7 @@ std::vector<std::vector<int64_t>> InferenceEngineRKNNZeroCP::GetRecurrentStateSh
 		shapes.push_back(std::move(shape));
 	}
 
-	if (dump_enabled_) {
+	if (diag_enabled_) {
 		for (size_t i = 0; i < shapes.size(); ++i) {
 			std::string dims;
 			for (size_t d = 0; d < shapes[i].size(); ++d) {

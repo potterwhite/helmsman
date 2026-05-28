@@ -89,6 +89,7 @@ void Pipeline::Init(const AppConfig& config) {
 	engine_ = MakeEngine();
 	engine_->SetOutputBinPath(config_.output_bin_path);
 	engine_->SetDumpEnabled(config_.dump_enabled);
+	engine_->SetDiagEnabled(config_.diag_enabled);
 	{
 		ScopedTimer t("Pipeline::Init() model load", config_.timing_enabled, logger,
 		              kcurrent_module_name);
