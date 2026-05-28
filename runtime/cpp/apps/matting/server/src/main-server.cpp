@@ -169,11 +169,14 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 	}
 
 	if (positional_args.size() < 3 || positional_args.size() > 4) {
-		std::cerr << "Usage: " << argv[0]
+		std::cerr << "Usage:\n"
+		          << "  " << argv[0] << " --info\n"
+		          << "  " << argv[0]
 		          << " <image_path> <model_path> <output_dir> [background_path] [--rvm] "
 		             "[--output=mp4|drm] [--timing=off] [--hwdecoder] [--no-prefetch]\n"
 		          << "\n"
 		          << "Flags:\n"
+		          << "  --info         Print all build/version info and exit\n"
 		          << "  --rvm          Use RVM (Robust Video Matting) with recurrent states\n"
 		          << "  --modnet       Use MODNet single-frame matting (default)\n"
 		          << "  --output=mp4   Write composited video to mp4 file (default)\n"
