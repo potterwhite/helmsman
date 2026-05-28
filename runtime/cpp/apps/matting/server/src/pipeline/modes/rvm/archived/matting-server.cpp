@@ -184,12 +184,20 @@ bool MattingServer::InitModel(const std::string& model_path) {
 
 	// Initialize recurrent states (r1i-r4i) — use model-reported shapes if available.
 	auto shapes = engine_->GetRecurrentStateShapes();
-	if (shapes.size() == 4) {
-		state_mgr_.init(shapes, {"r1i", "r2i", "r3i", "r4i"});
-	} else {
-		state_mgr_.init({{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
-		                {"r1i", "r2i", "r3i", "r4i"});
+	const std::vector<std::string> in_names  = {"r1i", "r2i", "r3i", "r4i"};
+	const std::vector<std::string> out_names = {"r1o", "r2o", "r3o", "r4o"};
+
+	std::vector<StateSpec> specs;
+	specs.reserve(4);
+	for (std::size_t i = 0; i < 4; ++i) {
+		specs.push_back(StateSpec{
+			in_names[i],
+			out_names[i],
+			(shapes.size() == 4) ? shapes[i] : std::vector<int64_t>{1, 1, 1, 1},
+			true,
+		});
 	}
+	state_mgr_.init(specs);
 
 	// Initialize frontend (preprocessing) and backend (postprocessing).
 	frontend_.SetOutputBinPath("/tmp/matting-server-dump");

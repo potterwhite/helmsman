@@ -22,12 +22,20 @@
 
 void InferenceEngine::InitRecurrentStates() {
     auto shapes = GetRecurrentStateShapes();
-    if (shapes.size() == 4) {
-        state_mgr_.init(shapes, {"r1i", "r2i", "r3i", "r4i"});
-    } else {
-        state_mgr_.init({{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
-                        {"r1i", "r2i", "r3i", "r4i"});
+    const std::vector<std::string> in_names  = {"r1i", "r2i", "r3i", "r4i"};
+    const std::vector<std::string> out_names = {"r1o", "r2o", "r3o", "r4o"};
+
+    std::vector<StateSpec> specs;
+    specs.reserve(4);
+    for (std::size_t i = 0; i < 4; ++i) {
+        specs.push_back(StateSpec{
+            in_names[i],
+            out_names[i],
+            (shapes.size() == 4) ? shapes[i] : std::vector<int64_t>{1, 1, 1, 1},
+            true,
+        });
     }
+    state_mgr_.init(specs);
 }
 
 void InferenceEngine::SetDownsampleRatio(float dsr) {
@@ -68,24 +76,8 @@ void InferenceEngine::Infer(const std::vector<TensorData>& inputs,
 
     // ================================================================
     // INFERENCE ENGINE SCOPE — Post-inference: capture recurrent states
-    //
-    // 5.8-s22 §5.1 A1 swap experiment: DMA buffer pointer swap to avoid
-    // the per-frame D→H→D copy + NCHW→NHWC transpose for r-states.
-    // Result (pkb §5.1): no net gain — output conversion +4.6ms cancelled
-    // out the saved transpose. §5.4 retry with non-cacheable + DISABLE_FLUSH
-    // regressed even harder (184→316ms). Swap path is kept in code (see
-    // SwapRecurrentStateBuffers) but disabled here; fall through to the legacy
-    // state_mgr_.update(outputs) path.
     // ================================================================
     if (state_mgr_.stateCount() > 0) {
-        // // --- 5.8-s22 A1 swap (disabled, see pkb §5.1 / §5.4) ---
-        // std::size_t input_offset = mutable_inputs.size() - state_mgr_.stateCount();
-        // std::size_t output_offset = 2;  // after fgr and pha
-        // if (state_mgr_.isFirstFrame() ||
-        //     !SwapRecurrentStateBuffers(state_mgr_.stateCount(), input_offset, output_offset)) {
-        //     state_mgr_.update(outputs);
-        // }
-        // state_mgr_.markFirstFrameFalse();
         state_mgr_.update(outputs);
     }
     // --- END INFERENCE ENGINE SCOPE ---
