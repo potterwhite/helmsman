@@ -54,6 +54,10 @@ const helmsman::utils::timing::StageAccumulator& NoHwFrontend::preprocess_acc() 
     return pipeline_.preprocess_acc();
 }
 
+const helmsman::utils::timing::StageAccumulator& NoHwFrontend::resize_acc() const {
+    return pipeline_.resize_acc();
+}
+
 std::optional<ReadResult> NoHwFrontend::_ReadFrame() {
     if (!cv_cap_.isOpened())
         return std::nullopt;

@@ -82,6 +82,10 @@ const helmsman::utils::timing::StageAccumulator& RockchipFrontend::preprocess_ac
     return pipeline_.preprocess_acc();
 }
 
+const helmsman::utils::timing::StageAccumulator& RockchipFrontend::resize_acc() const {
+    return pipeline_.resize_acc();
+}
+
 std::optional<ReadResult> RockchipFrontend::_ReadFrame() {
     if (!source_ || !decoder_ || !color_converter_) {
         return std::nullopt;

@@ -87,6 +87,9 @@ public:
     // Access the preprocess timing accumulator.
     const helmsman::utils::timing::StageAccumulator& preprocess_acc() const;
 
+    // Access the resize timing accumulator (sub-step of preprocess).
+    const helmsman::utils::timing::StageAccumulator& resize_acc() const;
+
 private:
     // Worker thread entry point (pipeline mode only).
     void _WorkerLoop(int model_w, int model_h);

@@ -77,6 +77,9 @@ public:
     // Access the preprocess timing accumulator (thread-safe record(), main-thread report()).
     virtual const helmsman::utils::timing::StageAccumulator& preprocess_acc() const = 0;
 
+    // Access the resize timing accumulator (sub-step of preprocess).
+    virtual const helmsman::utils::timing::StageAccumulator& resize_acc() const = 0;
+
     // Whether the hardware decode path is active.
     bool IsHardwarePath() const;
 

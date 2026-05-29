@@ -84,9 +84,12 @@ TensorData Preprocessor::PreprocessCore(cv::Mat img,
     int pad_right = (32 - (img.cols % 32)) % 32;
 
     if (model_width > 0 && model_height > 0) {
+        helmsman::utils::timing::ManualTimer t_resize;
+        t_resize.start();
         cv::resize(img, img,
                    cv::Size(model_width, model_height),
                    0, 0, cv::INTER_LINEAR);
+        acc_resize_.record(t_resize.stop());
         logger.Info("RKNN resize: " + std::to_string(original_w) + "x" +
                         std::to_string(original_h) + " -> " +
                         std::to_string(model_width) + "x" +

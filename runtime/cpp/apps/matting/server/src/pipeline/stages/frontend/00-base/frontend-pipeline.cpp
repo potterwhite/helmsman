@@ -183,3 +183,7 @@ void FrontendPipeline::Stop() {
 const helmsman::utils::timing::StageAccumulator& FrontendPipeline::preprocess_acc() const {
     return acc_lv03_02_worker_preprocess_;
 }
+
+const helmsman::utils::timing::StageAccumulator& FrontendPipeline::resize_acc() const {
+    return preprocessor_.resize_acc();
+}

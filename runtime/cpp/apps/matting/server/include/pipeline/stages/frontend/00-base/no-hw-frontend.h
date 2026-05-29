@@ -41,6 +41,7 @@ public:
     std::optional<FrameResult> ProcessOneFrame(int model_w, int model_h) override;
     void Stop() override;
     const helmsman::utils::timing::StageAccumulator& preprocess_acc() const override;
+    const helmsman::utils::timing::StageAccumulator& resize_acc() const override;
 
 private:
     // Reader callback for FrontendPipeline

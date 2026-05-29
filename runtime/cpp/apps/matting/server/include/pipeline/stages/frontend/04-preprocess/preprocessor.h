@@ -30,10 +30,13 @@
 
 #include <string>
 #include "CVKit/base/base.h"
+#include "Utils/timing/timer.h"
 #include "pipeline/stages/frontend/04-preprocess/base-preprocessor.h"
 
 class Preprocessor : public BasePreprocessor {
 public:
+    using sa = helmsman::utils::timing::StageAccumulator;
+
     Preprocessor();
     ~Preprocessor() override;
 
@@ -46,10 +49,15 @@ public:
     void SetOutputBinPath(const std::string& path);
     void SetDumpEnabled(bool enabled);
 
+    // Access timing accumulators (thread-safe record(), main-thread report()).
+    const sa& resize_acc() const { return acc_resize_; }
+
 private:
     TensorData PreprocessCore(cv::Mat img, int model_width, int model_height);
 
     std::string output_bin_path_;
     bool dump_enabled_ = false;
     helmsman::cvkit::Base cvkit_;
+
+    sa acc_resize_{"  Lv03-02-01::worker::preprocess::resize"};
 };

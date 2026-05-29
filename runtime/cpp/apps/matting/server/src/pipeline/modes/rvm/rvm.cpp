@@ -192,6 +192,7 @@ void RVMMode::_ReportAllAccumulatedTimers(void) {
 	acc_lv03_01_mainloop.report(config_.timing_enabled, GetLogger(), kRvmModuleName);
 
 	frontend_->preprocess_acc().report(config_.timing_enabled, GetLogger(), kRvmModuleName);
+	frontend_->resize_acc().report(config_.timing_enabled, GetLogger(), kRvmModuleName);
 	acc_lv03_02_01_mainloop_frontend_decode_.report(config_.timing_enabled, GetLogger(),
 	                                                kRvmModuleName);
 
