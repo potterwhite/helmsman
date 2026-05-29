@@ -26,9 +26,14 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <thread>
+#include "RGAKit/rga_resize.h"
 #include "Utils/timing/timer.h"
 #include "common/common-define.h"
 #include "pipeline/stages/backend/post-processor/guided-filter-post-processor.h"
+
+using helmsman::rgakit::ImageDescriptor;
+using helmsman::rgakit::RgaPixelFormat;
+using helmsman::rgakit::RgaResize;
 
 using helmsman::utils::timing::ManualTimer;
 using helmsman::utils::timing::ScopedTimer;
@@ -82,7 +87,14 @@ void RVMMode::InitBackgroundImage(int width, int height) {
 	if (bg.empty()) {
 		bg = cv::Mat(height, width, CV_8UC3, kDefaultBgColor);
 	} else {
-		cv::resize(bg, bg, cv::Size(width, height));
+		cv::Mat resized(height, width, CV_8UC3);
+		ImageDescriptor src(bg.data, bg.cols, bg.rows, RgaPixelFormat::kBgr888);
+		ImageDescriptor dst(resized.data, width, height, RgaPixelFormat::kBgr888);
+		if (!RgaResize::Instance().Execute(src, dst)) {
+			fprintf(stderr, "[FATAL] RGA resize failed for background init — hardware error\n");
+			std::abort();
+		}
+		bg = resized;
 	}
 	backend_->SetBackgroundModelImage(bg.clone());
 }
@@ -383,12 +395,6 @@ int RVMMode::Run() {
 	               config_.output_bin_path + "/output_composited.mp4", config_.output_mode);
 
 	InitBackgroundImage(setup.model_input_width, setup.model_input_height);
-
-	// Create RGA hardware operations (stateless, reused every frame).
-	// RGA resize replaces cv::resize for the downscale/upscale steps.
-	// Pass ownership to Backend for composite operations.
-	auto rga = helmsman::rgakit::CreateOperation<helmsman::rgakit::RgaResize>();
-	backend_->SetRgaResize(std::move(rga));
 
 	// =========================================================================
 	// 3rd - Main inference loop

@@ -74,15 +74,28 @@ public:
         kBicubic = 2,   // Bicubic — better quality, slightly slower
     };
 
-    explicit RgaResize(Interpolation interp = Interpolation::kBilinear);
+    // Meyer's Singleton — thread-safe (C++11), lazy init, auto-cleanup.
+    // Usage: RgaResize::Instance().Execute(src, dst);
+    static RgaResize& Instance() {
+        static RgaResize instance;
+        return instance;
+    }
 
     // Resize src to dst dimensions.
     // src and dst must have valid data pointers and matching formats.
     // Returns true on success, false on RGA error.
     bool Execute(const ImageDescriptor& src, ImageDescriptor& dst);
 
+    // Non-copyable, non-movable (singleton).
+    RgaResize(const RgaResize&) = delete;
+    RgaResize& operator=(const RgaResize&) = delete;
+    RgaResize(RgaResize&&) = delete;
+    RgaResize& operator=(RgaResize&&) = delete;
+
 private:
-    Interpolation interpolation_;
+    RgaResize() = default;
+
+    Interpolation interpolation_ = Interpolation::kBilinear;
 };
 
 }  // namespace rgakit

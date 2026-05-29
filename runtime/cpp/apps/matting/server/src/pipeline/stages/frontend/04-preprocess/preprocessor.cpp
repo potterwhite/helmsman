@@ -25,10 +25,19 @@
 
 #include "pipeline/stages/frontend/04-preprocess/preprocessor.h"
 
+#include <cassert>
+#include <cstdio>
+#include <cstdlib>
+#include "RGAKit/rga_operation.h"
+#include "RGAKit/rga_resize.h"
 #include "Utils/file/file-utils.h"
 #include "Utils/logger/logger.h"
 #include "common/common-define.h"
 #include "common/types.h"
+
+using helmsman::rgakit::ImageDescriptor;
+using helmsman::rgakit::RgaPixelFormat;
+using helmsman::rgakit::RgaResize;
 
 Preprocessor::Preprocessor() {
     helmsman::utils::Logger::GetInstance().Info(
@@ -86,9 +95,14 @@ TensorData Preprocessor::PreprocessCore(cv::Mat img,
     if (model_width > 0 && model_height > 0) {
         helmsman::utils::timing::ManualTimer t_resize;
         t_resize.start();
-        cv::resize(img, img,
-                   cv::Size(model_width, model_height),
-                   0, 0, cv::INTER_LINEAR);
+        cv::Mat resized(model_height, model_width, CV_8UC3);
+        ImageDescriptor src(img.data, img.cols, img.rows, RgaPixelFormat::kRgb888);
+        ImageDescriptor dst(resized.data, model_width, model_height, RgaPixelFormat::kRgb888);
+        if (!RgaResize::Instance().Execute(src, dst)) {
+            fprintf(stderr, "[FATAL] RGA resize failed — hardware error\n");
+            std::abort();
+        }
+        img = resized;
         acc_resize_.record(t_resize.stop());
         logger.Info("RKNN resize: " + std::to_string(original_w) + "x" +
                         std::to_string(original_h) + " -> " +

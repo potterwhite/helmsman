@@ -19,7 +19,15 @@
 // SOFTWARE.
 
 #include "pipeline/stages/backend/backend.h"
+
+#include <cassert>
+#include <cstdio>
+#include "RGAKit/rga_resize.h"
 #include "common/common-define.h"
+
+using helmsman::rgakit::ImageDescriptor;
+using helmsman::rgakit::RgaPixelFormat;
+using helmsman::rgakit::RgaResize;
 
 // #include <algorithm>
 // #include <cmath>
@@ -243,8 +251,13 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 				               kcurrent_module_name);
 			} else {
 				cv::Mat bg_bgr;
-				cv::resize(bg_bgr_raw, bg_bgr, cv::Size(fg_bgr.cols, fg_bgr.rows),
-				           0, 0, cv::INTER_LINEAR);
+				bg_bgr.create(fg_bgr.rows, fg_bgr.cols, CV_8UC3);
+				ImageDescriptor bg_src(bg_bgr_raw.data, bg_bgr_raw.cols, bg_bgr_raw.rows, RgaPixelFormat::kBgr888);
+				ImageDescriptor bg_dst(bg_bgr.data, fg_bgr.cols, fg_bgr.rows, RgaPixelFormat::kBgr888);
+				if (!RgaResize::Instance().Execute(bg_src, bg_dst)) {
+					fprintf(stderr, "[FATAL] RGA resize failed for background — hardware error\n");
+					std::abort();
+				}
 
 				// --- Get alpha mask (output_8u is the matting result) ---
 				// output_8u may be CV_8UC1 (alpha only) or CV_8UC3
@@ -294,12 +307,6 @@ void MattingBackend::SetBackgroundModelImage(const cv::Mat& bg) {
 	bg_model_u8_ = bg;
 }
 
-void MattingBackend::SetRgaResize(std::unique_ptr<helmsman::rgakit::RgaResize> rga) {
-	rga_resize_ = std::move(rga);
-}
-
-using helmsman::rgakit::ImageDescriptor;
-using helmsman::rgakit::RgaPixelFormat;
 
 cv::Mat MattingBackend::Composite(const cv::Mat& frame, const cv::Mat& alpha_8u,
                                    int model_w, int model_h, int output_w, int output_h) {
@@ -327,8 +334,9 @@ cv::Mat MattingBackend::Composite(const cv::Mat& frame, const cv::Mat& alpha_8u,
 		frame_model.create(model_h, model_w, CV_8UC3);
 		ImageDescriptor src(frame.data, frame.cols, frame.rows, RgaPixelFormat::kBgr888);
 		ImageDescriptor dst(frame_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
-		if (!rga_resize_ || !rga_resize_->Execute(src, dst)) {
-			cv::resize(frame, frame_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
+		if (!RgaResize::Instance().Execute(src, dst)) {
+			fprintf(stderr, "[FATAL] RGA resize failed for frame — hardware error\n");
+			std::abort();
 		}
 	}
 	acc_resize_frame_.record(t.stop());
@@ -368,9 +376,9 @@ cv::Mat MattingBackend::Composite(const cv::Mat& frame, const cv::Mat& alpha_8u,
 		composed_output.create(output_h, output_w, CV_8UC3);
 		ImageDescriptor src(composed_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
 		ImageDescriptor dst(composed_output.data, output_w, output_h, RgaPixelFormat::kBgr888);
-		if (!rga_resize_ || !rga_resize_->Execute(src, dst)) {
-			cv::resize(composed_model, composed_output, cv::Size(output_w, output_h), 0, 0,
-			           cv::INTER_LINEAR);
+		if (!RgaResize::Instance().Execute(src, dst)) {
+			fprintf(stderr, "[FATAL] RGA resize failed for upscale — hardware error\n");
+			std::abort();
 		}
 	}
 	acc_upscale_.record(t.stop());

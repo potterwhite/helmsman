@@ -73,12 +73,6 @@ static rga_buffer_t ToRgaBuffer(const ImageDescriptor& desc) {
 }
 
 // ---------------------------------------------------------------------------
-// RgaResize constructor
-// ---------------------------------------------------------------------------
-RgaResize::RgaResize(Interpolation interp)
-    : interpolation_(interp) {}
-
-// ---------------------------------------------------------------------------
 // RgaResize::Execute — resize src to dst dimensions via RGA hardware
 //
 // Returns true on success. On failure, prints an error to stderr with the

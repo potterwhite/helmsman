@@ -24,7 +24,6 @@
 
 #include <memory>
 #include <opencv2/opencv.hpp>
-#include "RGAKit/rga_resize.h"
 #include "Utils/file/file-utils.h"
 #include "Utils/logger/logger.h"
 #include "Utils/logger/worker/consolesink.h"
@@ -57,12 +56,6 @@ class MattingBackend {
 	 * Used by Composite() for alpha blending.
 	 */
 	void SetBackgroundModelImage(const cv::Mat& bg);
-
-	/**
-	 * Set the RGA hardware resize operation for accelerated upscaling/downscaling.
-	 * Falls back to cv::resize if RGA is unavailable.
-	 */
-	void SetRgaResize(std::unique_ptr<helmsman::rgakit::RgaResize> rga);
 
 	// --- Inference post-processing ---
 
@@ -112,7 +105,6 @@ class MattingBackend {
 
 	// Video compositing resources (set via setters)
 	cv::Mat bg_model_u8_;  // Background at model resolution (CV_8UC3)
-	std::unique_ptr<helmsman::rgakit::RgaResize> rga_resize_;
 
 	// Composite sub-step timing accumulators
 	using sa = helmsman::utils::timing::StageAccumulator;
