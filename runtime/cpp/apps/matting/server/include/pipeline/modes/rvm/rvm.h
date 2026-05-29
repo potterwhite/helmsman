@@ -58,15 +58,15 @@ class RVMMode {
      */
 	RvmModelState InitModelState(InferenceEngine* engine);
 
-	bool _OpenVideoWriter(cv::VideoWriter& writer, const std::string& path, int width,
-	                      int height, double fps);
+	bool _OpenVideoWriter(cv::VideoWriter& writer, const std::string& path, int width, int height,
+	                      double fps);
 
 	void InitBackgroundImage(int width, int height);
 
 	// Composite + deliver: blend alpha with background, then deliver to output sink.
 	// Returns total composite time in ms.
-	double _CompositeAndDeliver(const cv::Mat& frame, const cv::Mat& alpha_8u,
-	                            int model_w, int model_h, int output_w, int output_h);
+	void _CompositeAndDeliver(const cv::Mat& frame, const cv::Mat& alpha_8u, int model_w,
+	                          int model_h, int output_w, int output_h);
 
 	/**
 	 * Unified main loop. Uses Frontend::ProcessOneFrame() which handles
@@ -83,14 +83,13 @@ class RVMMode {
 	 * Perform any necessary cleanup of resources (e.g. DRM buffer release) before exiting run().
 	 */
 	void _DoCleaningThings(const std::chrono::steady_clock::time_point& pipeline_start,
-	                         const std::string& output_video_path);
+	                       const std::string& output_video_path);
 
 	/**
 	 * Shared output path for both output modes (MP4 file or DRM display). Sets up the VideoWriter if needed.
 	 */
 	void InitOutputSink(const int src_width, const int src_height, const double src_fps,
-	                          const std::string& output_video_path, const OutputMode output_mode);
-
+	                    const std::string& output_video_path, const OutputMode output_mode);
 
    private:
 	// Member variables
@@ -108,45 +107,42 @@ class RVMMode {
 	/* -------------------------------------------------------------------------
 	// Pipeline timing layout (s10 — full coverage)
 	//
-	// Per-frame wall clock breakdown
-	//
-	//   [main thread]                            [worker thread]
-	//   acc_lv02_01_main_loop_total_  (whole iteration)
-	//     ├── tensor_ch.pop()    ◄────────────   acc_lv02_01_01_worker_preprocess_
-	//     │   (blocks if worker     pushes here  (run on worker:
-	//     │    not done yet)                       BGR→tensor resize+norm)
-	//     ├── acc_lv02_01_02_main_decode_         ────────────►   raw_ch.pop()
-	//     │   (read next frame                   (worker waits here)
-	//     │    + push to raw_ch)
-	//     ├── acc_lv02_01_03_main_infer_          (NPU inference, current frame)
-	//     └── acc_lv02_01_04_main_composite_      (composite + write, current frame)
-	//             │
-	//             ├── [Backend::Composite() — see backend.h for sub-step timers]
-	//             ├── acc_lv02_01_04_05_writer_        (VideoWriter::write — see NOTE below)
-	//             └── acc_lv02_01_04_06_drm_           ()
-	//
 	// Whole-run timers (overlap with the above; cheap, kept for context)
 	//
-	//   ScopedTimer "Lv01::main::pipeline.run() total"           (pipeline.cpp)   — outermost
-	//   ScopedTimer "Lv02::RVMMode::run() total"            (this fn)        — wraps loop
-	//   ScopedTimer "Lv03::RVMMode::InitModelState() load"      (this fn)        — model load only
+	//   ScopedTimer "Lv01::pipeline.run() total"                 (pipeline.cpp)   — outermost
+	//   ScopedTimer "Lv02::pipeline::RVMMode::run()"             (this fn)        — wraps loop
+	//   ScopedTimer "Lv03::pipeline::RVMMode::_RunMainLoop()"    (this fn)        — model load only
+	//
+	// Per-frame wall clock breakdown
+	//
+	//   [main thread]                                                      [worker thread]
+	//   acc_lv03_01_mainloop  (whole iteration)
+	//     ├── tensor_ch.pop()                          ◄────────────       acc_lv03_02_worker_preprocess_
+	//     │   (blocks if worker                        pushes here         (run on worker:
+	//     │    not done yet)                                                BGR→tensor resize+norm)
+	//     ├── acc_lv03_02_01_mainloop_frontend_decode_ ────────────►       raw_ch.pop()
+	//     │   (read next frame                                             (worker waits here)
+	//     │    + push to raw_ch)
+	//     ├── acc_lv03_03_mainloop_inferenceengine_infer_     (NPU inference, current frame)
+	//     ├── acc_lv03_04_02_mainloop_backend_composite_      (composite + write, current frame)
+	//     └── acc_lv03_04_03_mainloop_backend_display_        ()
+	//
 	//
 	//   [FPS]   line every 30 frames                                         — moving fps
 	//   [PerFrame] line every frame                                          — infer + comp
 	//
 	// Identity (approx, ignoring tiny logging overhead):
-	//   acc_lv02_01_main_loop_total_ ≈ max(tensor_ch.pop wait, 0) + acc_lv02_01_02_main_decode_ + acc_lv02_01_03_main_infer_ + acc_lv02_01_04_main_composite_
-	//   acc_lv02_01_04_main_composite_ ≈ Backend::Composite() + writer
+	//   acc_lv03_01_mainloop ≈ max(tensor_ch.pop wait, 0) + acc_lv03_02_01_mainloop_frontend_decode_ + acc_lv03_03_mainloop_inferenceengine_infer_ + acc_lv03_04_02_mainloop_backend_composite_
+	//   acc_lv03_04_02_mainloop_backend_composite_ ≈ Backend::Composite() + writer
 	// ------------------------------------------------------------------------- */
 	using sa = helmsman::utils::timing::StageAccumulator;
 
-	sa acc_lv02_01_main_loop_total_{"Lv02-01::main::loop_total"};
-	sa acc_lv02_01_02_main_decode_{"  Lv02-01-02::main::decode"};
-	sa acc_lv02_01_03_main_infer_{"  Lv02-01-03::main::infer"};
-	sa acc_lv02_01_04_main_composite_{"  Lv02-01-04::main::composite"};
-
-	sa acc_lv02_01_04_05_writer_{"    Lv02-01-04-05::comp::writer"};
-	sa acc_lv02_01_04_06_drm_{"    Lv02-01-04-06::comp::drm_show"};
+	sa acc_lv03_01_mainloop{"Lv03-01::mainloop"};
+	sa acc_lv03_02_01_mainloop_frontend_decode_{"  Lv03-02-01::mainloop::frontend::decode"};
+	sa acc_lv03_03_mainloop_inferenceengine_infer_{"  Lv03-03::mainloop::inferenceengine::infer"};
+	sa acc_lv03_04_01_mainloop_backend_postprocess_{"  Lv03-04-01::mainloop::backend::postprocess"};
+	sa acc_lv03_04_02_mainloop_backend_composite_{"  Lv03-04-02::mainloop::backend::composite"};
+	sa acc_lv03_04_03_mainloop_backend_display_{"    Lv03-04-03::mainloop::backend::display"};
 
 	size_t frame_count_ = 0;
 	std::chrono::steady_clock::time_point fps_window_start_;

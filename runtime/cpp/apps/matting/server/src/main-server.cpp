@@ -269,7 +269,7 @@ int main(int argc, char* argv[]) {
 	pipeline.Init(*config);
 
 	helmsman::utils::timing::ScopedTimer run_timer(
-	    "Lv01::main::pipeline.run() total", config->timing_enabled, logger, kcurrent_module_name);
+	    "Lv01::pipeline.run() total", config->timing_enabled, logger, kcurrent_module_name);
 
 	pipeline.Run();
 

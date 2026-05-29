@@ -15,8 +15,8 @@
 ## 嵌套关系
 
 ```
-Lv01::main::pipeline.run() total          (pipeline.cpp, ScopedTimer)
-  └── Lv02::RVMMode::run() total          (rvm.cpp, ScopedTimer)
+Lv01::pipeline.run() total          (pipeline.cpp, ScopedTimer)
+  └── Lv02::pipeline::RVMMode::run() total          (rvm.cpp, ScopedTimer)
         └── Lv02-01::main::loop_total     (rvm.cpp, StageAccumulator, 每帧)
               ├── Lv02-01-01::worker::preprocess  (FrontendBase, StageAccumulator)
               ├── Lv02-01-02::main::decode         (rvm.cpp, StageAccumulator)

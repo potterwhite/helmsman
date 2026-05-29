@@ -19,7 +19,6 @@
 // SOFTWARE.
 
 #include "pipeline/modes/rvm/rvm.h"
-#include "common/common-define.h"
 #include <atomic>
 #include <chrono>
 #include <cstring>
@@ -28,6 +27,7 @@
 #include <opencv2/imgproc.hpp>
 #include <thread>
 #include "Utils/timing/timer.h"
+#include "common/common-define.h"
 #include "pipeline/stages/backend/post-processor/guided-filter-post-processor.h"
 
 using helmsman::utils::timing::ManualTimer;
@@ -45,10 +45,18 @@ inline constexpr int kDefaultModelInputWidth = 512;
 // Default fallback background color: BGR(155,255,120) = RGB(120,255,155)
 inline const cv::Scalar kDefaultBgColor{155, 255, 120};
 
-void RVMMode::SetEngine(InferenceEngine* engine) { engine_ = engine; }
-void RVMMode::SetFrontend(FrontendBase* frontend) { frontend_ = frontend; }
-void RVMMode::SetBackend(MattingBackend* backend) { backend_ = backend; }
-void RVMMode::SetConfig(const AppConfig& config) { config_ = config; }
+void RVMMode::SetEngine(InferenceEngine* engine) {
+	engine_ = engine;
+}
+void RVMMode::SetFrontend(FrontendBase* frontend) {
+	frontend_ = frontend;
+}
+void RVMMode::SetBackend(MattingBackend* backend) {
+	backend_ = backend;
+}
+void RVMMode::SetConfig(const AppConfig& config) {
+	config_ = config;
+}
 
 bool RVMMode::_OpenVideoWriter(cv::VideoWriter& writer, const std::string& path, int width,
                                int height, double fps) {
@@ -79,17 +87,29 @@ void RVMMode::InitBackgroundImage(int width, int height) {
 	backend_->SetBackgroundModelImage(bg.clone());
 }
 
-double RVMMode::_CompositeAndDeliver(const cv::Mat& frame, const cv::Mat& alpha_8u,
-                                     int model_w, int model_h, int output_w, int output_h) {
+void RVMMode::_CompositeAndDeliver(const cv::Mat& frame, const cv::Mat& alpha_8u, int model_w,
+                                   int model_h, int output_w, int output_h) {
+	// 1st. sanity check
 	if (alpha_8u.empty())
-		return 0.0;
+		return;
 
-	ManualTimer total_t;
-	total_t.start();
+	// 2nd. start accumulating
+	ManualTimer t;
+	t.start();
 
-	cv::Mat composed = backend_->Composite(frame, alpha_8u, model_w, model_h,
-	                                       output_w, output_h);
+	// 3rd. backend compositing
+	cv::Mat composed = backend_->Composite(frame, alpha_8u, model_w, model_h, output_w, output_h);
 
+	// 4th. stop compositing timer and record
+	t.stop();
+	acc_lv03_04_02_mainloop_backend_composite_.record(t.elapsed_ms());
+
+	// ------------------------------------------------------------------
+	// 5th. start accumulating
+	ManualTimer t2;
+	t2.start();
+
+	// 6th. start displaying
 	// DMA output path: currently disabled (use_dma_output_ = false).
 	// if (use_dma_output_) {
 	//     void* dma_ptr = dma_output_buf_->map();
@@ -98,8 +118,7 @@ double RVMMode::_CompositeAndDeliver(const cv::Mat& frame, const cv::Mat& alpha_
 	//     }
 	// }
 	if (config_.output_mode == OutputMode::kDrm) {
-		ManualTimer t;
-		t.start();
+		// ----- DRM show MP4 Mode -----
 		const int n_pixels = output_w * output_h;
 		argb_buf_.resize(static_cast<size_t>(n_pixels) * 4);
 		const uint8_t* bgr = composed.ptr<uint8_t>(0);
@@ -113,15 +132,17 @@ double RVMMode::_CompositeAndDeliver(const cv::Mat& frame, const cv::Mat& alpha_
 			xrgb += 4;
 		}
 		drm_display_.ShowARGB(argb_buf_.data());
-		acc_lv02_01_04_06_drm_.record(t.stop());
+
 	} else {
-		ManualTimer t;
-		t.start();
+		// ----- OpenCV Write MP4 Mode -----
 		video_writer_.write(composed);
-		acc_lv02_01_04_05_writer_.record(t.stop());
 	}
 
-	return total_t.elapsed_ms();
+	// 7th. stop accumulating and record
+	t2.stop();
+	acc_lv03_04_03_mainloop_backend_display_.record(t2.elapsed_ms());
+
+	return;
 }
 
 // DMA output path: currently disabled (use_dma_output_ = false).
@@ -148,7 +169,9 @@ double RVMMode::_CompositeAndDeliver(const cv::Mat& frame, const cv::Mat& alpha_
 // }
 
 RvmModelState RVMMode::InitModelState(InferenceEngine* engine) {
+
 	RvmModelState setup;
+
 	setup.model_input_height =
 	    engine->GetInputHeight() > 0 ? engine->GetInputHeight() : kDefaultModelInputHeight;
 	setup.model_input_width =
@@ -158,17 +181,19 @@ RvmModelState RVMMode::InitModelState(InferenceEngine* engine) {
 }
 
 void RVMMode::_ReportAllAccumulatedTimers(void) {
-	acc_lv02_01_main_loop_total_.report(config_.timing_enabled, GetLogger(), kRvmModuleName);
-	frontend_->preprocess_acc().report(config_.timing_enabled, GetLogger(), kRvmModuleName);
-	acc_lv02_01_02_main_decode_.report(config_.timing_enabled, GetLogger(), kRvmModuleName);
-	acc_lv02_01_03_main_infer_.report(config_.timing_enabled, GetLogger(), kRvmModuleName);
-	acc_lv02_01_04_main_composite_.report(config_.timing_enabled, GetLogger(), kRvmModuleName);
+	acc_lv03_01_mainloop.report(config_.timing_enabled, GetLogger(), kRvmModuleName);
 
-	// NOTE: acc_lv02_01_04_05_writer_ measures only the time VideoWriter::write() returns,
-	// NOT actual encoder completion (FFmpeg buffers internally). Treat this
-	// number as a lower bound for the true write cost.
-	acc_lv02_01_04_05_writer_.report(config_.timing_enabled, GetLogger(), kRvmModuleName);
-	acc_lv02_01_04_06_drm_.report(config_.timing_enabled, GetLogger(), kRvmModuleName);
+	frontend_->preprocess_acc().report(config_.timing_enabled, GetLogger(), kRvmModuleName);
+	acc_lv03_02_01_mainloop_frontend_decode_.report(config_.timing_enabled, GetLogger(),
+	                                                kRvmModuleName);
+
+	acc_lv03_03_mainloop_inferenceengine_infer_.report(config_.timing_enabled, GetLogger(),
+	                                                   kRvmModuleName);
+
+	acc_lv03_04_02_mainloop_backend_composite_.report(config_.timing_enabled, GetLogger(),
+	                                                  kRvmModuleName);
+	acc_lv03_04_03_mainloop_backend_display_.report(config_.timing_enabled, GetLogger(),
+	                                                kRvmModuleName);
 }
 
 void RVMMode::_DoCleaningThings(const std::chrono::steady_clock::time_point& pipeline_start,
@@ -198,7 +223,8 @@ void RVMMode::_DoCleaningThings(const std::chrono::steady_clock::time_point& pip
 		        .count();
 		const double avg_fps = static_cast<double>(frame_count_) / total_elapsed;
 		GetLogger().Info("[FPS] Total: " + std::to_string(frame_count_) + " frames in " +
-		                     std::to_string(total_elapsed) + "s = " + std::to_string(avg_fps) + " fps",
+		                     std::to_string(total_elapsed) + "s = " + std::to_string(avg_fps) +
+		                     " fps",
 		                 kRvmModuleName);
 	}
 
@@ -218,8 +244,8 @@ void RVMMode::InitOutputSink(const int src_width, const int src_height, const do
 	if (output_mode == OutputMode::kDrm) {
 		if (drm_display_.Init(src_width, src_height)) {
 			std::tie(drm_panel_w_, drm_panel_h_) = drm_display_.PanelSize();
-			GetLogger().Info("DRM display initialized: panel " + std::to_string(drm_panel_w_) + "x" +
-			                     std::to_string(drm_panel_h_),
+			GetLogger().Info("DRM display initialized: panel " + std::to_string(drm_panel_w_) +
+			                     "x" + std::to_string(drm_panel_h_),
 			                 kRvmModuleName);
 		} else {
 			GetLogger().Warning("DRM init failed. Falling back to mp4.", kRvmModuleName);
@@ -238,6 +264,9 @@ void RVMMode::InitOutputSink(const int src_width, const int src_height, const do
 //   This loop just calls ProcessOneFrame() and processes each result.
 // =========================================================================
 void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) {
+	ScopedTimer init_mainloop_timer("Lv03::pipeline::RVMMode::_RunMainLoop()",
+	                                config_.timing_enabled, GetLogger(), kRvmModuleName);
+
 	while (true) {
 		ManualTimer loop_t;
 		loop_t.start();
@@ -259,7 +288,8 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		if (!result)
 			break;
 
-		GetLogger().Info("=== RVM Frame " + std::to_string(frame_count_ + 1) + " ===", kRvmModuleName);
+		GetLogger().Info("=== RVM Frame " + std::to_string(frame_count_ + 1) + " ===",
+		                 kRvmModuleName);
 
 		const int model_w = setup.model_input_width;
 		const int model_h = setup.model_input_height;
@@ -269,36 +299,39 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		infer_t.start();
 		std::vector<TensorData> outputs;
 		engine->Infer({result->tensor}, outputs);
+		const double infer_ms = infer_t.stop();
+		acc_lv03_03_mainloop_inferenceengine_infer_.record(infer_ms);
 
 		// --- 3rd: backend - postprocess ---
 		cv::Mat alpha_8u = backend_->Postprocess(outputs, result->frame);
-		const double infer_ms = infer_t.stop();
-		acc_lv02_01_03_main_infer_.record(infer_ms);
 
 		// --- 4th: backend - composite + deliver ---
-		const int output_w = (config_.output_mode == OutputMode::kDrm) ? drm_panel_w_ : result->frame.cols;
-		const int output_h = (config_.output_mode == OutputMode::kDrm) ? drm_panel_h_ : result->frame.rows;
-		const double comp_ms = _CompositeAndDeliver(result->frame, alpha_8u, model_w, model_h,
-		                                            output_w, output_h);
-		acc_lv02_01_04_main_composite_.record(comp_ms);
+		const int output_w =
+		    (config_.output_mode == OutputMode::kDrm) ? drm_panel_w_ : result->frame.cols;
+		const int output_h =
+		    (config_.output_mode == OutputMode::kDrm) ? drm_panel_h_ : result->frame.rows;
+
+		_CompositeAndDeliver(result->frame, alpha_8u, model_w, model_h, output_w, output_h);
 
 		// --- end: log per-frame stats ---
-		GetLogger().Info("[PerFrame] frame=" + std::to_string(frame_count_) +
-		                    "  infer=" + std::to_string(infer_ms) + "ms" +
-		                    "  composite=" + std::to_string(comp_ms) + "ms",
-		                kRvmModuleName);
+		GetLogger().Info(
+		    "[PerFrame] frame=" + std::to_string(frame_count_) +
+		        "  infer=" + std::to_string(infer_ms) + "ms" +
+		        "  composite=" + std::to_string(acc_lv03_04_02_mainloop_backend_composite_.count()) + "ms" +
+		        "  display=" + std::to_string(acc_lv03_04_03_mainloop_backend_display_) + "ms",
+		    kRvmModuleName);
 
 		// FPS measurement: report every 30 frames
 		if (frame_count_ % 30 == 0) {
 			auto now = std::chrono::steady_clock::now();
 			double elapsed = std::chrono::duration<double>(now - fps_window_start_).count();
-			GetLogger().Info("[FPS] " + std::to_string(30.0 / elapsed) + " fps (last 30 frames in " +
-			                     std::to_string(elapsed) + "s)",
+			GetLogger().Info("[FPS] " + std::to_string(30.0 / elapsed) +
+			                     " fps (last 30 frames in " + std::to_string(elapsed) + "s)",
 			                 kRvmModuleName);
 			fps_window_start_ = now;
 		}
 
-		acc_lv02_01_main_loop_total_.record(loop_t.stop());
+		acc_lv03_01_mainloop.record(loop_t.stop());
 
 		GetLogger().Info(" --- End of RVM Frame " + std::to_string(frame_count_ + 1) + " ---\n",
 		                 kRvmModuleName);
@@ -308,7 +341,7 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 }
 
 int RVMMode::Run() {
-	ScopedTimer run_rvm_timer("Lv02::RVMMode::run() total", config_.timing_enabled, GetLogger(),
+	ScopedTimer run_rvm_timer("Lv02::pipeline::RVMMode::run()", config_.timing_enabled, GetLogger(),
 	                          kRvmModuleName);
 
 	// =========================================================================

@@ -65,7 +65,7 @@ void FrontendPipeline::_WorkerLoop(int model_w, int model_h) {
         helmsman::utils::timing::ManualTimer t;
         t.start();
         auto tensor = preprocessor_.preprocess(*frame_opt, model_w, model_h);
-        preprocess_acc_.record(t.stop());
+        acc_lv03_02_worker_preprocess_.record(t.stop());
 
         tensor_ch_->push(std::move(tensor));
     }
@@ -85,7 +85,7 @@ std::optional<FrameResult> FrontendPipeline::ProcessOneFrame(int model_w, int mo
         helmsman::utils::timing::ManualTimer t;
         t.start();
         auto tensor = preprocessor_.preprocess(read_result->frame, model_w, model_h);
-        preprocess_acc_.record(t.stop());
+        acc_lv03_02_worker_preprocess_.record(t.stop());
 
         FrameResult result;
         result.frame = std::move(read_result->frame);
@@ -181,5 +181,5 @@ void FrontendPipeline::Stop() {
 // preprocess_acc — access preprocess timing accumulator
 // ---------------------------------------------------------------------------
 const helmsman::utils::timing::StageAccumulator& FrontendPipeline::preprocess_acc() const {
-    return preprocess_acc_;
+    return acc_lv03_02_worker_preprocess_;
 }
