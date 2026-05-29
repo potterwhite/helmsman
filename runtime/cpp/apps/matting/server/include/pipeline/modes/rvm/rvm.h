@@ -141,7 +141,7 @@ class RVMMode {
 
 	sa acc_lv03_01_mainloop{"Lv03-01::mainloop"};
 	sa acc_lv03_02_01_mainloop_frontend_decode_{"  Lv03-02-01::mainloop::frontend::decode"};
-	sa acc_lv03_03_mainloop_inferenceengine_infer_{"  Lv03-03::mainloop::inferenceengine::infer"};
+	// acc_lv03_03_mainloop_inferenceengine_infer_ moved to InferenceEngine::infer_acc_
 	sa acc_lv03_04_01_mainloop_backend_postprocess_{"  Lv03-04-01::mainloop::backend::postprocess"};
 	sa acc_lv03_04_02_mainloop_backend_composite_{"  Lv03-04-02::mainloop::backend::composite"};
 	sa acc_lv03_04_03_mainloop_backend_display_{"    Lv03-04-03::mainloop::backend::display"};

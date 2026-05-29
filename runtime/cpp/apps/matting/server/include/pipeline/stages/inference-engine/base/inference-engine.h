@@ -24,6 +24,7 @@
 #include <cstddef>
 #include <string>
 #include <vector>
+#include "Utils/timing/timer.h"
 #include "common/types.h"
 #include "pipeline/infra/recurrent-state-manager.h"
 
@@ -54,12 +55,16 @@ class InferenceEngine {
 	//
 	// Automatically handles recurrent state injection/capture + dsr injection.
 	// Delegates to DoInfer() for the actual model execution.
-	void Infer(const std::vector<TensorData>& inputs,
-	           std::vector<TensorData>& outputs);
+	// Returns elapsed inference time in ms.
+	double Infer(const std::vector<TensorData>& inputs,
+	             std::vector<TensorData>& outputs);
 
 	// --- Initialization (RVM-specific; MODNet and other stateless models skip this) ---
 	void InitRecurrentStates();
 	void SetDownsampleRatio(float dsr);
+
+	// --- Timing ---
+	const helmsman::utils::timing::StageAccumulator& infer_acc() const { return infer_acc_; }
 
 	// --- Query (unchanged) ---
 	virtual int GetInputHeight() const;
@@ -100,5 +105,6 @@ class InferenceEngine {
 
    private:
 	RecurrentStateManager state_mgr_;
+	helmsman::utils::timing::StageAccumulator infer_acc_{"  Lv03-03::mainloop::inferenceengine::infer"};
 	float dsr_ = 0.25f;
 };

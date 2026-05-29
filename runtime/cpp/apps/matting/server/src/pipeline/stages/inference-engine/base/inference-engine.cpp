@@ -19,6 +19,9 @@
 // SOFTWARE.
 
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
+#include "Utils/timing/timer.h"
+
+using helmsman::utils::timing::ManualTimer;
 
 void InferenceEngine::InitRecurrentStates() {
 	auto shapes = GetRecurrentStateShapes();
@@ -42,8 +45,12 @@ void InferenceEngine::SetDownsampleRatio(float dsr) {
 	dsr_ = dsr;
 }
 
-void InferenceEngine::Infer(const std::vector<TensorData>& inputs,
-                            std::vector<TensorData>& outputs) {
+double InferenceEngine::Infer(const std::vector<TensorData>& inputs,
+                              std::vector<TensorData>& outputs) {
+	// Start accumulating
+	ManualTimer t;
+	t.start();
+
 	// ================================================================
 	// INFERENCE ENGINE SCOPE — Pre-inference: prepare model inputs
 	//
@@ -83,6 +90,13 @@ void InferenceEngine::Infer(const std::vector<TensorData>& inputs,
 	// --- END INFERENCE ENGINE SCOPE ---
 	// Caller (RVMMode/MODNetMode) will pass `outputs` to
 	// MattingBackend::Postprocess() for resize + composite + write.
+
+	// stop timer and record
+	t.stop();
+	infer_acc_.record(t.elapsed_ms());
+
+	// return final result
+	return t.elapsed_ms();
 }
 
 // ---------------------------------------------------------------------------
