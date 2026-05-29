@@ -63,10 +63,12 @@ class RVMMode {
 
 	void InitBackgroundImage(int width, int height);
 
-	// Composite + deliver: blend alpha with background, then deliver to output sink.
-	// Returns total composite time in ms.
-	void _CompositeAndDeliver(const cv::Mat& frame, const cv::Mat& alpha_8u, int model_w,
-	                          int model_h, int output_w, int output_h);
+	// Composite: blend alpha with background, write result to composed, return elapsed ms.
+	double _Composite(const cv::Mat& frame, const cv::Mat& alpha_8u, int model_w,
+	                  int model_h, int output_w, int output_h, cv::Mat& composed);
+
+	// Display: deliver composited frame to output sink, return elapsed ms.
+	double _Display(const cv::Mat& composed, int output_w, int output_h);
 
 	/**
 	 * Unified main loop. Uses Frontend::ProcessOneFrame() which handles

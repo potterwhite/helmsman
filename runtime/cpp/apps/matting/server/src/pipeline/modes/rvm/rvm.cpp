@@ -87,29 +87,37 @@ void RVMMode::InitBackgroundImage(int width, int height) {
 	backend_->SetBackgroundModelImage(bg.clone());
 }
 
-void RVMMode::_CompositeAndDeliver(const cv::Mat& frame, const cv::Mat& alpha_8u, int model_w,
-                                   int model_h, int output_w, int output_h) {
+double RVMMode::_Composite(const cv::Mat& frame, const cv::Mat& alpha_8u, int model_w, int model_h,
+                           int output_w, int output_h, cv::Mat& composed) {
 	// 1st. sanity check
 	if (alpha_8u.empty())
-		return;
+		return 0.0;
 
 	// 2nd. start accumulating
 	ManualTimer t;
 	t.start();
 
 	// 3rd. backend compositing
-	cv::Mat composed = backend_->Composite(frame, alpha_8u, model_w, model_h, output_w, output_h);
+	composed = backend_->Composite(frame, alpha_8u, model_w, model_h, output_w, output_h);
 
 	// 4th. stop compositing timer and record
 	t.stop();
 	acc_lv03_04_02_mainloop_backend_composite_.record(t.elapsed_ms());
 
-	// ------------------------------------------------------------------
-	// 5th. start accumulating
-	ManualTimer t2;
-	t2.start();
+	return t.elapsed_ms();
+}
 
-	// 6th. start displaying
+double RVMMode::_Display(const cv::Mat& composed, int output_w, int output_h) {
+
+	// 1st. sanity check
+	if (composed.empty())
+		return 0.0;
+
+	// 2nd. start accumulating
+	ManualTimer t;
+	t.start();
+
+	// 3rd. start displaying
 	// DMA output path: currently disabled (use_dma_output_ = false).
 	// if (use_dma_output_) {
 	//     void* dma_ptr = dma_output_buf_->map();
@@ -138,11 +146,11 @@ void RVMMode::_CompositeAndDeliver(const cv::Mat& frame, const cv::Mat& alpha_8u
 		video_writer_.write(composed);
 	}
 
-	// 7th. stop accumulating and record
-	t2.stop();
-	acc_lv03_04_03_mainloop_backend_display_.record(t2.elapsed_ms());
+	// 4th. stop accumulating and record
+	t.stop();
+	acc_lv03_04_03_mainloop_backend_display_.record(t.elapsed_ms());
 
-	return;
+	return t.elapsed_ms();
 }
 
 // DMA output path: currently disabled (use_dma_output_ = false).
@@ -305,21 +313,25 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		// --- 3rd: backend - postprocess ---
 		cv::Mat alpha_8u = backend_->Postprocess(outputs, result->frame);
 
-		// --- 4th: backend - composite + deliver ---
+		// --- 4th: backend - composite ---
 		const int output_w =
 		    (config_.output_mode == OutputMode::kDrm) ? drm_panel_w_ : result->frame.cols;
 		const int output_h =
 		    (config_.output_mode == OutputMode::kDrm) ? drm_panel_h_ : result->frame.rows;
+		cv::Mat composed;
 
-		_CompositeAndDeliver(result->frame, alpha_8u, model_w, model_h, output_w, output_h);
+		double composite_ms =
+		    _Composite(result->frame, alpha_8u, model_w, model_h, output_w, output_h, composed);
+
+		// --- 5th: backend - display ---
+		double display_ms = _Display(composed, output_w, output_h);
 
 		// --- end: log per-frame stats ---
-		GetLogger().Info(
-		    "[PerFrame] frame=" + std::to_string(frame_count_) +
-		        "  infer=" + std::to_string(infer_ms) + "ms" +
-		        "  composite=" + std::to_string(acc_lv03_04_02_mainloop_backend_composite_.count()) + "ms" +
-		        "  display=" + std::to_string(acc_lv03_04_03_mainloop_backend_display_) + "ms",
-		    kRvmModuleName);
+		GetLogger().Info("[PerFrame] frame=" + std::to_string(frame_count_) +
+		                     "  [3rd]infer=" + std::to_string(infer_ms) + "ms" +
+		                     "  composite=" + std::to_string(composite_ms) + "ms" +
+		                     "  display=" + std::to_string(display_ms) + "ms",
+		                 kRvmModuleName);
 
 		// FPS measurement: report every 30 frames
 		if (frame_count_ % 30 == 0) {
@@ -357,7 +369,7 @@ int RVMMode::Run() {
 	// 2nd - Video I/O setup
 	//    - read source dimensions and fps from the InputSource abstraction
 	//      (works for both Mp4InputSource and any future camera/IPC source)
-	//    - open the VideoWriter; if it fails, _CompositeAndDeliver() is a no-op
+	//    - open the VideoWriter; if it fails, _Composite() / _Display() are no-ops
 	//    - load or synthesise a solid-colour background for alpha compositing
 	// =========================================================================
 	InitOutputSink(setup.model_input_width, setup.model_input_height, frontend_->fps(),
