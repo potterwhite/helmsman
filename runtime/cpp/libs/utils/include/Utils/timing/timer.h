@@ -58,8 +58,10 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <iomanip>
 #include <limits>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -133,7 +135,15 @@ class ScopedTimer {
         if (!enabled_) return;
         auto t1  = std::chrono::high_resolution_clock::now();
         double ms = std::chrono::duration<double, std::milli>(t1 - t0_).count();
-        logger_.Info("[Timing] " + label_ + ": " + std::to_string(ms) + " ms", module_);
+
+        std::ostringstream oss;
+        if (ms >= 1000.0) {
+            oss << std::fixed << std::setprecision(3) << (ms / 1000.0) << " s";
+        } else {
+            oss << std::fixed << std::setprecision(2) << ms << " ms";
+        }
+
+        logger_.Info("[Timing] " + label_ + ": " + oss.str(), module_);
     }
 
     // Non-copyable, non-movable — lifetime must be scoped.
