@@ -35,7 +35,7 @@ class NoHwFrontend : public FrontendBase {
 public:
     // Opens the video with cv::VideoCapture.
     // Throws std::runtime_error on failure.
-    explicit NoHwFrontend(const std::string& video_path, bool use_pipeline = false);
+    explicit NoHwFrontend(const std::string& video_path, bool multithread_enabled = false);
 
 protected:
     std::optional<ReadResult> _ReadFrame() override;

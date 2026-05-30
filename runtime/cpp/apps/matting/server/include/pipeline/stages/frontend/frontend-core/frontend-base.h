@@ -21,7 +21,7 @@
 // =============================================================================
 // frontend-base.h — Frontend base class (Template Method pattern)
 //
-// Owns the pipeline infrastructure: preprocessing, prefetch worker thread,
+// Owns the multithread infrastructure: preprocessing, prefetch worker thread,
 // and double-buffer orchestration. Subclasses implement _ReadFrame() to
 // supply decoded frames via the platform-specific decode path.
 //
@@ -63,7 +63,7 @@ struct FrameResult {
 /**
  * Base class for the Frontend stage (Template Method pattern).
  *
- * Owns the pipeline infrastructure: preprocessing, prefetch worker thread,
+ * Owns the multithread infrastructure: preprocessing, prefetch worker thread,
  * and double-buffer orchestration. The algorithm skeleton in ProcessOneFrame()
  * is fixed; subclasses implement _ReadFrame() to supply decoded frames.
  */
@@ -79,7 +79,7 @@ public:
 
     // Unified frame processing interface (Template Method).
     // In sync mode: reads and preprocesses one frame on the calling thread.
-    // In pipeline mode: returns the next preprocessed frame from the prefetch pipeline.
+    // In multithread mode: returns the next preprocessed frame from the prefetch worker.
     // Returns std::nullopt on EOF.
     std::optional<FrameResult> ProcessOneFrame(int model_w, int model_h);
 
@@ -102,16 +102,16 @@ public:
 
     // Static factory: creates the platform-specific FrontendBase subclass.
     // If use_hardware is true, uses the hardware decode path (platform-dependent).
-    // If use_pipeline is true, enables the prefetch worker thread.
+    // If multithread_enabled is true, enables the prefetch worker thread.
     // Throws std::runtime_error on failure.
     static std::unique_ptr<FrontendBase> Create(const std::string& input_path,
                                                 bool use_hardware,
-                                                bool use_pipeline = false);
+                                                bool multithread_enabled = false);
 
 protected:
-    // Subclass constructor: sets hardware flag and pipeline mode.
+    // Subclass constructor: sets hardware flag and multithread mode.
     // Source properties default to 0. Subclasses call SetSourceProperties() after opening the source.
-    explicit FrontendBase(bool use_hardware, bool use_pipeline);
+    explicit FrontendBase(bool use_hardware, bool multithread_enabled);
 
     // Set source dimensions and fps. Called by subclasses after opening the source.
     void SetSourceProperties(int width, int height, double fps);
@@ -119,7 +119,7 @@ protected:
     // --- Subclass contract (Template Method hooks) ---
 
     // Read the next decoded frame. Return std::nullopt on EOF.
-    // Called from the main thread (in both sync and pipeline modes).
+    // Called from the main thread (in both sync and multithread modes).
     virtual std::optional<ReadResult> _ReadFrame() = 0;
 
     // Open the source and set source properties (width, height, fps).
@@ -127,7 +127,7 @@ protected:
     virtual void _OpenSource(const std::string& input_path) = 0;
 
 private:
-    // Worker thread entry point (pipeline mode only).
+    // Worker thread entry point (multithread mode only).
     void _WorkerLoop(int model_w, int model_h);
 
     // Source properties
@@ -136,20 +136,20 @@ private:
     double fps_ = 0.0;
     bool use_hardware_;
 
-    // Pipeline infrastructure
+    // Multithread infrastructure
     Preprocessor preprocessor_;
-    bool use_pipeline_;
+    bool multithread_enabled_;
 
-    // Channel infrastructure (pipeline mode only)
+    // Channel infrastructure (multithread mode only)
     std::unique_ptr<SingleSlotChannel<cv::Mat>> raw_ch_;
     std::unique_ptr<SingleSlotChannel<TensorData>> tensor_ch_;
     std::thread prefetch_worker_;
 
-    // Pipeline state
-    bool pipeline_eof_ = false;
-    bool pipeline_started_ = false;
+    // Multithread state
+    bool mt_eof_ = false;
+    bool mt_started_ = false;
 
-    // Pipeline-mode buffered results (frame N+1 decoded while processing frame N)
+    // Multithread-mode buffered results (frame N+1 decoded while processing frame N)
     cv::Mat next_frame_;
     HardwareFrame next_hw_frame_;
 

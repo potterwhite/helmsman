@@ -37,7 +37,7 @@ class RockchipFrontend : public FrontendBase {
 public:
     // Constructs the hardware decode pipeline: FFmpeg demux -> MPP decode -> RGA color convert.
     // Throws std::runtime_error on failure.
-    explicit RockchipFrontend(const std::string& input_path, bool use_pipeline = false);
+    explicit RockchipFrontend(const std::string& input_path, bool multithread_enabled = false);
 
 protected:
     std::optional<ReadResult> _ReadFrame() override;

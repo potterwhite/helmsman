@@ -31,9 +31,9 @@
 
 std::unique_ptr<FrontendBase> FrontendBase::Create(const std::string& input_path,
                                                     bool use_hardware,
-                                                    bool use_pipeline) {
+                                                    bool multithread_enabled) {
     if (use_hardware) {
-        return std::make_unique<RockchipFrontend>(input_path, use_pipeline);
+        return std::make_unique<RockchipFrontend>(input_path, multithread_enabled);
     }
-    return std::make_unique<NoHwFrontend>(input_path, use_pipeline);
+    return std::make_unique<NoHwFrontend>(input_path, multithread_enabled);
 }

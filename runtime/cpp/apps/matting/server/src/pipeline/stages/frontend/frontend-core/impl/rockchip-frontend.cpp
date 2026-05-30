@@ -33,8 +33,8 @@
 #include <cassert>
 #include <stdexcept>
 
-RockchipFrontend::RockchipFrontend(const std::string& input_path, bool use_pipeline)
-    : FrontendBase(true, use_pipeline) {
+RockchipFrontend::RockchipFrontend(const std::string& input_path, bool multithread_enabled)
+    : FrontendBase(true, multithread_enabled) {
     _OpenSource(input_path);
 }
 

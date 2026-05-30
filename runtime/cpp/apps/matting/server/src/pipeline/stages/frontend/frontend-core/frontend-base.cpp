@@ -21,7 +21,7 @@
 // =============================================================================
 // frontend-base.cpp — FrontendBase implementation (Template Method pattern)
 //
-// Owns the pipeline infrastructure. Subclasses implement _ReadFrame() and
+// Owns the multithread infrastructure. Subclasses implement _ReadFrame() and
 // _OpenSource() to supply decoded frames via the platform-specific decode path.
 //
 // =============================================================================
@@ -31,9 +31,9 @@
 // ---------------------------------------------------------------------------
 // Protected constructor
 // ---------------------------------------------------------------------------
-FrontendBase::FrontendBase(bool use_hardware, bool use_pipeline)
-    : use_hardware_(use_hardware), use_pipeline_(use_pipeline) {
-    if (use_pipeline_) {
+FrontendBase::FrontendBase(bool use_hardware, bool multithread_enabled)
+    : use_hardware_(use_hardware), multithread_enabled_(multithread_enabled) {
+    if (multithread_enabled_) {
         raw_ch_ = std::make_unique<SingleSlotChannel<cv::Mat>>();
         tensor_ch_ = std::make_unique<SingleSlotChannel<TensorData>>();
     }
@@ -72,7 +72,7 @@ const helmsman::utils::timing::StageAccumulator& FrontendBase::resize_acc() cons
 }
 
 // ---------------------------------------------------------------------------
-// _WorkerLoop — worker thread entry point (pipeline mode only)
+// _WorkerLoop — worker thread entry point (multithread mode only)
 // ---------------------------------------------------------------------------
 void FrontendBase::_WorkerLoop(int model_w, int model_h) {
     while (true) {
@@ -94,7 +94,7 @@ void FrontendBase::_WorkerLoop(int model_w, int model_h) {
 // ProcessOneFrame — Template Method: fixed algorithm, variable _ReadFrame()
 // ---------------------------------------------------------------------------
 std::optional<FrameResult> FrontendBase::ProcessOneFrame(int model_w, int model_h) {
-    if (!use_pipeline_) {
+    if (!multithread_enabled_) {
         // Sync mode: read and preprocess on calling thread
         auto read_result = _ReadFrame();
         if (!read_result)
@@ -113,12 +113,12 @@ std::optional<FrameResult> FrontendBase::ProcessOneFrame(int model_w, int model_
     }
 
     // Pipeline mode
-    if (pipeline_eof_)
+    if (mt_eof_)
         return std::nullopt;
 
-    if (!pipeline_started_) {
+    if (!mt_started_) {
         // Phase 1: bootstrap — read frame 1, preprocess, read frame 2
-        pipeline_started_ = true;
+        mt_started_ = true;
 
         auto read1 = _ReadFrame();
         if (!read1)
@@ -136,7 +136,7 @@ std::optional<FrameResult> FrontendBase::ProcessOneFrame(int model_w, int model_
         // Pop tensor 1 (blocks until worker finishes)
         auto tensor_1 = tensor_ch_->pop();
         if (!tensor_1) {
-            pipeline_eof_ = true;
+            mt_eof_ = true;
             return std::nullopt;
         }
 
@@ -160,7 +160,7 @@ std::optional<FrameResult> FrontendBase::ProcessOneFrame(int model_w, int model_
     // Phase 2: subsequent calls — pop tensor for buffered frame, read next
     auto tensor = tensor_ch_->pop();
     if (!tensor) {
-        pipeline_eof_ = true;
+        mt_eof_ = true;
         return std::nullopt;
     }
 
