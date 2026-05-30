@@ -20,7 +20,7 @@ Pipeline (Singleton, composition root)
 
 ```
 Pipeline::Init(config)
-  1. FrontendBase::Create(input_path, use_hardware, use_pipeline)
+  1. FrontendBase::Create(input_path, use_hardware, multithread_enabled)
   2. MakeEngine() → createInferenceEngine()
   3. engine->Load(model_path)
   4. backend_.SetOutputPath / SetBackgroundPath
@@ -40,13 +40,18 @@ Pipeline::Run()
 
 ### 为什么 Frontend 是虚基类？
 - 唯一差异点：帧读取方式（硬件解码 vs OpenCV 软解）
-- 共享部分：预处理、流水线模式、计时、channel 基础设施
-- `ReadFrame()` 是唯一的纯虚方法
+- 共享部分：预处理、多线程模式、计时、channel 基础设施
+- 4 个阶段虚方法（`_ReadInputSource01`、`_DecodeFrame02`、`_ConvertToBgr03`）提供细粒度覆盖点
+- `_ReadRawPacket` 是内部 helper，被 `_ReadInputSource01` 默认实现调用
 
 ### 为什么 Backend 由 Pipeline 拥有？
 - Backend 配置（输出路径、背景路径）在 Init 时设置一次
 - Modes 通过指针访问，不拥有 Backend
 - 与 Frontend/Engine 的生命周期管理一致
+
+### CLI 参数
+- `--multithread` 启用多线程模式（默认关闭，单线程同步模式）
+- `--hwdecoder` 启用硬件解码路径
 
 ## MattingServer（独立路径）
 

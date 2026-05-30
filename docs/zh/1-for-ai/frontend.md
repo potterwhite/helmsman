@@ -27,19 +27,34 @@ frontend/
 ```
 FrontendBase (abstract)                    ← frontend-core/frontend-base.h
 ├── RockchipFrontend                       ← frontend-core/impl/rockchip-frontend.h
-│   ├── FfmpegInputSource (demux)
-│   ├── MppFrameDecoder (VPU decode)
-│   └── RgaNv12ToBgr (RGA color convert)
+│   ├── _ReadRawPacket (FfmpegInputSource)
+│   ├── _DecodeFrame02 (MppFrameDecoder)
+│   └── _ConvertToBgr03 (RgaNv12ToBgr)
 └── NoHwFrontend                           ← frontend-core/impl/no-hw-frontend.h
-    └── cv::VideoCapture (software decode)
+    └── _ReadInputSource01 (cv::VideoCapture, overrides 01-03 atomically)
 ```
 
 ## 工厂方法
 
-`FrontendBase::Create(input_path, use_hardware, use_pipeline)` 是静态工厂方法。
+`FrontendBase::Create(input_path, use_hardware, multithread_enabled)` 是静态工厂方法。
 两个 .cpp 文件实现它（位于 `frontend-core/factory/`），CMake 根据 `CMAKE_PLATFORM` 选择编译哪个：
 - `frontend-core/factory/frontend-create-rockchip.cpp` — 可创建 RockchipFrontend 和 NoHwFrontend
 - `frontend-core/factory/frontend-create-nohw.cpp` — 只能创建 NoHwFrontend
+
+## 4 阶段虚方法
+
+FrontendBase 在 protected 区暴露 4 个阶段方法，对应解码流水线的 4 个阶段：
+
+| 方法 | 阶段 | 说明 |
+|---|---|---|
+| `_ReadInputSource01()` | Stage 01-03 | 读取输入源（含 decoder retry loop） |
+| `_DecodeFrame02()` | Stage 02 | 解码单个压缩包 |
+| `_ConvertToBgr03()` | Stage 03 | 硬件帧转 BGR |
+| `_PreprocessForInference04()` | Stage 04 | BGR → TensorData（非虚，基类完成） |
+
+- `_ReadInputSource01` 的默认实现串联 `_ReadRawPacket` → `_DecodeFrame02` → `_ConvertToBgr03`，内含 retry loop
+- `RockchipFrontend` 实现 stage 02 和 03，使用默认 `_ReadInputSource01`
+- `NoHwFrontend` 直接覆盖 `_ReadInputSource01`（cv::VideoCapture 一步完成 01-03）
 
 ## 子阶段
 
@@ -62,22 +77,25 @@ FrontendBase (abstract)                    ← frontend-core/frontend-base.h
 ## 数据流
 
 ```
-Hardware path:
-  FfmpegInputSource::ReadRaw() → RawPacket
-  MppFrameDecoder::decode() → HardwareFrame (NV12 DMA buffer)
-  RgaNv12ToBgr::convert() → cv::Mat BGR
-  Preprocessor::preprocess() → TensorData
+Hardware path (4-stage pipeline):
+  _ReadInputSource01()
+    ├── _ReadRawPacket()    → RawPacket          (FfmpegInputSource::ReadRaw)
+    ├── _DecodeFrame02()    → HardwareFrame       (MppFrameDecoder::decode, with retry)
+    └── _ConvertToBgr03()   → cv::Mat BGR         (RgaNv12ToBgr::convert)
+  _PreprocessForInference04() → TensorData        (Preprocessor::preprocess)
 
 OpenCV path:
-  cv::VideoCapture::read() → cv::Mat BGR
-  Preprocessor::preprocess() → TensorData
+  _ReadInputSource01()       → cv::Mat BGR        (cv::VideoCapture::read, all-in-one)
+  _PreprocessForInference04() → TensorData
 ```
 
-## Pipeline 模式
+## Multithread 模式
 
-当 `use_pipeline=true` 时，FrontendBase 使用双缓冲流水线：
-- 主线程：`ProcessOneFrame()` → pop tensor → 推理 → 合成
-- 工作线程：`PrefetchWorkerLoop()` → pop raw frame → preprocess → push tensor
+当 `multithread_enabled=true` 时，FrontendBase 使用双缓冲多线程模式：
+- 主线程：`_ProcessMultithread()` → stages 01-03 → pop tensor → 返回结果
+- 工作线程：`_MultithreadWorkerLoop()` → stage 04（preprocess）
 - Channel：`SingleSlotChannel<cv::Mat>` 和 `SingleSlotChannel<TensorData>`
 
-当 `use_pipeline=false` 时，同步模式：read + preprocess 在调用线程上执行。
+当 `multithread_enabled=false` 时（默认），同步模式：`_ProcessSync()` → 4 个 stages 在调用线程上顺序执行。
+
+两种模式中，4 个 stages 都明确可见。
