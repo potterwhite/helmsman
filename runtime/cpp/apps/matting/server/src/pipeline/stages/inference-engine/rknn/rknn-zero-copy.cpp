@@ -141,7 +141,7 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// ----------------------------------------------------------------
 	// Phase I - RKNN Context Initialization (file path mode)
 	// ----------------------------------------------------------------
-	// perf_enabled_ is set via --perf-enabled CLI flag (SetPerfEnabled()).
+	// perf_enabled_ is set via --profile CLI flag (SetPerfEnabled()).
 	// When enabled, pass RKNN_FLAG_COLLECT_PERF_MASK to rknn_init() so that
 	// per-layer NPU profiling data is available via RKNN_QUERY_PERF_DETAIL.
 	// Some SDK versions reject this flag in file-path mode — retry without it.

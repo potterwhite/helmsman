@@ -40,6 +40,7 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include "cli-help.h"
 #include "common/common-define.h"
 #include "pipeline/pipeline.h"
 #include "system-info.h"
@@ -129,11 +130,11 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 			cfg.use_hardware_decoder = true;
 		} else if (std::strcmp(argv[i], "--no-prefetch") == 0) {
 			cfg.use_prefetch_thread = false;
-		} else if (std::strcmp(argv[i], "--perf-enabled") == 0) {
+		} else if (std::strcmp(argv[i], "--profile") == 0) {
 			cfg.rknn_perf_enabled = true;
-		} else if (std::strcmp(argv[i], "--dump-enabled") == 0) {
+		} else if (std::strcmp(argv[i], "--dump") == 0) {
 			cfg.dump_enabled = true;
-		} else if (std::strcmp(argv[i], "--diag-enabled") == 0) {
+		} else if (std::strcmp(argv[i], "--inspect") == 0) {
 			cfg.diag_enabled = true;
 		} else if (std::strncmp(argv[i], "--core-mask=", 12) == 0) {
 			std::string val = argv[i] + 12;
@@ -168,26 +169,16 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 		return std::nullopt;
 	}
 
+	// Handle --help / -h
+	for (int i = 1; i < argc; ++i) {
+		if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0) {
+			PrintHelp(argv[0]);
+			return std::nullopt;
+		}
+	}
+
 	if (positional_args.size() < 3 || positional_args.size() > 4) {
-		std::cerr << "Usage:\n"
-		          << "  " << argv[0] << " --info\n"
-		          << "  " << argv[0]
-		          << " <image_path> <model_path> <output_dir> [background_path] [--rvm] "
-		             "[--output=mp4|drm] [--timing=off] [--hwdecoder] [--no-prefetch]\n"
-		          << "\n"
-		          << "Flags:\n"
-		          << "  --info         Print all build/version info and exit\n"
-		          << "  --rvm          Use RVM (Robust Video Matting) with recurrent states\n"
-		          << "  --modnet       Use MODNet single-frame matting (default)\n"
-		          << "  --output=mp4   Write composited video to mp4 file (default)\n"
-		          << "  --output=drm   Display on DRM/KMS panel (embedded only)\n"
-		          << "  --timing=off   Disable pipeline timing statistics (default: on)\n"
-		          << "  --timing=on    Enable pipeline timing statistics (default)\n"
-		          << "  --hwdecoder    Use hardware decode path (requires FFmpeg + MPPKit)\n"
-		          << "  --no-prefetch  Disable prefetch worker thread (all work on main thread)\n"
-		          << "  --perf-enabled Enable RKNN per-layer NPU profiling (COLLECT_PERF_MASK)\n"
-		          << "  --dump-enabled Enable binary dump for debugging (default: off)\n"
-		          << "  --diag-enabled Enable diagnostic logging for internal state inspection (default: off)\n";
+		PrintHelp(argv[0]);
 		return std::nullopt;
 	}
 
@@ -212,9 +203,9 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 	logger.Info("Core mask:  " + core_mask_str, kcurrent_module_name);
 	logger.Info("Perf profiling: " + std::string(cfg.rknn_perf_enabled ? "enabled" : "disabled"),
 	            kcurrent_module_name);
-	logger.Info("Binary dump:    " + std::string(cfg.dump_enabled ? "enabled (--dump-enabled)" : "disabled"),
+	logger.Info("Binary dump:    " + std::string(cfg.dump_enabled ? "enabled (--dump)" : "disabled"),
 	            kcurrent_module_name);
-	logger.Info("Diagnostic:     " + std::string(cfg.diag_enabled ? "enabled (--diag-enabled)" : "disabled"),
+	logger.Info("Diagnostic:     " + std::string(cfg.diag_enabled ? "enabled (--inspect)" : "disabled"),
 	            kcurrent_module_name);
 	logger.Info("Decode path: " + decode_str, kcurrent_module_name);
 	logger.Info("Prefetch:   " + prefetch_str, kcurrent_module_name);
