@@ -32,9 +32,13 @@
 
 #include "pipeline/stages/frontend/01-input-source/base-input-source.h"
 
+#include <cstdint>
+#include <vector>
+
 // Forward declarations for FFmpeg types (avoids exposing FFmpeg headers)
 struct AVFormatContext;
 struct AVPacket;
+struct AVBSFContext;
 
 class FfmpegInputSource : public BaseInputSource {
 public:
@@ -61,9 +65,18 @@ public:
 private:
     AVFormatContext* fmt_ctx_ = nullptr;
     AVPacket* av_packet_ = nullptr;
+    AVBSFContext* bsf_ctx_ = nullptr;  // h264/hevc_mp4toannexb bitstream filter
     int video_stream_idx_ = -1;
     int width_ = 0;
     int height_ = 0;
     double fps_ = 0.0;
     int codec_id_ = 0;  // AVCodecID value
+
+    // BSF output packet — av_bsf_receive_packet writes here.
+    AVPacket* bsf_packet_ = nullptr;
+
+    // Buffered BSF output packets (one ReadRaw call may produce multiple
+    // Annex B packets from a single AVCC input packet).
+    std::vector<std::vector<uint8_t>> bsf_buffers_;
+    size_t bsf_buf_idx_ = 0;
 };

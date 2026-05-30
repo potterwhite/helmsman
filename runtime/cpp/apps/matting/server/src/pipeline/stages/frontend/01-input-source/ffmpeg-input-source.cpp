@@ -19,12 +19,17 @@
 // SOFTWARE.
 
 // =============================================================================
-// ffmpeg-input-source.cpp — FFmpeg demuxer (internal)
+// ffmpeg-input-source.cpp — FFmpeg demuxer with Annex B bitstream filter
+//
+// MP4 containers store H.264/H.265 in AVCC/HVCC format (length-prefixed NAL
+// units). Hardware decoders (MPP) expect Annex B format (start-code-prefixed).
+// This module uses FFmpeg's h264/hevc_mp4toannexb bitstream filter to convert
+// the stream on the fly.
 //
 // Flow:
-//   open() → avformat_open_input + avformat_find_stream_info
-//   ReadRaw() → av_read_frame → extract video packet → RawPacket
-//   close() → avformat_close_input
+//   open()  → avformat_open_input + find stream + init BSF
+//   ReadRaw() → av_read_frame → av_bsf_send_packet → av_bsf_receive_packet
+//   close() → av_bsf_free + avformat_close_input
 //
 // =============================================================================
 
@@ -46,14 +51,21 @@ FfmpegInputSource::~FfmpegInputSource() {
 FfmpegInputSource::FfmpegInputSource(FfmpegInputSource&& other) noexcept
     : fmt_ctx_(other.fmt_ctx_),
       av_packet_(other.av_packet_),
+      bsf_ctx_(other.bsf_ctx_),
       video_stream_idx_(other.video_stream_idx_),
       width_(other.width_),
       height_(other.height_),
       fps_(other.fps_),
-      codec_id_(other.codec_id_) {
+      codec_id_(other.codec_id_),
+      bsf_packet_(other.bsf_packet_),
+      bsf_buffers_(std::move(other.bsf_buffers_)),
+      bsf_buf_idx_(other.bsf_buf_idx_) {
     other.fmt_ctx_ = nullptr;
     other.av_packet_ = nullptr;
+    other.bsf_ctx_ = nullptr;
+    other.bsf_packet_ = nullptr;
     other.video_stream_idx_ = -1;
+    other.bsf_buf_idx_ = 0;
 }
 
 FfmpegInputSource& FfmpegInputSource::operator=(FfmpegInputSource&& other) noexcept {
@@ -61,14 +73,21 @@ FfmpegInputSource& FfmpegInputSource::operator=(FfmpegInputSource&& other) noexc
         close();
         fmt_ctx_ = other.fmt_ctx_;
         av_packet_ = other.av_packet_;
+        bsf_ctx_ = other.bsf_ctx_;
         video_stream_idx_ = other.video_stream_idx_;
         width_ = other.width_;
         height_ = other.height_;
         fps_ = other.fps_;
         codec_id_ = other.codec_id_;
+        bsf_packet_ = other.bsf_packet_;
+        bsf_buffers_ = std::move(other.bsf_buffers_);
+        bsf_buf_idx_ = other.bsf_buf_idx_;
         other.fmt_ctx_ = nullptr;
         other.av_packet_ = nullptr;
+        other.bsf_ctx_ = nullptr;
+        other.bsf_packet_ = nullptr;
         other.video_stream_idx_ = -1;
+        other.bsf_buf_idx_ = 0;
     }
     return *this;
 }
@@ -114,6 +133,63 @@ bool FfmpegInputSource::open(const std::string& uri) {
     height_ = stream->codecpar->height;
     codec_id_ = static_cast<int>(stream->codecpar->codec_id);
 
+    // --- Initialize bitstream filter (AVCC/HVCC → Annex B) ---
+    const char* bsf_name = nullptr;
+    if (stream->codecpar->codec_id == AV_CODEC_ID_H264) {
+        bsf_name = "h264_mp4toannexb";
+    } else if (stream->codecpar->codec_id == AV_CODEC_ID_HEVC) {
+        bsf_name = "hevc_mp4toannexb";
+    } else {
+        fprintf(stderr, "[FFmpegInputSource] unsupported codec %d\n",
+                stream->codecpar->codec_id);
+        close();
+        return false;
+    }
+
+    const AVBitStreamFilter* bsf_filter = av_bsf_get_by_name(bsf_name);
+    if (!bsf_filter) {
+        fprintf(stderr, "[FFmpegInputSource] BSF '%s' not found\n", bsf_name);
+        close();
+        return false;
+    }
+
+    ret = av_bsf_alloc(bsf_filter, &bsf_ctx_);
+    if (ret < 0) {
+        fprintf(stderr, "[FFmpegInputSource] av_bsf_alloc failed\n");
+        close();
+        return false;
+    }
+
+    ret = avcodec_parameters_copy(bsf_ctx_->par_in, stream->codecpar);
+    if (ret < 0) {
+        fprintf(stderr, "[FFmpegInputSource] avcodec_parameters_copy failed\n");
+        close();
+        return false;
+    }
+    bsf_ctx_->time_base_in = stream->time_base;
+
+    ret = av_bsf_init(bsf_ctx_);
+    if (ret < 0) {
+        fprintf(stderr, "[FFmpegInputSource] av_bsf_init failed\n");
+        close();
+        return false;
+    }
+
+    bsf_packet_ = av_packet_alloc();
+    if (!bsf_packet_) {
+        fprintf(stderr, "[FFmpegInputSource] av_packet_alloc (bsf) failed\n");
+        close();
+        return false;
+    }
+
+    // --- Allocate read packet ---
+    av_packet_ = av_packet_alloc();
+    if (!av_packet_) {
+        fprintf(stderr, "[FFmpegInputSource] av_packet_alloc failed\n");
+        close();
+        return false;
+    }
+
     if (stream->avg_frame_rate.den > 0 && stream->avg_frame_rate.num > 0) {
         fps_ = static_cast<double>(stream->avg_frame_rate.num) /
                static_cast<double>(stream->avg_frame_rate.den);
@@ -124,28 +200,33 @@ bool FfmpegInputSource::open(const std::string& uri) {
         fps_ = 30.0;
     }
 
-    av_packet_ = av_packet_alloc();
-    if (!av_packet_) {
-        fprintf(stderr, "[FFmpegInputSource] av_packet_alloc failed\n");
-        close();
-        return false;
-    }
-
+    fprintf(stderr, "[FFmpegInputSource] opened: %dx%d @ %.2f fps, BSF=%s\n",
+            width_, height_, fps_, bsf_name);
     return true;
 }
 
 bool FfmpegInputSource::ReadRaw(RawPacket& pkt) {
-    if (!fmt_ctx_ || !av_packet_) {
+    if (!fmt_ctx_ || !av_packet_ || !bsf_ctx_) {
         pkt = {};
         pkt.is_eof = true;
         return false;
     }
 
-    pkt = {};
+    // Return buffered BSF output if available.
+    if (bsf_buf_idx_ < bsf_buffers_.size()) {
+        pkt.data = bsf_buffers_[bsf_buf_idx_].data();
+        pkt.size = bsf_buffers_[bsf_buf_idx_].size();
+        pkt.pts = 0;
+        pkt.is_eof = false;
+        ++bsf_buf_idx_;
+        return true;
+    }
 
+    // Read next compressed packet from the container and convert via BSF.
     while (true) {
         int ret = av_read_frame(fmt_ctx_, av_packet_);
         if (ret < 0) {
+            pkt = {};
             pkt.is_eof = true;
             return false;
         }
@@ -155,10 +236,42 @@ bool FfmpegInputSource::ReadRaw(RawPacket& pkt) {
             continue;
         }
 
-        pkt.data = av_packet_->data;
-        pkt.size = static_cast<size_t>(av_packet_->size);
+        // Feed the AVCC packet into the BSF.
+        ret = av_bsf_send_packet(bsf_ctx_, av_packet_);
+        if (ret < 0) {
+            char err_buf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, err_buf, sizeof(err_buf));
+            fprintf(stderr, "[FFmpegInputSource] av_bsf_send_packet failed: %s\n", err_buf);
+            av_packet_unref(av_packet_);
+            pkt = {};
+            pkt.is_eof = true;
+            return false;
+        }
+
+        // Collect all Annex B output packets from this single input.
+        bsf_buffers_.clear();
+        bsf_buf_idx_ = 0;
+        while ((ret = av_bsf_receive_packet(bsf_ctx_, bsf_packet_)) == 0) {
+            bsf_buffers_.emplace_back(bsf_packet_->data,
+                                      bsf_packet_->data + bsf_packet_->size);
+            av_packet_unref(bsf_packet_);
+        }
+        // AVERROR(EAGAIN) is expected — means we need more input.
+        // AVERROR_EOF is expected at end of stream.
+
+        if (bsf_buffers_.empty()) {
+            // BSF produced no output (shouldn't happen for valid packets).
+            av_packet_unref(av_packet_);
+            continue;
+        }
+
+        // Return the first buffered packet.
+        pkt.data = bsf_buffers_[0].data();
+        pkt.size = bsf_buffers_[0].size();
         pkt.pts = av_packet_->pts;
         pkt.is_eof = false;
+        bsf_buf_idx_ = 1;
+        av_packet_unref(av_packet_);
         return true;
     }
 }
@@ -169,6 +282,16 @@ double FfmpegInputSource::fps() const { return fps_; }
 int FfmpegInputSource::CodecId() const { return codec_id_; }
 
 void FfmpegInputSource::close() {
+    bsf_buffers_.clear();
+    bsf_buf_idx_ = 0;
+    if (bsf_packet_) {
+        av_packet_free(&bsf_packet_);
+        bsf_packet_ = nullptr;
+    }
+    if (bsf_ctx_) {
+        av_bsf_free(&bsf_ctx_);
+        bsf_ctx_ = nullptr;
+    }
     if (av_packet_) {
         av_packet_free(&av_packet_);
         av_packet_ = nullptr;
@@ -181,4 +304,5 @@ void FfmpegInputSource::close() {
     width_ = 0;
     height_ = 0;
     fps_ = 0.0;
+    codec_id_ = 0;
 }

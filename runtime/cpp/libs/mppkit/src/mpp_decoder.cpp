@@ -125,70 +125,96 @@ bool MppDecoder::DecodeNextFrame(const uint8_t* packet_data, size_t packet_size,
     }
 
     out = {};
-
     MPP_RET ret;
-    MppPacket packet = nullptr;
-    MppFrame frame = nullptr;
 
-    // Step 1: Create MppPacket from the raw bitstream data.
-    // mpp_packet_init wraps the user buffer without copying.
-    // The data must remain valid until decode_put_packet() returns.
-    ret = mpp_packet_init(&packet, const_cast<uint8_t*>(packet_data), packet_size);
-    if (ret != MPP_OK) {
-        fprintf(stderr, "[MPPKit] MppDecoder::DecodeNextFrame: mpp_packet_init failed, ret=%d\n", ret);
-        return false;
-    }
+    // Standard MPP decode: submit packet, drain frames on buffer full.
+    // When decode_put_packet returns -1012 (MPP_ERR_BUFFER_FULL), drain
+    // a decoded frame to free internal buffer space, then retry.
+    // If the drain produces a valid frame, return it immediately.
+    constexpr int kMaxRetries = 16;
+    bool packet_accepted = false;
+    for (int attempt = 0; attempt < kMaxRetries; ++attempt) {
+        MppPacket packet = nullptr;
+        ret = mpp_packet_init(&packet, const_cast<uint8_t*>(packet_data), packet_size);
+        if (ret != MPP_OK) {
+            fprintf(stderr, "[MPPKit] DecodeNextFrame: mpp_packet_init failed, ret=%d\n", ret);
+            return false;
+        }
 
-    // Step 2: Submit the compressed packet to the VPU decoder.
-    ret = decoder_impl_->mpi->decode_put_packet(decoder_impl_->ctx, packet);
-    if (ret != MPP_OK) {
-        fprintf(stderr, "[MPPKit] MppDecoder::DecodeNextFrame: decode_put_packet failed, ret=%d\n", ret);
+        ret = decoder_impl_->mpi->decode_put_packet(decoder_impl_->ctx, packet);
         mpp_packet_deinit(&packet);
+
+        if (ret == MPP_OK) {
+            packet_accepted = true;
+            break;
+        }
+
+        // Buffer full — drain a frame. If it's a real frame, return it.
+        MppFrame frame = nullptr;
+        ret = decoder_impl_->mpi->decode_get_frame(decoder_impl_->ctx, &frame);
+        if (ret == MPP_OK && frame) {
+            if (mpp_frame_get_info_change(frame)) {
+                decoder_impl_->width = mpp_frame_get_width(frame);
+                decoder_impl_->height = mpp_frame_get_height(frame);
+                decoder_impl_->hor_stride = mpp_frame_get_hor_stride(frame);
+                decoder_impl_->ver_stride = mpp_frame_get_ver_stride(frame);
+                decoder_impl_->mpi->control(decoder_impl_->ctx,
+                                            MPP_DEC_SET_INFO_CHANGE_READY, nullptr);
+                mpp_frame_deinit(&frame);
+            } else {
+                // Got a real decoded frame — return it.
+                MppBuffer buf = mpp_frame_get_buffer(frame);
+                if (buf) {
+                    out.fd = mpp_buffer_get_fd(buf);
+                    out.width = static_cast<int>(mpp_frame_get_width(frame));
+                    out.height = static_cast<int>(mpp_frame_get_height(frame));
+                    out.format = static_cast<int>(mpp_frame_get_fmt(frame));
+                }
+                mpp_frame_deinit(&frame);
+                if (out.fd >= 0) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    if (!packet_accepted) {
         return false;
     }
 
-    // Step 3: Try to get a decoded frame.
-    // The decoder may need multiple packets before producing the first frame
-    // (e.g. it needs SPS/PPS before it can output). In that case, we return
-    // false to signal "need more data".
-    ret = decoder_impl_->mpi->decode_get_frame(decoder_impl_->ctx, &frame);
-    mpp_packet_deinit(&packet);
+    // Retrieve the decoded frame. Loop to handle info_change events
+    // (MPP returns the real frame immediately after acknowledgement).
+    constexpr int kMaxGetRetries = 16;
+    for (int i = 0; i < kMaxGetRetries; ++i) {
+        MppFrame frame = nullptr;
+        ret = decoder_impl_->mpi->decode_get_frame(decoder_impl_->ctx, &frame);
+        if (ret != MPP_OK || !frame) {
+            return false;  // Need more data
+        }
 
-    if (ret != MPP_OK || !frame) {
-        // No frame available yet — need more data
-        return false;
-    }
+        if (mpp_frame_get_info_change(frame)) {
+            decoder_impl_->width = mpp_frame_get_width(frame);
+            decoder_impl_->height = mpp_frame_get_height(frame);
+            decoder_impl_->hor_stride = mpp_frame_get_hor_stride(frame);
+            decoder_impl_->ver_stride = mpp_frame_get_ver_stride(frame);
+            decoder_impl_->mpi->control(decoder_impl_->ctx,
+                                        MPP_DEC_SET_INFO_CHANGE_READY, nullptr);
+            mpp_frame_deinit(&frame);
+            continue;
+        }
 
-    // Step 4: Check if the frame is valid (not an info_change event).
-    // MPP may return frames with info_change set when the stream parameters
-    // change. We skip those for now (fixed-resolution assumption).
-    if (mpp_frame_get_info_change(frame)) {
-        // Handle resolution change: reconfigure buffer group
-        decoder_impl_->width = mpp_frame_get_width(frame);
-        decoder_impl_->height = mpp_frame_get_height(frame);
-        decoder_impl_->hor_stride = mpp_frame_get_hor_stride(frame);
-        decoder_impl_->ver_stride = mpp_frame_get_ver_stride(frame);
-
-        // Acknowledge the info change
-        decoder_impl_->mpi->control(decoder_impl_->ctx, MPP_DEC_SET_INFO_CHANGE_READY, nullptr);
+        MppBuffer buf = mpp_frame_get_buffer(frame);
+        if (buf) {
+            out.fd = mpp_buffer_get_fd(buf);
+            out.width = static_cast<int>(mpp_frame_get_width(frame));
+            out.height = static_cast<int>(mpp_frame_get_height(frame));
+            out.format = static_cast<int>(mpp_frame_get_fmt(frame));
+        }
         mpp_frame_deinit(&frame);
-        return false;  // No actual frame data yet
+        return out.fd >= 0;
     }
 
-    // Step 5: Extract the decoded frame's DMA buffer.
-    // The VPU writes the decoded NV12 data into a DMA buffer managed by MPP.
-    // We get the fd from MppBuffer for zero-copy downstream.
-    MppBuffer buffer = mpp_frame_get_buffer(frame);
-    if (buffer) {
-        out.fd = mpp_buffer_get_fd(buffer);
-        out.width = static_cast<int>(mpp_frame_get_width(frame));
-        out.height = static_cast<int>(mpp_frame_get_height(frame));
-        out.format = static_cast<int>(mpp_frame_get_fmt(frame));
-    }
-
-    mpp_frame_deinit(&frame);
-
-    return out.fd >= 0;
+    return false;
 }
 
 void MppDecoder::Close() {
