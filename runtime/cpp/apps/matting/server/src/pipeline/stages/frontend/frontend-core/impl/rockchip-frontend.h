@@ -40,8 +40,16 @@ public:
     explicit RockchipFrontend(const std::string& input_path, bool multithread_enabled = false);
 
 protected:
-    std::optional<ReadResult> _ReadFrame() override;
     void _OpenSource(const std::string& input_path) override;
+
+    // Stage 02: MPP hardware decode
+    bool _DecodeFrame02(const RawPacket& pkt, HardwareFrame& hw_frame) override;
+
+    // Stage 03: RGA NV12 → BGR color convert
+    bool _ConvertToBgr03(const HardwareFrame& hw_frame, cv::Mat& frame) override;
+
+    // Stage 01: FFmpeg read raw packet
+    bool _ReadRawPacket(RawPacket& pkt) override;
 
 private:
     // Hardware decode components

@@ -38,7 +38,8 @@ public:
     explicit NoHwFrontend(const std::string& video_path, bool multithread_enabled = false);
 
 protected:
-    std::optional<ReadResult> _ReadFrame() override;
+    // Stage 01: cv::VideoCapture handles demux+decode+color in one call.
+    bool _ReadInputSource01(ReadResult& result) override;
     void _OpenSource(const std::string& input_path) override;
 
 private:

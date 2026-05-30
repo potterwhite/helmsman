@@ -22,7 +22,7 @@
 // frontend-base.h — Frontend base class (Template Method pattern)
 //
 // Owns the multithread infrastructure: preprocessing, prefetch worker thread,
-// and double-buffer orchestration. Subclasses implement _ReadFrame() to
+// and double-buffer orchestration. Subclasses override stage methods to
 // supply decoded frames via the platform-specific decode path.
 //
 // Use FrontendBase::Create() to instantiate the correct subclass at runtime.
@@ -39,11 +39,12 @@
 #include "Utils/timing/timer.h"
 #include "common/types.h"
 #include "pipeline/infra/single-slot-channel.h"
+#include "pipeline/stages/frontend/stages/01-input-source/base-input-source.h"  // RawPacket
 #include "pipeline/stages/frontend/stages/02-decoder/base-frame-decoder.h"  // HardwareFrame
 #include "pipeline/stages/frontend/stages/04-preprocess/preprocessor.h"
 
 /**
- * Result from _ReadFrame() — one decoded frame.
+ * Result from _ReadInputSource01() — one decoded frame.
  */
 struct ReadResult {
     cv::Mat frame;
@@ -65,7 +66,7 @@ struct FrameResult {
  *
  * Owns the multithread infrastructure: preprocessing, prefetch worker thread,
  * and double-buffer orchestration. The algorithm skeleton in ProcessOneFrame()
- * is fixed; subclasses implement _ReadFrame() to supply decoded frames.
+ * is fixed; subclasses override stage methods to supply decoded frames.
  */
 class FrontendBase {
 public:
@@ -78,8 +79,7 @@ public:
     FrontendBase& operator=(FrontendBase&&) = delete;
 
     // Unified frame processing interface (Template Method).
-    // In sync mode: reads and preprocesses one frame on the calling thread.
-    // In multithread mode: returns the next preprocessed frame from the prefetch worker.
+    // Dispatches to _ProcessSync or _ProcessMultithread based on multithread_enabled_.
     // Returns std::nullopt on EOF.
     std::optional<FrameResult> ProcessOneFrame(int model_w, int model_h);
 
@@ -116,19 +116,41 @@ protected:
     // Set source dimensions and fps. Called by subclasses after opening the source.
     void SetSourceProperties(int width, int height, double fps);
 
-    // --- Subclass contract (Template Method hooks) ---
+    // --- Stage 01-03: Frame decode pipeline (virtual, subclass-overridable) ---
 
-    // Read the next decoded frame. Return std::nullopt on EOF.
-    // Called from the main thread (in both sync and multithread modes).
-    virtual std::optional<ReadResult> _ReadFrame() = 0;
+    // Stage 01: Read input source. Default implementation chains _ReadRawPacket +
+    // _DecodeFrame02 + _ConvertToBgr with a retry loop for hardware decoders.
+    // NoHwFrontend overrides this directly since cv::VideoCapture handles 01-03 atomically.
+    // Returns false on EOF.
+    virtual bool _ReadInputSource01(ReadResult& result);
+
+    // Stage 02: Decode one compressed packet into a hardware frame.
+    // Returns true if a decoded frame is available, false if decoder needs more data.
+    virtual bool _DecodeFrame02(const RawPacket& pkt, HardwareFrame& hw_frame);
+
+    // Stage 03: Convert hardware frame to BGR cv::Mat.
+    // Returns true on success, false on failure.
+    virtual bool _ConvertToBgr03(const HardwareFrame& hw_frame, cv::Mat& frame);
 
     // Open the source and set source properties (width, height, fps).
     // Called from the constructor. Throws std::runtime_error on failure.
     virtual void _OpenSource(const std::string& input_path) = 0;
 
 private:
-    // Worker thread entry point (multithread mode only).
-    void _WorkerLoop(int model_w, int model_h);
+    // Stage 04: Preprocess BGR frame into TensorData for inference. Non-virtual.
+    TensorData _PreprocessForInference04(const cv::Mat& frame, int model_w, int model_h);
+
+    // Read one raw packet from the input source. Used by _ReadInputSource01 default impl.
+    virtual bool _ReadRawPacket(RawPacket& pkt);
+
+    // Sync mode: 4 stages on calling thread.
+    std::optional<FrameResult> _ProcessSync(int model_w, int model_h);
+
+    // Multithread mode: stages 01-03 on main thread, stage 04 on worker thread.
+    std::optional<FrameResult> _ProcessMultithread(int model_w, int model_h);
+
+    // Worker thread entry point (multithread mode only). Runs stage 04.
+    void _MultithreadWorkerLoop(int model_w, int model_h);
 
     // Source properties
     int width_ = 0;
@@ -152,6 +174,7 @@ private:
     // Multithread-mode buffered results (frame N+1 decoded while processing frame N)
     cv::Mat next_frame_;
     HardwareFrame next_hw_frame_;
+    HardwareFrame stored_hw_frame_;  // hw_frame for current frame (stages 01-03 done, stage 04 pending)
 
     // Timing
     helmsman::utils::timing::StageAccumulator acc_lv03_02_worker_preprocess_{

@@ -72,32 +72,29 @@ void RockchipFrontend::_OpenSource(const std::string& input_path) {
     color_converter_ = std::make_unique<RgaNv12ToBgr>();
 }
 
-std::optional<ReadResult> RockchipFrontend::_ReadFrame() {
-    if (!source_ || !decoder_ || !color_converter_) {
-        return std::nullopt;
-    }
+// ---------------------------------------------------------------------------
+// Stage 01: Read raw packet from FFmpeg input source
+// ---------------------------------------------------------------------------
+bool RockchipFrontend::_ReadRawPacket(RawPacket& pkt) {
+    if (!source_)
+        return false;
+    return source_->ReadRaw(pkt);
+}
 
-    // Feed packets until the decoder produces a frame or we hit EOF.
-    // Hardware decoders may need multiple packets before the first
-    // frame appears (e.g. SPS/PPS in H.264), so a single failed
-    // decode does not mean end-of-stream.
-    RawPacket pkt;
-    ReadResult result;
-    while (true) {
-        if (!source_->ReadRaw(pkt) || pkt.is_eof) {
-            return std::nullopt;
-        }
+// ---------------------------------------------------------------------------
+// Stage 02: Decode one compressed packet via MPP hardware decoder
+// ---------------------------------------------------------------------------
+bool RockchipFrontend::_DecodeFrame02(const RawPacket& pkt, HardwareFrame& hw_frame) {
+    if (!decoder_)
+        return false;
+    return decoder_->decode(pkt.data, pkt.size, hw_frame);
+}
 
-        if (decoder_->decode(pkt.data, pkt.size, result.hw_frame)) {
-            break;  // Got a decoded frame
-        }
-        // decode returned false — decoder needs more data, keep feeding
-    }
-
-    // Convert hardware frame to BGR via color converter
-    if (!color_converter_->convert(result.hw_frame, result.frame)) {
-        return std::nullopt;
-    }
-
-    return result;
+// ---------------------------------------------------------------------------
+// Stage 03: Convert NV12 hardware frame to BGR via RGA
+// ---------------------------------------------------------------------------
+bool RockchipFrontend::_ConvertToBgr03(const HardwareFrame& hw_frame, cv::Mat& frame) {
+    if (!color_converter_)
+        return false;
+    return color_converter_->convert(hw_frame, frame);
 }

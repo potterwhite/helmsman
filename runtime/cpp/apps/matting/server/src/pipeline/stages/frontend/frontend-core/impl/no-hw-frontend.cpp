@@ -44,13 +44,16 @@ void NoHwFrontend::_OpenSource(const std::string& input_path) {
     SetSourceProperties(w, h, fps);
 }
 
-std::optional<ReadResult> NoHwFrontend::_ReadFrame() {
+// ---------------------------------------------------------------------------
+// Stage 01: cv::VideoCapture handles demux + decode + color convert atomically.
+// Stages 02 and 03 are not needed — they use base class no-op defaults.
+// ---------------------------------------------------------------------------
+bool NoHwFrontend::_ReadInputSource01(ReadResult& result) {
     if (!cv_cap_.isOpened())
-        return std::nullopt;
+        return false;
 
-    ReadResult result;
     if (!cv_cap_.read(result.frame))
-        return std::nullopt;
+        return false;
 
-    return result;
+    return true;
 }
