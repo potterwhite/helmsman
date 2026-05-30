@@ -131,6 +131,12 @@ bool MppDecoder::DecodeNextFrame(const uint8_t* packet_data, size_t packet_size,
     // When decode_put_packet returns -1012 (MPP_ERR_BUFFER_FULL), drain
     // a decoded frame to free internal buffer space, then retry.
     // If the drain produces a valid frame, return it immediately.
+    //
+    // DIAGNOSTIC: track packet drops due to buffer-full drain.
+    static int s_buffer_full_drop_count = 0;
+    static int s_buffer_full_drain_count = 0;
+    static int s_packet_accepted_count = 0;
+
     constexpr int kMaxRetries = 16;
     bool packet_accepted = false;
     for (int attempt = 0; attempt < kMaxRetries; ++attempt) {
@@ -146,6 +152,7 @@ bool MppDecoder::DecodeNextFrame(const uint8_t* packet_data, size_t packet_size,
 
         if (ret == MPP_OK) {
             packet_accepted = true;
+            s_packet_accepted_count++;
             break;
         }
 
@@ -163,6 +170,14 @@ bool MppDecoder::DecodeNextFrame(const uint8_t* packet_data, size_t packet_size,
                 mpp_frame_deinit(&frame);
             } else {
                 // Got a real decoded frame — return it.
+                // DIAGNOSTIC: this means the current packet was rejected and is lost.
+                s_buffer_full_drop_count++;
+                s_buffer_full_drain_count++;
+                fprintf(stderr,
+                        "[MPPKit] DIAGNOSTIC: packet dropped due to BUFFER_FULL "
+                        "(total drops: %d, total drains: %d)\n",
+                        s_buffer_full_drop_count, s_buffer_full_drain_count);
+
                 MppBuffer buf = mpp_frame_get_buffer(frame);
                 if (buf) {
                     out.fd = mpp_buffer_get_fd(buf);
