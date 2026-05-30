@@ -75,8 +75,11 @@ private:
     // BSF output packet — av_bsf_receive_packet writes here.
     AVPacket* bsf_packet_ = nullptr;
 
-    // Buffered BSF output packets (one ReadRaw call may produce multiple
-    // Annex B packets from a single AVCC input packet).
-    std::vector<std::vector<uint8_t>> bsf_buffers_;
-    size_t bsf_buf_idx_ = 0;
+    // Merged BSF output buffer. When the BSF splits one AVCC input into
+    // multiple Annex B NAL units (SPS + PPS + IDR), we merge them into a
+    // single contiguous buffer so MPP receives all parameter sets together
+    // with the frame data.
+    std::vector<uint8_t> merged_buf_;
+
+    bool bsf_eof_ = false;  // true after BSF flush (end of stream)
 };

@@ -58,14 +58,13 @@ FfmpegInputSource::FfmpegInputSource(FfmpegInputSource&& other) noexcept
       fps_(other.fps_),
       codec_id_(other.codec_id_),
       bsf_packet_(other.bsf_packet_),
-      bsf_buffers_(std::move(other.bsf_buffers_)),
-      bsf_buf_idx_(other.bsf_buf_idx_) {
+      merged_buf_(std::move(other.merged_buf_)) {
     other.fmt_ctx_ = nullptr;
     other.av_packet_ = nullptr;
     other.bsf_ctx_ = nullptr;
     other.bsf_packet_ = nullptr;
     other.video_stream_idx_ = -1;
-    other.bsf_buf_idx_ = 0;
+    other.bsf_eof_ = false;
 }
 
 FfmpegInputSource& FfmpegInputSource::operator=(FfmpegInputSource&& other) noexcept {
@@ -80,14 +79,13 @@ FfmpegInputSource& FfmpegInputSource::operator=(FfmpegInputSource&& other) noexc
         fps_ = other.fps_;
         codec_id_ = other.codec_id_;
         bsf_packet_ = other.bsf_packet_;
-        bsf_buffers_ = std::move(other.bsf_buffers_);
-        bsf_buf_idx_ = other.bsf_buf_idx_;
+        merged_buf_ = std::move(other.merged_buf_);
         other.fmt_ctx_ = nullptr;
         other.av_packet_ = nullptr;
         other.bsf_ctx_ = nullptr;
         other.bsf_packet_ = nullptr;
         other.video_stream_idx_ = -1;
-        other.bsf_buf_idx_ = 0;
+        other.bsf_eof_ = false;
     }
     return *this;
 }
@@ -212,20 +210,35 @@ bool FfmpegInputSource::ReadRaw(RawPacket& pkt) {
         return false;
     }
 
-    // Return buffered BSF output if available.
-    if (bsf_buf_idx_ < bsf_buffers_.size()) {
-        pkt.data = bsf_buffers_[bsf_buf_idx_].data();
-        pkt.size = bsf_buffers_[bsf_buf_idx_].size();
-        pkt.pts = 0;
-        pkt.is_eof = false;
-        ++bsf_buf_idx_;
-        return true;
+    // Already flushed — no more data.
+    if (bsf_eof_) {
+        pkt = {};
+        pkt.is_eof = true;
+        return false;
     }
 
     // Read next compressed packet from the container and convert via BSF.
+    // All BSF output NAL units from one input packet are merged into a single
+    // contiguous buffer, so MPP receives complete [SPS+PPS+frame] data.
     while (true) {
         int ret = av_read_frame(fmt_ctx_, av_packet_);
         if (ret < 0) {
+            // EOF — flush the BSF to drain any remaining buffered packets.
+            av_bsf_send_packet(bsf_ctx_, nullptr);
+            merged_buf_.clear();
+            while (av_bsf_receive_packet(bsf_ctx_, bsf_packet_) == 0) {
+                merged_buf_.insert(merged_buf_.end(), bsf_packet_->data,
+                                   bsf_packet_->data + bsf_packet_->size);
+                av_packet_unref(bsf_packet_);
+            }
+            bsf_eof_ = true;
+            if (!merged_buf_.empty()) {
+                pkt.data = merged_buf_.data();
+                pkt.size = merged_buf_.size();
+                pkt.pts = 0;
+                pkt.is_eof = false;
+                return true;
+            }
             pkt = {};
             pkt.is_eof = true;
             return false;
@@ -248,29 +261,23 @@ bool FfmpegInputSource::ReadRaw(RawPacket& pkt) {
             return false;
         }
 
-        // Collect all Annex B output packets from this single input.
-        bsf_buffers_.clear();
-        bsf_buf_idx_ = 0;
+        // Merge all Annex B output NAL units into one contiguous buffer.
+        merged_buf_.clear();
         while ((ret = av_bsf_receive_packet(bsf_ctx_, bsf_packet_)) == 0) {
-            bsf_buffers_.emplace_back(bsf_packet_->data,
-                                      bsf_packet_->data + bsf_packet_->size);
+            merged_buf_.insert(merged_buf_.end(), bsf_packet_->data,
+                               bsf_packet_->data + bsf_packet_->size);
             av_packet_unref(bsf_packet_);
         }
-        // AVERROR(EAGAIN) is expected — means we need more input.
-        // AVERROR_EOF is expected at end of stream.
 
-        if (bsf_buffers_.empty()) {
-            // BSF produced no output (shouldn't happen for valid packets).
+        if (merged_buf_.empty()) {
             av_packet_unref(av_packet_);
             continue;
         }
 
-        // Return the first buffered packet.
-        pkt.data = bsf_buffers_[0].data();
-        pkt.size = bsf_buffers_[0].size();
+        pkt.data = merged_buf_.data();
+        pkt.size = merged_buf_.size();
         pkt.pts = av_packet_->pts;
         pkt.is_eof = false;
-        bsf_buf_idx_ = 1;
         av_packet_unref(av_packet_);
         return true;
     }
@@ -282,8 +289,8 @@ double FfmpegInputSource::fps() const { return fps_; }
 int FfmpegInputSource::CodecId() const { return codec_id_; }
 
 void FfmpegInputSource::close() {
-    bsf_buffers_.clear();
-    bsf_buf_idx_ = 0;
+    merged_buf_.clear();
+    bsf_eof_ = false;
     if (bsf_packet_) {
         av_packet_free(&bsf_packet_);
         bsf_packet_ = nullptr;
