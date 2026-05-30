@@ -65,7 +65,7 @@ RgaRotate::RgaRotate(RgaRotation rotation)
 // For 180° rotation, dst dimensions must be (src.width × src.height).
 // ---------------------------------------------------------------------------
 bool RgaRotate::Execute(const ImageDescriptor& src, ImageDescriptor& dst) {
-    if (!src.data || !dst.data) {
+    if ((!src.data && src.fd < 0) || (!dst.data && dst.fd < 0)) {
         fprintf(stderr, "[RGAKit] RgaRotate::Execute: null data pointer\n");
         return false;
     }

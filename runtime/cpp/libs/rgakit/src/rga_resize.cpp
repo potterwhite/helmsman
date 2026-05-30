@@ -83,7 +83,7 @@ static rga_buffer_t ToRgaBuffer(const ImageDescriptor& desc) {
 // we would need to manage fence file descriptors.
 // ---------------------------------------------------------------------------
 bool RgaResize::Execute(const ImageDescriptor& src, ImageDescriptor& dst) {
-    if (!src.data || !dst.data) {
+    if ((!src.data && src.fd < 0) || (!dst.data && dst.fd < 0)) {
         fprintf(stderr, "[RGAKit] RgaResize::Execute: null data pointer\n");
         return false;
     }

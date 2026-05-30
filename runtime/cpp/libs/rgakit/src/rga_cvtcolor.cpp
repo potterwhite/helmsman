@@ -80,7 +80,7 @@ RgaCvtColor::RgaCvtColor(RgaPixelFormat src_format,
 // matrix (BT.601 vs BT.709, limited vs full range).
 // ---------------------------------------------------------------------------
 bool RgaCvtColor::Execute(const ImageDescriptor& src, ImageDescriptor& dst) {
-    if (!src.data || !dst.data) {
+    if ((!src.data && src.fd < 0) || (!dst.data && dst.fd < 0)) {
         fprintf(stderr, "[RGAKit] RgaCvtColor::Execute: null data pointer\n");
         return false;
     }

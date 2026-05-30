@@ -64,7 +64,7 @@ RgaFlip::RgaFlip(RgaFlipMode flip_mode)
 // src and dst must have the same dimensions and format.
 // ---------------------------------------------------------------------------
 bool RgaFlip::Execute(const ImageDescriptor& src, ImageDescriptor& dst) {
-    if (!src.data || !dst.data) {
+    if ((!src.data && src.fd < 0) || (!dst.data && dst.fd < 0)) {
         fprintf(stderr, "[RGAKit] RgaFlip::Execute: null data pointer\n");
         return false;
     }

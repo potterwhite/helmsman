@@ -144,7 +144,8 @@ RgaComposite::RgaComposite(RgaBlendMode mode)
 bool RgaComposite::Execute(const ImageDescriptor& fg,
                            const ImageDescriptor& bg,
                            ImageDescriptor& dst) {
-    if (!fg.data || !bg.data || !dst.data) {
+    if ((!fg.data && fg.fd < 0) || (!bg.data && bg.fd < 0) ||
+        (!dst.data && dst.fd < 0)) {
         fprintf(stderr,
                 "[RGAKit] RgaComposite::Execute: null data pointer\n");
         return false;
