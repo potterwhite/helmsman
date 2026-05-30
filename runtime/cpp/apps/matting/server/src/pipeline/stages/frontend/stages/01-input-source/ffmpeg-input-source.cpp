@@ -33,7 +33,7 @@
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/01-input-source/ffmpeg-input-source.h"
+#include "pipeline/stages/frontend/stages/01-input-source/ffmpeg-input-source.h"
 
 #include <cstdio>
 

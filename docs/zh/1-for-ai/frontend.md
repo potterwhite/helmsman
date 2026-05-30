@@ -1,39 +1,61 @@
 # Frontend 模块详解
 
+## 目录结构
+
+```
+frontend/
+├── CMakeLists.txt
+├── frontend-core/                       ← 类型体系
+│   ├── frontend-base.{h,cpp}            ← 基类（export）
+│   ├── impl/                            ← 实现子类（internal）
+│   │   ├── no-hw-frontend.{h,cpp}
+│   │   └── rockchip-frontend.{h,cpp}
+│   └── factory/                         ← CMake 选择的工厂
+│       ├── frontend-create-nohw.cpp
+│       └── frontend-create-rockchip.cpp
+├── stages/                              ← 处理流程
+│   ├── 01-input-source/
+│   ├── 02-decoder/
+│   ├── 03-color-convert/
+│   └── 04-preprocess/
+```
+
+**Export 规则**：只有 `frontend-base.h` 和 `preprocessor.h` 在 `include/`（被外部引用），其余 headers 在 `src/`（仅内部使用）。
+
 ## 类层次
 
 ```
-FrontendBase (abstract)                    ← 00-base/frontend.h
-├── RockchipFrontend                       ← 00-base/rockchip-frontend.h
+FrontendBase (abstract)                    ← frontend-core/frontend-base.h
+├── RockchipFrontend                       ← frontend-core/impl/rockchip-frontend.h
 │   ├── FfmpegInputSource (demux)
 │   ├── MppFrameDecoder (VPU decode)
 │   └── RgaNv12ToBgr (RGA color convert)
-└── NoHwFrontend                           ← 00-base/no-hw-frontend.h
+└── NoHwFrontend                           ← frontend-core/impl/no-hw-frontend.h
     └── cv::VideoCapture (software decode)
 ```
 
 ## 工厂方法
 
 `FrontendBase::Create(input_path, use_hardware, use_pipeline)` 是静态工厂方法。
-两个 .cpp 文件实现它（位于 `00-base/factory/`），CMake 根据 `CMAKE_PLATFORM` 选择编译哪个：
-- `00-base/factory/frontend-create-rockchip.cpp` — 可创建 RockchipFrontend 和 NoHwFrontend
-- `00-base/factory/frontend-create-nohw.cpp` — 只能创建 NoHwFrontend
+两个 .cpp 文件实现它（位于 `frontend-core/factory/`），CMake 根据 `CMAKE_PLATFORM` 选择编译哪个：
+- `frontend-core/factory/frontend-create-rockchip.cpp` — 可创建 RockchipFrontend 和 NoHwFrontend
+- `frontend-core/factory/frontend-create-nohw.cpp` — 只能创建 NoHwFrontend
 
 ## 子阶段
 
-### 01-input-source
+### stages/01-input-source
 - `BaseInputSource` (abstract) — 读取原始压缩数据
 - `FfmpegInputSource` — FFmpeg demuxer 实现
 
-### 02-decoder
+### stages/02-decoder
 - `BaseFrameDecoder` (abstract) — 解码压缩包为帧
 - `MppFrameDecoder` — MPP 硬件解码器（Rockchip VPU）
 
-### 03-color-convert
+### stages/03-color-convert
 - `BaseColorConverter` (abstract) — 硬件帧转 BGR
 - `RgaNv12ToBgr` — RGA 硬件颜色转换（NV12 → BGR）
 
-### 04-preprocess
+### stages/04-preprocess
 - `BasePreprocessor` (abstract) — BGR → TensorData
 - `Preprocessor` — 实现：BGR→RGB → ensure3Channel → resize/pad → float32 HWC
 

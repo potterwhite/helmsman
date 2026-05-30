@@ -30,7 +30,7 @@
 
 #pragma once
 
-#include "pipeline/stages/frontend/01-input-source/base-input-source.h"
+#include "pipeline/stages/frontend/stages/01-input-source/base-input-source.h"
 
 #include <cstdint>
 #include <vector>

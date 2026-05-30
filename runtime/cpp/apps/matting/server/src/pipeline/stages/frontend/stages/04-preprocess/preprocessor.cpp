@@ -23,7 +23,7 @@
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/04-preprocess/preprocessor.h"
+#include "pipeline/stages/frontend/stages/04-preprocess/preprocessor.h"
 
 #include <cassert>
 #include <cstdio>

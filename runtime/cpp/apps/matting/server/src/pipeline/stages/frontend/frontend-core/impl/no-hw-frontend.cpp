@@ -19,21 +19,38 @@
 // SOFTWARE.
 
 // =============================================================================
-// frontend-create-rockchip.cpp — FrontendBase::Create() for Rockchip platform
-//
-// Compiled only when CMAKE_PLATFORM includes "rockchip".
+// no-hw-frontend.cpp — OpenCV software-decode Frontend subclass (fallback)
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/00-base/frontend-base.h"
-#include "pipeline/stages/frontend/00-base/no-hw-frontend.h"
-#include "pipeline/stages/frontend/00-base/rockchip-frontend.h"
+#include "pipeline/stages/frontend/frontend-core/impl/no-hw-frontend.h"
 
-std::unique_ptr<FrontendBase> FrontendBase::Create(const std::string& input_path,
-                                                    bool use_hardware,
-                                                    bool use_pipeline) {
-    if (use_hardware) {
-        return std::make_unique<RockchipFrontend>(input_path, use_pipeline);
+#include <stdexcept>
+
+NoHwFrontend::NoHwFrontend(const std::string& video_path, bool use_pipeline)
+    : FrontendBase(false, use_pipeline) {
+    _OpenSource(video_path);
+}
+
+void NoHwFrontend::_OpenSource(const std::string& input_path) {
+    if (!cv_cap_.open(input_path)) {
+        throw std::runtime_error("Failed to open video: " + input_path);
     }
-    return std::make_unique<NoHwFrontend>(input_path, use_pipeline);
+
+    int w = static_cast<int>(cv_cap_.get(cv::CAP_PROP_FRAME_WIDTH));
+    int h = static_cast<int>(cv_cap_.get(cv::CAP_PROP_FRAME_HEIGHT));
+    double fps = cv_cap_.get(cv::CAP_PROP_FPS);
+
+    SetSourceProperties(w, h, fps);
+}
+
+std::optional<ReadResult> NoHwFrontend::_ReadFrame() {
+    if (!cv_cap_.isOpened())
+        return std::nullopt;
+
+    ReadResult result;
+    if (!cv_cap_.read(result.frame))
+        return std::nullopt;
+
+    return result;
 }

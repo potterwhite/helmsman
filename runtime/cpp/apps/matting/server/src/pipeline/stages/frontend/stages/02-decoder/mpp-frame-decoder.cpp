@@ -23,7 +23,7 @@
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/02-decoder/mpp-frame-decoder.h"
+#include "pipeline/stages/frontend/stages/02-decoder/mpp-frame-decoder.h"
 
 #include <cstdio>
 #include "MPPKit/mpp_decoder.h"

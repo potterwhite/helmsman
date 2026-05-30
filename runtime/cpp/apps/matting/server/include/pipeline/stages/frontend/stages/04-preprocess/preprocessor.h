@@ -31,7 +31,7 @@
 #include <string>
 #include "CVKit/base/base.h"
 #include "Utils/timing/timer.h"
-#include "pipeline/stages/frontend/04-preprocess/base-preprocessor.h"
+#include "pipeline/stages/frontend/stages/04-preprocess/base-preprocessor.h"
 
 class Preprocessor : public BasePreprocessor {
 public:

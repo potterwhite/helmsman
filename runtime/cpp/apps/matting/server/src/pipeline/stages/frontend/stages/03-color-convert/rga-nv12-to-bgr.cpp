@@ -23,7 +23,7 @@
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/03-color-convert/rga-nv12-to-bgr.h"
+#include "pipeline/stages/frontend/stages/03-color-convert/rga-nv12-to-bgr.h"
 
 #include <cstdio>
 

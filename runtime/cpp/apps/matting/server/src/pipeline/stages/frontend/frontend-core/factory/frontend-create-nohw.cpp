@@ -19,33 +19,22 @@
 // SOFTWARE.
 
 // =============================================================================
-// rockchip-frontend.h — Rockchip hardware-decode Frontend subclass
+// frontend-create-nohw.cpp — FrontendBase::Create() for non-hardware platforms
 //
-// Uses FFmpegInputSource + MppFrameDecoder + RgaNv12ToBgr for hardware decode.
+// Compiled when CMAKE_PLATFORM does NOT include "rockchip".
 //
 // =============================================================================
 
-#pragma once
+#include "pipeline/stages/frontend/frontend-core/frontend-base.h"
+#include "pipeline/stages/frontend/frontend-core/impl/no-hw-frontend.h"
 
-#include <memory>
-#include "pipeline/stages/frontend/00-base/frontend-base.h"
-#include "pipeline/stages/frontend/01-input-source/base-input-source.h"
-#include "pipeline/stages/frontend/02-decoder/base-frame-decoder.h"
-#include "pipeline/stages/frontend/03-color-convert/base-color-converter.h"
+#include <stdexcept>
 
-class RockchipFrontend : public FrontendBase {
-public:
-    // Constructs the hardware decode pipeline: FFmpeg demux -> MPP decode -> RGA color convert.
-    // Throws std::runtime_error on failure.
-    explicit RockchipFrontend(const std::string& input_path, bool use_pipeline = false);
-
-protected:
-    std::optional<ReadResult> _ReadFrame() override;
-    void _OpenSource(const std::string& input_path) override;
-
-private:
-    // Hardware decode components
-    std::unique_ptr<BaseInputSource> source_;
-    std::unique_ptr<BaseFrameDecoder> decoder_;
-    std::unique_ptr<BaseColorConverter> color_converter_;
-};
+std::unique_ptr<FrontendBase> FrontendBase::Create(const std::string& input_path,
+                                                    bool use_hardware,
+                                                    bool use_pipeline) {
+    if (use_hardware) {
+        throw std::runtime_error("Hardware decoder not supported on this build");
+    }
+    return std::make_unique<NoHwFrontend>(input_path, use_pipeline);
+}

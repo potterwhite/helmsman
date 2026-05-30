@@ -19,43 +19,33 @@
 // SOFTWARE.
 
 // =============================================================================
-// mpp-frame-decoder.h — Rockchip VPU hardware frame decoder (internal)
+// rockchip-frontend.h — Rockchip hardware-decode Frontend subclass
 //
-// Wraps MppDecoder from mppkit to implement BaseFrameDecoder.
-// Decodes H.264/H.265 compressed packets into NV12 dmabuf frames.
+// Uses FFmpegInputSource + MppFrameDecoder + RgaNv12ToBgr for hardware decode.
 //
 // =============================================================================
 
 #pragma once
 
 #include <memory>
-#include "pipeline/stages/frontend/02-decoder/base-frame-decoder.h"
-#include "MPPKit/mpp_codec.h"
+#include "pipeline/stages/frontend/frontend-core/frontend-base.h"
+#include "pipeline/stages/frontend/stages/01-input-source/base-input-source.h"
+#include "pipeline/stages/frontend/stages/02-decoder/base-frame-decoder.h"
+#include "pipeline/stages/frontend/stages/03-color-convert/base-color-converter.h"
 
-namespace helmsman {
-namespace mppkit {
-class MppDecoder;
-}  // namespace mppkit
-}  // namespace helmsman
-
-class MppFrameDecoder : public BaseFrameDecoder {
+class RockchipFrontend : public FrontendBase {
 public:
-    explicit MppFrameDecoder(helmsman::mppkit::DecoderConfig config);
-    ~MppFrameDecoder() override;
+    // Constructs the hardware decode pipeline: FFmpeg demux -> MPP decode -> RGA color convert.
+    // Throws std::runtime_error on failure.
+    explicit RockchipFrontend(const std::string& input_path, bool use_pipeline = false);
 
-    // Non-copyable, movable.
-    MppFrameDecoder(const MppFrameDecoder&) = delete;
-    MppFrameDecoder& operator=(const MppFrameDecoder&) = delete;
-    MppFrameDecoder(MppFrameDecoder&&) noexcept;
-    MppFrameDecoder& operator=(MppFrameDecoder&&) noexcept;
-
-    // Initialize the hardware decoder. Must be called before decode().
-    bool init();
-
-    // Decode a compressed packet into a hardware frame (NV12 dmabuf fd).
-    bool decode(const uint8_t* data, size_t size, HardwareFrame& out) override;
+protected:
+    std::optional<ReadResult> _ReadFrame() override;
+    void _OpenSource(const std::string& input_path) override;
 
 private:
-    helmsman::mppkit::DecoderConfig config_;
-    std::unique_ptr<helmsman::mppkit::MppDecoder> decoder_;
+    // Hardware decode components
+    std::unique_ptr<BaseInputSource> source_;
+    std::unique_ptr<BaseFrameDecoder> decoder_;
+    std::unique_ptr<BaseColorConverter> color_converter_;
 };

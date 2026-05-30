@@ -19,22 +19,43 @@
 // SOFTWARE.
 
 // =============================================================================
-// frontend-create-nohw.cpp — FrontendBase::Create() for non-hardware platforms
+// mpp-frame-decoder.h — Rockchip VPU hardware frame decoder (internal)
 //
-// Compiled when CMAKE_PLATFORM does NOT include "rockchip".
+// Wraps MppDecoder from mppkit to implement BaseFrameDecoder.
+// Decodes H.264/H.265 compressed packets into NV12 dmabuf frames.
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/00-base/frontend-base.h"
-#include "pipeline/stages/frontend/00-base/no-hw-frontend.h"
+#pragma once
 
-#include <stdexcept>
+#include <memory>
+#include "pipeline/stages/frontend/stages/02-decoder/base-frame-decoder.h"
+#include "MPPKit/mpp_codec.h"
 
-std::unique_ptr<FrontendBase> FrontendBase::Create(const std::string& input_path,
-                                                    bool use_hardware,
-                                                    bool use_pipeline) {
-    if (use_hardware) {
-        throw std::runtime_error("Hardware decoder not supported on this build");
-    }
-    return std::make_unique<NoHwFrontend>(input_path, use_pipeline);
-}
+namespace helmsman {
+namespace mppkit {
+class MppDecoder;
+}  // namespace mppkit
+}  // namespace helmsman
+
+class MppFrameDecoder : public BaseFrameDecoder {
+public:
+    explicit MppFrameDecoder(helmsman::mppkit::DecoderConfig config);
+    ~MppFrameDecoder() override;
+
+    // Non-copyable, movable.
+    MppFrameDecoder(const MppFrameDecoder&) = delete;
+    MppFrameDecoder& operator=(const MppFrameDecoder&) = delete;
+    MppFrameDecoder(MppFrameDecoder&&) noexcept;
+    MppFrameDecoder& operator=(MppFrameDecoder&&) noexcept;
+
+    // Initialize the hardware decoder. Must be called before decode().
+    bool init();
+
+    // Decode a compressed packet into a hardware frame (NV12 dmabuf fd).
+    bool decode(const uint8_t* data, size_t size, HardwareFrame& out) override;
+
+private:
+    helmsman::mppkit::DecoderConfig config_;
+    std::unique_ptr<helmsman::mppkit::MppDecoder> decoder_;
+};

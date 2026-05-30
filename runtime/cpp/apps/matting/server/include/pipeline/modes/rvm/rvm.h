@@ -30,7 +30,7 @@
 #include "Utils/timing/timer.h"
 #include "common/types.h"
 #include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/frontend/00-base/frontend-base.h"
+#include "pipeline/stages/frontend/frontend-core/frontend-base.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
 
 /**

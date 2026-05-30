@@ -28,7 +28,7 @@
 #include "common/types.h"
 #include "pipeline/stages/backend/backend.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
-#include "pipeline/stages/frontend/00-base/frontend-base.h"  // FrontendBase
+#include "pipeline/stages/frontend/frontend-core/frontend-base.h"  // FrontendBase
 #include "pipeline/modes/modnet/modnet.h"
 #include "pipeline/modes/rvm/rvm.h"
 

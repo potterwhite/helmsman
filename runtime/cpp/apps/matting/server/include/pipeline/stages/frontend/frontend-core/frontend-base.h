@@ -39,8 +39,8 @@
 #include "Utils/timing/timer.h"
 #include "common/types.h"
 #include "pipeline/infra/single-slot-channel.h"
-#include "pipeline/stages/frontend/02-decoder/base-frame-decoder.h"  // HardwareFrame
-#include "pipeline/stages/frontend/04-preprocess/preprocessor.h"
+#include "pipeline/stages/frontend/stages/02-decoder/base-frame-decoder.h"  // HardwareFrame
+#include "pipeline/stages/frontend/stages/04-preprocess/preprocessor.h"
 
 /**
  * Result from _ReadFrame() — one decoded frame.

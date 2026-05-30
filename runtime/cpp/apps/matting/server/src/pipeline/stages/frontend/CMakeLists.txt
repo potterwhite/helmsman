@@ -22,27 +22,38 @@
 # apps/matting/server/src/pipeline/stages/frontend/CMakeLists.txt
 #
 
-# Shared sources (all platforms)
-target_sources(${PROJECT_NAME}
+# Internal stage headers live in src/ (not exported via include/).
+# Add src/ to the include search path so #include "pipeline/stages/..." resolves.
+get_filename_component(_server_src_dir "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
+target_include_directories(${PROJECT_NAME}
     PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/00-base/frontend-base.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/00-base/no-hw-frontend.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/04-preprocess/preprocessor.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/01-input-source/ffmpeg-input-source.cpp"
+        "${_server_src_dir}"
 )
 
-# Platform-specific sources: Rockchip hardware decode path
+# --- Frontend core: base class + shared sources ---
+target_sources(${PROJECT_NAME}
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/frontend-core/frontend-base.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/frontend-core/impl/no-hw-frontend.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/stages/04-preprocess/preprocessor.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/stages/01-input-source/ffmpeg-input-source.cpp"
+)
+
+# --- Platform-specific: Rockchip hardware decode path ---
+# Factory selects RockchipFrontend or NoHwFrontend at compile time.
+# See frontend-core/factory/frontend-create-*.cpp for the two
+# FrontendBase::Create() implementations.
 if("rockchip" IN_LIST CMAKE_PLATFORM)
     target_sources(${PROJECT_NAME}
         PRIVATE
-            "${CMAKE_CURRENT_SOURCE_DIR}/00-base/rockchip-frontend.cpp"
-            "${CMAKE_CURRENT_SOURCE_DIR}/00-base/factory/frontend-create-rockchip.cpp"
-            "${CMAKE_CURRENT_SOURCE_DIR}/02-decoder/mpp-frame-decoder.cpp"
-            "${CMAKE_CURRENT_SOURCE_DIR}/03-color-convert/rga-nv12-to-bgr.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/frontend-core/impl/rockchip-frontend.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/frontend-core/factory/frontend-create-rockchip.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/stages/02-decoder/mpp-frame-decoder.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/stages/03-color-convert/rga-nv12-to-bgr.cpp"
     )
 else()
     target_sources(${PROJECT_NAME}
         PRIVATE
-            "${CMAKE_CURRENT_SOURCE_DIR}/00-base/factory/frontend-create-nohw.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/frontend-core/factory/frontend-create-nohw.cpp"
     )
 endif()

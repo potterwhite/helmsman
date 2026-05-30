@@ -19,28 +19,23 @@
 // SOFTWARE.
 
 // =============================================================================
-// no-hw-frontend.h — OpenCV software-decode Frontend subclass (fallback)
+// base-color-converter.h — Abstract color converter interface (internal to Frontend)
 //
-// Uses cv::VideoCapture for software decode when no hardware decoder is available.
+// Converts a hardware-decoded frame (e.g. NV12 DMA buffer) into a BGR cv::Mat.
 //
 // =============================================================================
 
 #pragma once
 
-#include <opencv2/videoio.hpp>
-#include <string>
-#include "pipeline/stages/frontend/00-base/frontend-base.h"
+#include <opencv2/core.hpp>
+#include "pipeline/stages/frontend/stages/02-decoder/base-frame-decoder.h"
 
-class NoHwFrontend : public FrontendBase {
+// Abstract color converter interface (internal — do not use directly).
+class BaseColorConverter {
 public:
-    // Opens the video with cv::VideoCapture.
-    // Throws std::runtime_error on failure.
-    explicit NoHwFrontend(const std::string& video_path, bool use_pipeline = false);
+    virtual ~BaseColorConverter() = default;
 
-protected:
-    std::optional<ReadResult> _ReadFrame() override;
-    void _OpenSource(const std::string& input_path) override;
-
-private:
-    cv::VideoCapture cv_cap_;
+    // Convert a hardware frame to a BGR cv::Mat.
+    // Returns true on success.
+    virtual bool convert(const HardwareFrame& hw_frame, cv::Mat& cpu_frame) = 0;
 };

@@ -24,7 +24,7 @@
 #include "common/types.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
 #include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/frontend/04-preprocess/preprocessor.h"
+#include "pipeline/stages/frontend/stages/04-preprocess/preprocessor.h"
 
 class MODNetMode {
 public:

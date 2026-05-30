@@ -23,12 +23,12 @@
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/00-base/rockchip-frontend.h"
+#include "pipeline/stages/frontend/frontend-core/impl/rockchip-frontend.h"
 
 #include "MPPKit/mpp_codec.h"
-#include "pipeline/stages/frontend/01-input-source/ffmpeg-input-source.h"
-#include "pipeline/stages/frontend/02-decoder/mpp-frame-decoder.h"
-#include "pipeline/stages/frontend/03-color-convert/rga-nv12-to-bgr.h"
+#include "pipeline/stages/frontend/stages/01-input-source/ffmpeg-input-source.h"
+#include "pipeline/stages/frontend/stages/02-decoder/mpp-frame-decoder.h"
+#include "pipeline/stages/frontend/stages/03-color-convert/rga-nv12-to-bgr.h"
 
 #include <cassert>
 #include <stdexcept>

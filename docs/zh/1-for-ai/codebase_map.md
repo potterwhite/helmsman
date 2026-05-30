@@ -303,14 +303,14 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
         |
         ▼
 ┌─────────────────────────────┐
-│  FrontendBase（抽象基类）    │  → 00-base/frontend.h
+│  FrontendBase（抽象基类）    │  → frontend-core/frontend-base.h
 │                             │  ★ 工厂方法: FrontendBase::Create()
-│  RockchipFrontend           │  → 00-base/rockchip-frontend.h
+│  RockchipFrontend           │  → frontend-core/impl/rockchip-frontend.h
 │  ├─ FfmpegInputSource       │  FFmpeg demux
 │  ├─ MppFrameDecoder         │  MPP 硬件解码
 │  └─ RgaNv12ToBgr            │  RGA 颜色转换 (NV12→BGR)
 │                             │
-│  NoHwFrontend               │  → 00-base/no-hw-frontend.h
+│  NoHwFrontend               │  → frontend-core/impl/no-hw-frontend.h
 │  └─ cv::VideoCapture        │  OpenCV 软件解码（回退）
 │                             │
 │  ReadFrame() → cv::Mat BGR  │  子类实现
@@ -319,7 +319,7 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
          │ cv::Mat (BGR)
          ▼
 ┌─────────────────┐
-│  Preprocessor   │  → pipeline/stages/frontend/04-preprocess/preprocessor.cpp
+│  Preprocessor   │  → pipeline/stages/frontend/stages/04-preprocess/preprocessor.cpp
 │  preprocessCore():│
 │  1. BGR → RGB    │
 │  2. 确保 3 通道  │
@@ -387,13 +387,13 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 
 | 文件 | 用途 |
 |---|---|
-| `include/pipeline/stages/frontend/00-base/frontend.h` | `FrontendBase` 抽象基类：`ProcessOneFrame()`, `preprocess()`, `Stop()`, 工厂方法 `Create()` |
-| `include/pipeline/stages/frontend/00-base/rockchip-frontend.h` | `RockchipFrontend`：FFmpeg + MPP + RGA 硬件解码路径 |
-| `include/pipeline/stages/frontend/00-base/no-hw-frontend.h` | `NoHwFrontend`：cv::VideoCapture 软件解码回退 |
-| `include/pipeline/stages/frontend/01-input-source/base-input-source.h` | `BaseInputSource` 抽象接口：`open()`, `ReadRaw()`, `width()`, `height()` |
-| `include/pipeline/stages/frontend/02-decoder/base-frame-decoder.h` | `BaseFrameDecoder` 抽象 + `HardwareFrame` 结构体 |
-| `include/pipeline/stages/frontend/03-color-convert/base-color-converter.h` | `BaseColorConverter` 抽象 |
-| `include/pipeline/stages/frontend/04-preprocess/preprocessor.h` | `Preprocessor`：BGR→RGB→float32→resize→HWC 张量 |
+| `include/pipeline/stages/frontend/frontend-core/frontend-base.h` | `FrontendBase` 抽象基类：`ProcessOneFrame()`, `preprocess()`, `Stop()`, 工厂方法 `Create()` |
+| `src/.../frontend-core/impl/rockchip-frontend.h` | `RockchipFrontend`：FFmpeg + MPP + RGA 硬件解码路径 |
+| `src/.../frontend-core/impl/no-hw-frontend.h` | `NoHwFrontend`：cv::VideoCapture 软件解码回退 |
+| `src/.../stages/01-input-source/base-input-source.h` | `BaseInputSource` 抽象接口：`open()`, `ReadRaw()`, `width()`, `height()` |
+| `src/.../stages/02-decoder/base-frame-decoder.h` | `BaseFrameDecoder` 抽象 + `HardwareFrame` 结构体 |
+| `src/.../stages/03-color-convert/base-color-converter.h` | `BaseColorConverter` 抽象 |
+| `include/pipeline/stages/frontend/stages/04-preprocess/preprocessor.h` | `Preprocessor`：BGR→RGB→float32→resize→HWC 张量 |
 
 ### 流水线文件
 

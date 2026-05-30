@@ -19,34 +19,21 @@
 // SOFTWARE.
 
 // =============================================================================
-// rga-nv12-to-bgr.h — RGA hardware NV12→BGR color converter (internal)
+// frontend-create-rockchip.cpp — FrontendBase::Create() for Rockchip platform
 //
-// Uses Rockchip RGA to convert NV12 DMA buffer frames to BGR cv::Mat.
+// Compiled only when CMAKE_PLATFORM includes "rockchip".
 //
 // =============================================================================
 
-#pragma once
+#include "pipeline/stages/frontend/frontend-core/frontend-base.h"
+#include "pipeline/stages/frontend/frontend-core/impl/no-hw-frontend.h"
+#include "pipeline/stages/frontend/frontend-core/impl/rockchip-frontend.h"
 
-#include <memory>
-#include <opencv2/core.hpp>
-#include "pipeline/stages/frontend/03-color-convert/base-color-converter.h"
-#include "RGAKit/rga_cvtcolor.h"
-
-class RgaNv12ToBgr : public BaseColorConverter {
-public:
-    RgaNv12ToBgr();
-    ~RgaNv12ToBgr() override;
-
-    // Non-copyable, movable.
-    RgaNv12ToBgr(const RgaNv12ToBgr&) = delete;
-    RgaNv12ToBgr& operator=(const RgaNv12ToBgr&) = delete;
-    RgaNv12ToBgr(RgaNv12ToBgr&&) noexcept;
-    RgaNv12ToBgr& operator=(RgaNv12ToBgr&&) noexcept;
-
-    // Convert NV12 hardware frame to BGR cv::Mat via RGA.
-    bool convert(const HardwareFrame& hw_frame, cv::Mat& cpu_frame) override;
-
-private:
-    std::unique_ptr<helmsman::rgakit::RgaCvtColor> cvt_;
-    cv::Mat bgr_buf_;
-};
+std::unique_ptr<FrontendBase> FrontendBase::Create(const std::string& input_path,
+                                                    bool use_hardware,
+                                                    bool use_pipeline) {
+    if (use_hardware) {
+        return std::make_unique<RockchipFrontend>(input_path, use_pipeline);
+    }
+    return std::make_unique<NoHwFrontend>(input_path, use_pipeline);
+}

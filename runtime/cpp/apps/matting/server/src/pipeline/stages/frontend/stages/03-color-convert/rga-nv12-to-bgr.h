@@ -19,23 +19,34 @@
 // SOFTWARE.
 
 // =============================================================================
-// base-color-converter.h — Abstract color converter interface (internal to Frontend)
+// rga-nv12-to-bgr.h — RGA hardware NV12→BGR color converter (internal)
 //
-// Converts a hardware-decoded frame (e.g. NV12 DMA buffer) into a BGR cv::Mat.
+// Uses Rockchip RGA to convert NV12 DMA buffer frames to BGR cv::Mat.
 //
 // =============================================================================
 
 #pragma once
 
+#include <memory>
 #include <opencv2/core.hpp>
-#include "pipeline/stages/frontend/02-decoder/base-frame-decoder.h"
+#include "pipeline/stages/frontend/stages/03-color-convert/base-color-converter.h"
+#include "RGAKit/rga_cvtcolor.h"
 
-// Abstract color converter interface (internal — do not use directly).
-class BaseColorConverter {
+class RgaNv12ToBgr : public BaseColorConverter {
 public:
-    virtual ~BaseColorConverter() = default;
+    RgaNv12ToBgr();
+    ~RgaNv12ToBgr() override;
 
-    // Convert a hardware frame to a BGR cv::Mat.
-    // Returns true on success.
-    virtual bool convert(const HardwareFrame& hw_frame, cv::Mat& cpu_frame) = 0;
+    // Non-copyable, movable.
+    RgaNv12ToBgr(const RgaNv12ToBgr&) = delete;
+    RgaNv12ToBgr& operator=(const RgaNv12ToBgr&) = delete;
+    RgaNv12ToBgr(RgaNv12ToBgr&&) noexcept;
+    RgaNv12ToBgr& operator=(RgaNv12ToBgr&&) noexcept;
+
+    // Convert NV12 hardware frame to BGR cv::Mat via RGA.
+    bool convert(const HardwareFrame& hw_frame, cv::Mat& cpu_frame) override;
+
+private:
+    std::unique_ptr<helmsman::rgakit::RgaCvtColor> cvt_;
+    cv::Mat bgr_buf_;
 };

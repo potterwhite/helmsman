@@ -47,7 +47,7 @@
 #include "RGAKit/rga_resize.h"
 #include "pipeline/infra/recurrent-state-manager.h"
 #include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/frontend/04-preprocess/preprocessor.h"
+#include "pipeline/stages/frontend/stages/04-preprocess/preprocessor.h"
 #include "pipeline/stages/inference-engine/base/inference-engine.h"
 
 class MattingServer {
