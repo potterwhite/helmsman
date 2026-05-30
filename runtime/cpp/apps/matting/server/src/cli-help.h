@@ -45,7 +45,7 @@ inline void PrintHelp(const char* program_name) {
 	    << "\n"
 	    << "Decode:\n"
 	    << "  --hwdecoder    Hardware decode via FFmpeg + MPPKit\n"
-	    << "  --no-prefetch  Disable prefetch thread (all work on main thread)\n"
+	    << "  --multithread  Enable multithread mode (prefetch worker thread)\n"
 	    << "\n"
 	    << "NPU:\n"
 	    << "  --core-mask=X  NPU core selection: auto|0|1|2|0_1|0_1_2|all (default: all)\n"

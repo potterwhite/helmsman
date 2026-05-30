@@ -128,8 +128,8 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 			cfg.timing_enabled = true;
 		} else if (std::strcmp(argv[i], "--hwdecoder") == 0) {
 			cfg.use_hardware_decoder = true;
-		} else if (std::strcmp(argv[i], "--no-prefetch") == 0) {
-			cfg.use_prefetch_thread = false;
+		} else if (std::strcmp(argv[i], "--multithread") == 0) {
+			cfg.use_multithread = true;
 		} else if (std::strcmp(argv[i], "--profile") == 0) {
 			cfg.npu_config.perf_enabled = true;
 		} else if (std::strcmp(argv[i], "--dump") == 0) {
@@ -198,7 +198,7 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 	std::string decode_str =
 	    cfg.use_hardware_decoder ? "hardware decoder" : "software decoder (OpenCV)";
 	std::string prefetch_str =
-	    cfg.use_prefetch_thread ? "enabled (dual-buffer)" : "disabled (main thread only)";
+	    cfg.use_multithread ? "enabled (dual-buffer)" : "disabled (single-thread, default)";
 	logger.Info("Model type: " + mode_str, kcurrent_module_name);
 	logger.Info("Output mode: " + output_str, kcurrent_module_name);
 	std::string core_policy_str;
@@ -218,7 +218,7 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 	logger.Info("Diagnostic:     " + std::string(cfg.diag_enabled ? "enabled (--inspect)" : "disabled"),
 	            kcurrent_module_name);
 	logger.Info("Decode path: " + decode_str, kcurrent_module_name);
-	logger.Info("Prefetch:   " + prefetch_str, kcurrent_module_name);
+	logger.Info("Multithread: " + prefetch_str, kcurrent_module_name);
 	logger.Info("Input:      " + cfg.input_path + (cfg.is_video ? " (video)" : " (image)"),
 	            kcurrent_module_name);
 	logger.Info("Model:      " + cfg.model_path, kcurrent_module_name);

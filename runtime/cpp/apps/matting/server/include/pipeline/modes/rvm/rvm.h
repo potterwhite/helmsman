@@ -54,7 +54,7 @@ class RVMMode {
    private:
 	/**
      * Load the model and resolve model input dimensions.
-     * Returns the resolved model dimensions needed by the prefetch worker.
+     * Returns the resolved model dimensions needed by the multithread worker.
      */
 	RvmModelState InitModelState(InferenceEngine* engine);
 
@@ -72,7 +72,7 @@ class RVMMode {
 
 	/**
 	 * Unified main loop. Uses Frontend::ProcessOneFrame() which handles
-	 * both sync and pipeline modes internally.
+	 * both sync and multithread modes internally.
 	 */
 	void _RunMainLoop(InferenceEngine* engine, const RvmModelState& setup);
 

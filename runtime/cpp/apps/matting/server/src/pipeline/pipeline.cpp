@@ -66,7 +66,7 @@ void Pipeline::Init(const AppConfig& config) {
 	if (config_.is_video) {
 		try {
 			frontend_ = FrontendBase::Create(config_.input_path, config_.use_hardware_decoder,
-			                                 config_.use_prefetch_thread);
+			                                 config_.use_multithread);
 		} catch (const std::exception& e) {
 			logger.Error(std::string("Failed to create Frontend: ") + e.what(),
 			             kcurrent_module_name);

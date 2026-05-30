@@ -280,7 +280,7 @@ void RVMMode::InitOutputSink(const int src_width, const int src_height, const do
 // =========================================================================
 // _RunMainLoop — unified main loop using Frontend::ProcessOneFrame()
 //
-//   Frontend handles both sync and pipeline modes internally.
+//   Frontend handles both sync and multithread modes internally.
 //   This loop just calls ProcessOneFrame() and processes each result.
 // =========================================================================
 void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) {
@@ -304,9 +304,9 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		// -------------------------------------------------------------
 		// --- 1st: frontend_->ProcessOneFrame ---
 		// - In sync mode: reads one frame, preprocesses it, and returns the tensor and frame.
-		// - In pipeline mode: waits for the next completed frame from the pipeline, and returns the tensor and frame.
+		// - In multithread mode: waits for the next completed frame from the pipeline, and returns the tensor and frame.
 		//
-		// sync or pipeline mode has been configured at pipeline layer previously
+		// sync or multithread mode has been configured at pipeline layer previously
 		auto result = frontend_->ProcessOneFrame(setup.model_input_width, setup.model_input_height);
 		if (!result)
 			break;
@@ -398,7 +398,7 @@ int RVMMode::Run() {
 
 	// =========================================================================
 	// 3rd - Main inference loop
-	//    Frontend::ProcessOneFrame() handles both sync and pipeline modes internally.
+	//    Frontend::ProcessOneFrame() handles both sync and multithread modes internally.
 	// =========================================================================
 	fps_window_start_ = std::chrono::steady_clock::now();
 	const auto pipeline_start = fps_window_start_;

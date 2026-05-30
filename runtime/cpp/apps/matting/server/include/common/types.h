@@ -81,7 +81,7 @@ struct AppConfig {
 	OutputMode output_mode = OutputMode::kMp4;
 	bool timing_enabled = true;
 	bool use_hardware_decoder = false;
-	bool use_prefetch_thread = true;
+	bool use_multithread = false;
 	bool is_video = false;
 	NPUConfig npu_config;
 	bool dump_enabled = false;       // true = enable binary dump for debugging
