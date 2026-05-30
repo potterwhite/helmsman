@@ -366,7 +366,7 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		frame_count_++;
 
 		// end of frame
-		GetLogger().Info(" --- End of RVM Frame " + std::to_string(frame_count_ + 1) + " ---\n",
+		GetLogger().Info(" --- End of RVM Frame " + std::to_string(frame_count_) + " ---\n",
 		                 kRvmModuleName);
 	}
 }
