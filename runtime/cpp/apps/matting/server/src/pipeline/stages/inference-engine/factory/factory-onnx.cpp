@@ -21,7 +21,6 @@
 #include "pipeline/stages/inference-engine/inference-engine-factory.h"
 #include "pipeline/stages/inference-engine/onnx/onnx.h"
 
-std::unique_ptr<InferenceEngine> createInferenceEngine(int core_mask,
-                                                       bool perf_enabled) {
+std::unique_ptr<InferenceEngine> createInferenceEngine(const NPUConfig& npu_config) {
     return std::make_unique<InferenceEngineONNX>();
 }

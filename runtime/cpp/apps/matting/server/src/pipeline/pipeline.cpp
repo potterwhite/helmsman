@@ -28,7 +28,7 @@ void Pipeline::SetTimingEnabled(bool enabled) { config_.timing_enabled = enabled
 bool Pipeline::IsTimingEnabled() const { return config_.timing_enabled; }
 
 std::unique_ptr<InferenceEngine> Pipeline::MakeEngine() {
-	return createInferenceEngine(config_.rknn_core_mask, config_.rknn_perf_enabled);
+	return createInferenceEngine(config_.npu_config);
 }
 
 Pipeline& Pipeline::GetInstance() {

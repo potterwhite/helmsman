@@ -57,6 +57,25 @@ enum class OutputMode {
 // member variables — access them via the config reference instead.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// NPU core selection — SOC-agnostic abstraction
+//
+// Different NPUs have different core counts (e.g. RK3588 has 3, some have 1).
+// The backend (RKNN, ONNX, etc.) maps this enum to the actual hardware API.
+// ---------------------------------------------------------------------------
+
+enum class NPUCorePolicy {
+	kAll,     // Use all available NPU cores (default)
+	kAuto,    // Let the runtime/driver decide
+	kSingle,  // Use a specific core (core_index must be set)
+};
+
+struct NPUConfig {
+	NPUCorePolicy policy = NPUCorePolicy::kAll;
+	int core_index = -1;       // Only used when policy == kSingle (0, 1, 2, ...)
+	bool perf_enabled = false; // true = collect per-layer NPU profiling data
+};
+
 struct AppConfig {
 	ModelType model_type = ModelType::kMODNet;
 	OutputMode output_mode = OutputMode::kMp4;
@@ -64,8 +83,7 @@ struct AppConfig {
 	bool use_hardware_decoder = false;
 	bool use_prefetch_thread = true;
 	bool is_video = false;
-	int rknn_core_mask = -1;  // -1 = default (engine decides); 0 = CORE_ALL
-	bool rknn_perf_enabled = false;  // true = collect per-layer NPU profiling data
+	NPUConfig npu_config;
 	bool dump_enabled = false;       // true = enable binary dump for debugging
 	bool diag_enabled = false;       // true = enable diagnostic logging (internal state inspection)
 	std::string input_path;

@@ -48,7 +48,7 @@ inline void PrintHelp(const char* program_name) {
 	    << "  --no-prefetch  Disable prefetch thread (all work on main thread)\n"
 	    << "\n"
 	    << "NPU:\n"
-	    << "  --core-mask=X  NPU core selection: auto|0|1|2|0_1|0_1_2|all (default: engine decides)\n"
+	    << "  --core-mask=X  NPU core selection: auto|0|1|2|0_1|0_1_2|all (default: all)\n"
 	    << "  --profile      Enable per-layer NPU profiling (COLLECT_PERF_MASK)\n"
 	    << "\n"
 	    << "Debug:\n"

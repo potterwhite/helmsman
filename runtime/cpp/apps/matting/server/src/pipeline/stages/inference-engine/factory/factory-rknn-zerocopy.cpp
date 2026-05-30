@@ -21,14 +21,8 @@
 #include "pipeline/stages/inference-engine/inference-engine-factory.h"
 #include "pipeline/stages/inference-engine/rknn/rknn-zero-copy.h"
 
-std::unique_ptr<InferenceEngine> createInferenceEngine(int core_mask,
-                                                       bool perf_enabled) {
+std::unique_ptr<InferenceEngine> createInferenceEngine(const NPUConfig& npu_config) {
     auto engine = std::make_unique<InferenceEngineRKNNZeroCP>();
-    if (core_mask >= 0) {
-        engine->SetCoreMask(core_mask);
-    }
-    if (perf_enabled) {
-        engine->SetPerfEnabled(true);
-    }
+    engine->SetNPUConfig(npu_config);
     return engine;
 }

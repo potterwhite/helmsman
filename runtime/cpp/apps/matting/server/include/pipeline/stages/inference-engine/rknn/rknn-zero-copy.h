@@ -45,8 +45,7 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 
 	// ------------------------------------------------------------------
 	// getter & setter
-	void SetCoreMask(int mask);
-	void SetPerfEnabled(bool enabled);
+	void SetNPUConfig(const NPUConfig& config);
 
 	// Get model input dimensions from the FIRST input tensor (image/src).
 	// RKNN reports NHWC layout: dims[0]=batch, dims[1]=height, dims[2]=width, dims[3]=channels
@@ -91,7 +90,5 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 	std::vector<rknn_tensor_mem*> input_mems_;
 	std::vector<rknn_tensor_mem*> output_mems_;
 
-	// NPU core mask (-1 = default/CORE_ALL)
-	int core_mask_ = -1;
-	bool perf_enabled_ = false;  // true if COLLECT_PERF_MASK was accepted
+	NPUConfig npu_config_;
 };

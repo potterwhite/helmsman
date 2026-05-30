@@ -131,7 +131,7 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 		} else if (std::strcmp(argv[i], "--no-prefetch") == 0) {
 			cfg.use_prefetch_thread = false;
 		} else if (std::strcmp(argv[i], "--profile") == 0) {
-			cfg.rknn_perf_enabled = true;
+			cfg.npu_config.perf_enabled = true;
 		} else if (std::strcmp(argv[i], "--dump") == 0) {
 			cfg.dump_enabled = true;
 		} else if (std::strcmp(argv[i], "--inspect") == 0) {
@@ -139,17 +139,20 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 		} else if (std::strncmp(argv[i], "--core-mask=", 12) == 0) {
 			std::string val = argv[i] + 12;
 			if (val == "auto") {
-				cfg.rknn_core_mask = 0;  // RKNN_NPU_CORE_AUTO
+				cfg.npu_config.policy = NPUCorePolicy::kAuto;
 			} else if (val == "0") {
-				cfg.rknn_core_mask = 1;  // RKNN_NPU_CORE_0
+				cfg.npu_config.policy = NPUCorePolicy::kSingle;
+				cfg.npu_config.core_index = 0;
 			} else if (val == "1") {
-				cfg.rknn_core_mask = 2;  // RKNN_NPU_CORE_1
+				cfg.npu_config.policy = NPUCorePolicy::kSingle;
+				cfg.npu_config.core_index = 1;
 			} else if (val == "2") {
-				cfg.rknn_core_mask = 4;  // RKNN_NPU_CORE_2
+				cfg.npu_config.policy = NPUCorePolicy::kSingle;
+				cfg.npu_config.core_index = 2;
 			} else if (val == "0_1") {
-				cfg.rknn_core_mask = 3;  // RKNN_NPU_CORE_0_1
+				cfg.npu_config.policy = NPUCorePolicy::kAll;  // TODO: kMulti if needed
 			} else if (val == "0_1_2" || val == "all") {
-				cfg.rknn_core_mask = 7;  // RKNN_NPU_CORE_0_1_2
+				cfg.npu_config.policy = NPUCorePolicy::kAll;
 			} else {
 				std::cerr << "Unknown --core-mask value: " << val
 				          << " (expected: auto|0|1|2|0_1|0_1_2|all)\n";
@@ -198,10 +201,17 @@ static std::optional<AppConfig> InitServer(int argc, char* argv[]) {
 	    cfg.use_prefetch_thread ? "enabled (dual-buffer)" : "disabled (main thread only)";
 	logger.Info("Model type: " + mode_str, kcurrent_module_name);
 	logger.Info("Output mode: " + output_str, kcurrent_module_name);
-	std::string core_mask_str =
-	    (cfg.rknn_core_mask < 0) ? "default (engine decides)" : std::to_string(cfg.rknn_core_mask);
-	logger.Info("Core mask:  " + core_mask_str, kcurrent_module_name);
-	logger.Info("Perf profiling: " + std::string(cfg.rknn_perf_enabled ? "enabled" : "disabled"),
+	std::string core_policy_str;
+	switch (cfg.npu_config.policy) {
+		case NPUCorePolicy::kAll: core_policy_str = "all"; break;
+		case NPUCorePolicy::kAuto: core_policy_str = "auto"; break;
+		case NPUCorePolicy::kSingle:
+			core_policy_str = "core " + std::to_string(cfg.npu_config.core_index);
+			break;
+		default: core_policy_str = "unknown"; break;
+	}
+	logger.Info("NPU cores:  " + core_policy_str, kcurrent_module_name);
+	logger.Info("Perf profiling: " + std::string(cfg.npu_config.perf_enabled ? "enabled" : "disabled"),
 	            kcurrent_module_name);
 	logger.Info("Binary dump:    " + std::string(cfg.dump_enabled ? "enabled (--dump)" : "disabled"),
 	            kcurrent_module_name);
