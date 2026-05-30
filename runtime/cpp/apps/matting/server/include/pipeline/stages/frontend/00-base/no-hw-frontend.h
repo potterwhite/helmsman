@@ -29,7 +29,7 @@
 
 #include <opencv2/videoio.hpp>
 #include <string>
-#include "pipeline/stages/frontend/00-base/frontend.h"
+#include "pipeline/stages/frontend/00-base/frontend-base.h"
 #include "pipeline/stages/frontend/00-base/frontend-pipeline.h"
 
 class NoHwFrontend : public FrontendBase {

@@ -35,7 +35,7 @@
 #include "Utils/timing/timer.h"
 #include "common/types.h"
 #include "pipeline/infra/single-slot-channel.h"
-#include "pipeline/stages/frontend/00-base/frontend.h"
+#include "pipeline/stages/frontend/00-base/frontend-base.h"
 #include "pipeline/stages/frontend/02-decoder/base-frame-decoder.h"  // HardwareFrame
 #include "pipeline/stages/frontend/04-preprocess/preprocessor.h"
 

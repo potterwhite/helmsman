@@ -25,7 +25,7 @@
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/00-base/frontend.h"
+#include "pipeline/stages/frontend/00-base/frontend-base.h"
 #include "pipeline/stages/frontend/00-base/no-hw-frontend.h"
 #include "pipeline/stages/frontend/00-base/rockchip-frontend.h"
 

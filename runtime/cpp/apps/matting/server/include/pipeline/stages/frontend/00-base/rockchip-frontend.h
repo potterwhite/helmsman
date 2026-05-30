@@ -28,7 +28,7 @@
 #pragma once
 
 #include <memory>
-#include "pipeline/stages/frontend/00-base/frontend.h"
+#include "pipeline/stages/frontend/00-base/frontend-base.h"
 #include "pipeline/stages/frontend/00-base/frontend-pipeline.h"
 #include "pipeline/stages/frontend/01-input-source/base-input-source.h"
 #include "pipeline/stages/frontend/02-decoder/base-frame-decoder.h"
