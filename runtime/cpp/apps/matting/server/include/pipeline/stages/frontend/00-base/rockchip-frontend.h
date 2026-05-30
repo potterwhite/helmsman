@@ -29,7 +29,6 @@
 
 #include <memory>
 #include "pipeline/stages/frontend/00-base/frontend-base.h"
-#include "pipeline/stages/frontend/00-base/frontend-pipeline.h"
 #include "pipeline/stages/frontend/01-input-source/base-input-source.h"
 #include "pipeline/stages/frontend/02-decoder/base-frame-decoder.h"
 #include "pipeline/stages/frontend/03-color-convert/base-color-converter.h"
@@ -40,19 +39,13 @@ public:
     // Throws std::runtime_error on failure.
     explicit RockchipFrontend(const std::string& input_path, bool use_pipeline = false);
 
-    std::optional<FrameResult> ProcessOneFrame(int model_w, int model_h) override;
-    void Stop() override;
-    const helmsman::utils::timing::StageAccumulator& preprocess_acc() const override;
-    const helmsman::utils::timing::StageAccumulator& resize_acc() const override;
+protected:
+    std::optional<ReadResult> _ReadFrame() override;
+    void _OpenSource(const std::string& input_path) override;
 
 private:
-    // Reader callback for FrontendPipeline
-    std::optional<ReadResult> _ReadFrame();
-
-    // Hardware decode components (declared before pipeline_ for correct destruction order)
+    // Hardware decode components
     std::unique_ptr<BaseInputSource> source_;
     std::unique_ptr<BaseFrameDecoder> decoder_;
     std::unique_ptr<BaseColorConverter> color_converter_;
-
-    FrontendPipeline pipeline_;
 };

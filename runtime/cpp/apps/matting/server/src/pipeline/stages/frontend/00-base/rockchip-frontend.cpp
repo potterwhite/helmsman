@@ -34,9 +34,11 @@
 #include <stdexcept>
 
 RockchipFrontend::RockchipFrontend(const std::string& input_path, bool use_pipeline)
-    : FrontendBase(true),
-      pipeline_([this]() -> std::optional<ReadResult> { return _ReadFrame(); },
-                use_pipeline) {
+    : FrontendBase(true, use_pipeline) {
+    _OpenSource(input_path);
+}
+
+void RockchipFrontend::_OpenSource(const std::string& input_path) {
     // Create and open FFmpeg input source (concrete type for CodecId access)
     auto ffmpeg_source = std::make_unique<FfmpegInputSource>();
     if (!ffmpeg_source->open(input_path)) {
@@ -68,22 +70,6 @@ RockchipFrontend::RockchipFrontend(const std::string& input_path, bool use_pipel
     source_ = std::move(ffmpeg_source);
     decoder_ = std::move(mpp_decoder);
     color_converter_ = std::make_unique<RgaNv12ToBgr>();
-}
-
-std::optional<FrameResult> RockchipFrontend::ProcessOneFrame(int model_w, int model_h) {
-    return pipeline_.ProcessOneFrame(model_w, model_h);
-}
-
-void RockchipFrontend::Stop() {
-    pipeline_.Stop();
-}
-
-const helmsman::utils::timing::StageAccumulator& RockchipFrontend::preprocess_acc() const {
-    return pipeline_.preprocess_acc();
-}
-
-const helmsman::utils::timing::StageAccumulator& RockchipFrontend::resize_acc() const {
-    return pipeline_.resize_acc();
 }
 
 std::optional<ReadResult> RockchipFrontend::_ReadFrame() {

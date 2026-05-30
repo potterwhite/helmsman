@@ -28,11 +28,13 @@
 #include <stdexcept>
 
 NoHwFrontend::NoHwFrontend(const std::string& video_path, bool use_pipeline)
-    : FrontendBase(false),
-      pipeline_([this]() -> std::optional<ReadResult> { return _ReadFrame(); },
-                use_pipeline) {
-    if (!cv_cap_.open(video_path)) {
-        throw std::runtime_error("Failed to open video: " + video_path);
+    : FrontendBase(false, use_pipeline) {
+    _OpenSource(video_path);
+}
+
+void NoHwFrontend::_OpenSource(const std::string& input_path) {
+    if (!cv_cap_.open(input_path)) {
+        throw std::runtime_error("Failed to open video: " + input_path);
     }
 
     int w = static_cast<int>(cv_cap_.get(cv::CAP_PROP_FRAME_WIDTH));
@@ -40,22 +42,6 @@ NoHwFrontend::NoHwFrontend(const std::string& video_path, bool use_pipeline)
     double fps = cv_cap_.get(cv::CAP_PROP_FPS);
 
     SetSourceProperties(w, h, fps);
-}
-
-std::optional<FrameResult> NoHwFrontend::ProcessOneFrame(int model_w, int model_h) {
-    return pipeline_.ProcessOneFrame(model_w, model_h);
-}
-
-void NoHwFrontend::Stop() {
-    pipeline_.Stop();
-}
-
-const helmsman::utils::timing::StageAccumulator& NoHwFrontend::preprocess_acc() const {
-    return pipeline_.preprocess_acc();
-}
-
-const helmsman::utils::timing::StageAccumulator& NoHwFrontend::resize_acc() const {
-    return pipeline_.resize_acc();
 }
 
 std::optional<ReadResult> NoHwFrontend::_ReadFrame() {

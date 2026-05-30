@@ -30,7 +30,6 @@
 #include <opencv2/videoio.hpp>
 #include <string>
 #include "pipeline/stages/frontend/00-base/frontend-base.h"
-#include "pipeline/stages/frontend/00-base/frontend-pipeline.h"
 
 class NoHwFrontend : public FrontendBase {
 public:
@@ -38,15 +37,10 @@ public:
     // Throws std::runtime_error on failure.
     explicit NoHwFrontend(const std::string& video_path, bool use_pipeline = false);
 
-    std::optional<FrameResult> ProcessOneFrame(int model_w, int model_h) override;
-    void Stop() override;
-    const helmsman::utils::timing::StageAccumulator& preprocess_acc() const override;
-    const helmsman::utils::timing::StageAccumulator& resize_acc() const override;
+protected:
+    std::optional<ReadResult> _ReadFrame() override;
+    void _OpenSource(const std::string& input_path) override;
 
 private:
-    // Reader callback for FrontendPipeline
-    std::optional<ReadResult> _ReadFrame();
-
     cv::VideoCapture cv_cap_;
-    FrontendPipeline pipeline_;
 };

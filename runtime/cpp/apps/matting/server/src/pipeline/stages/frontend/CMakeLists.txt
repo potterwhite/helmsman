@@ -26,7 +26,6 @@
 target_sources(${PROJECT_NAME}
     PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/00-base/frontend-base.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/00-base/frontend-pipeline.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/00-base/no-hw-frontend.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/04-preprocess/preprocessor.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/01-input-source/ffmpeg-input-source.cpp"
