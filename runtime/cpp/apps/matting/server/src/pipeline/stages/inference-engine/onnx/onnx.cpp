@@ -212,6 +212,7 @@ void InferenceEngineONNX::DoInfer(
 		    output_bin_path_ + "cpp_08_inference-Output.bin");
 	}
 
-	logger.Info("infer() complete: " + std::to_string(n_in) + " in / " +
-	            std::to_string(n_out) + " out", kcurrent_module_name);
+	if (dump_enabled_)
+		logger.Info("infer() complete: " + std::to_string(n_in) + " in / " +
+		            std::to_string(n_out) + " out", kcurrent_module_name);
 }

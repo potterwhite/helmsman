@@ -77,9 +77,10 @@ TensorData Preprocessor::preprocess(const cv::Mat& bgr_frame,
     int original_w = img.cols;
     int original_h = img.rows;
 
-    logger.Info("Original size: Width=" + std::to_string(img.cols) +
-                    ", Height=" + std::to_string(img.rows),
-                kcurrent_module_name);
+    if (dump_enabled_)
+        logger.Info("Original size: Width=" + std::to_string(img.cols) +
+                        ", Height=" + std::to_string(img.rows),
+                    kcurrent_module_name);
 
     // Step 3: Resize strategy
     int pad_top = 0;
@@ -99,11 +100,12 @@ TensorData Preprocessor::preprocess(const cv::Mat& bgr_frame,
         }
         img = resized;
         acc_resize_.record(t_resize.stop());
-        logger.Info("RKNN resize: " + std::to_string(original_w) + "x" +
-                        std::to_string(original_h) + " -> " +
-                        std::to_string(model_width) + "x" +
-                        std::to_string(model_height),
-                    kcurrent_module_name);
+        if (dump_enabled_)
+            logger.Info("RKNN resize: " + std::to_string(original_w) + "x" +
+                            std::to_string(original_h) + " -> " +
+                            std::to_string(model_width) + "x" +
+                            std::to_string(model_height),
+                        kcurrent_module_name);
         img.convertTo(img, CV_32FC3);
     } else {
         pad_bottom = (32 - (img.rows % 32)) % 32;
@@ -112,13 +114,14 @@ TensorData Preprocessor::preprocess(const cv::Mat& bgr_frame,
         cv::Mat padded_u8;
         cv::copyMakeBorder(img, padded_u8, pad_top, pad_bottom,
                            pad_left, pad_right, cv::BORDER_REPLICATE);
-        logger.Info("Replicate pad: " + std::to_string(img.cols) + "x" +
-                        std::to_string(img.rows) + " -> " +
-                        std::to_string(padded_u8.cols) + "x" +
-                        std::to_string(padded_u8.rows) +
-                        " (pad_right=" + std::to_string(pad_right) +
-                        ", pad_bottom=" + std::to_string(pad_bottom) + ")",
-                    kcurrent_module_name);
+        if (dump_enabled_)
+            logger.Info("Replicate pad: " + std::to_string(img.cols) + "x" +
+                            std::to_string(img.rows) + " -> " +
+                            std::to_string(padded_u8.cols) + "x" +
+                            std::to_string(padded_u8.rows) +
+                            " (pad_right=" + std::to_string(pad_right) +
+                            ", pad_bottom=" + std::to_string(pad_bottom) + ")",
+                        kcurrent_module_name);
         padded_u8.convertTo(img, CV_32FC3);
     }
 

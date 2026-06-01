@@ -99,8 +99,9 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 
 	const TensorData& output = *pha_ptr;
 
-	logger.Info("Backend: selected pha tensor '" + output.name + "' from " +
-	            std::to_string(outputs.size()) + " outputs", kcurrent_module_name);
+	if (dump_enabled_)
+		logger.Info("Backend: selected pha tensor '" + output.name + "' from " +
+		            std::to_string(outputs.size()) + " outputs", kcurrent_module_name);
 
 	if (output.shape.size() != 4) {
 		throw std::runtime_error("Output tensor must be NCHW");
@@ -115,9 +116,10 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 		throw std::runtime_error("Batch size must be 1");
 	}
 
-	logger.Info("Backend processing: N=" + std::to_string(N) + " C=" + std::to_string(C) +
-	                " H=" + std::to_string(H) + " W=" + std::to_string(W),
-	            kcurrent_module_name);
+	if (dump_enabled_)
+		logger.Info("Backend processing: N=" + std::to_string(N) + " C=" + std::to_string(C) +
+		                " H=" + std::to_string(H) + " W=" + std::to_string(W),
+		            kcurrent_module_name);
 
 	// -------------------------
 	// dump raw output for debug
@@ -187,8 +189,9 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 	// --- Diagnostics §10: per-frame pha mean log + frame 50-70 PNG dump ---
 	{
 		cv::Scalar mean_val = cv::mean(restored_mat);
-		logger.Info("PHA_MEAN frame=" + std::to_string(current_frame) +
-		            " mean=" + std::to_string(mean_val[0]), kcurrent_module_name);
+		if (dump_enabled_)
+			logger.Info("PHA_MEAN frame=" + std::to_string(current_frame) +
+			            " mean=" + std::to_string(mean_val[0]), kcurrent_module_name);
 
 		if (current_frame >= 50 && current_frame <= 70 && !output_path_.empty()) {
 			cv::Mat pha_debug_u8;

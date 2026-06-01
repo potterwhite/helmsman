@@ -206,6 +206,8 @@ void RVMMode::_ReportAllAccumulatedTimers(void) {
 	if (!config_.timing_enabled)
 		return;
 
+	GetLogger().Info("", kRvmModuleName);  // blank line: separator before accumulated stats
+	GetLogger().Info("═══════════ Accumulated Timing Stats ═══════════", kRvmModuleName);
 	GetLogger().Info("────────── Frontend ──────────", kRvmModuleName);
 	frontend_->read_input_acc().report(true, GetLogger(), kRvmModuleName, "read_input_source");
 	frontend_->decode_acc().report(true, GetLogger(), kRvmModuleName, "decode_frame");
@@ -370,6 +372,7 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		    "  backend(composite: " + fm(composite_ms) + "ms; display: " + fm(display_ms) + "ms)",
 		    kRvmModuleName);
 		GetLogger().Info("  total: " + fm(frame_total) + "ms", kRvmModuleName);
+		GetLogger().Info("", kRvmModuleName);  // blank line: frame separator
 
 		// // --- old per-frame stats (commented out) ---
 		// GetLogger().Info("[PerFrame] frame=" + std::to_string(frame_count) +
