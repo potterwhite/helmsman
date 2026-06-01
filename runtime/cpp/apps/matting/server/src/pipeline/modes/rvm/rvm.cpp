@@ -312,6 +312,13 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 			break;
 		}
 
+		// Print frame header BEFORE inference so that [rknnkit] NPU logs
+		// from this frame appear under the correct frame block.
+		if (frame_count_ > 0)
+			GetLogger().Info("", kRvmModuleName);  // blank line: frame separator
+		GetLogger().Info("───── Frame " + std::to_string(frame_count_ + 1) + " ─────",
+		                 kRvmModuleName);
+
 		// -------------------------------------------------------------
 		// --- 1st: frontend_->ProcessOneFrame ---
 		// - In sync mode: reads one frame, preprocesses it, and returns the tensor and frame.
@@ -354,14 +361,12 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		// -------------------------------------------------------------
 		// --- end: per-frame timing block ---
 		const double frame_total = loop_t.elapsed_ms();
-		const int fn = static_cast<int>(frame_count_ + 1);
 		const auto fm = [&](double v) -> std::string {
 			std::ostringstream o;
 			o << std::fixed << std::setprecision(3) << v;
 			return o.str();
 		};
 
-		GetLogger().Info("───── Frame " + std::to_string(fn) + " ─────", kRvmModuleName);
 		GetLogger().Info("  frontend(read_input_source: " + fm(result->read_ms) +
 		                     "ms; decode_frame: " + fm(result->decode_ms) +
 		                     "ms; convert_to_bgr: " + fm(result->color_convert_ms) +
@@ -372,7 +377,6 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		    "  backend(composite: " + fm(composite_ms) + "ms; display: " + fm(display_ms) + "ms)",
 		    kRvmModuleName);
 		GetLogger().Info("  total: " + fm(frame_total) + "ms", kRvmModuleName);
-		GetLogger().Info("", kRvmModuleName);  // blank line: frame separator
 
 		// // --- old per-frame stats (commented out) ---
 		// GetLogger().Info("[PerFrame] frame=" + std::to_string(frame_count) +
@@ -381,8 +385,8 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		//                      "  display=" + std::to_string(display_ms) + "ms",
 		//                  kRvmModuleName);
 
-		// FPS measurement: report every 30 frames
-		if (frame_count_ % 30 == 0) {
+		// FPS measurement: report every 30 frames (skip frame 0 — single-frame measurement is meaningless)
+		if (frame_count_ > 0 && frame_count_ % 30 == 0) {
 			auto now = std::chrono::steady_clock::now();
 			double elapsed = std::chrono::duration<double>(now - fps_window_start_).count();
 			GetLogger().Info("[FPS] " + std::to_string(30.0 / elapsed) +
