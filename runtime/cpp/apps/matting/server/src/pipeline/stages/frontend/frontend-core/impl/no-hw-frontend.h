@@ -39,7 +39,15 @@ public:
 
 protected:
     // Stage 01: cv::VideoCapture handles demux+decode+color in one call.
-    bool _ReadInputSource01(ReadResult& result) override;
+    // Returns complete BGR frame in result.frame.
+    bool _ReadInputSource01(RawPacket& pkt, ReadResult& result) override;
+
+    // Stage 02: no-op — frame already decoded by cv::VideoCapture in Stage 01.
+    bool _DecodeFrame02(const RawPacket& pkt, ReadResult& result) override;
+
+    // Stage 03: no-op — frame already BGR from cv::VideoCapture in Stage 01.
+    bool _ConvertToBgr03(ReadResult& result) override;
+
     void _OpenSource(const std::string& input_path) override;
 
 private:

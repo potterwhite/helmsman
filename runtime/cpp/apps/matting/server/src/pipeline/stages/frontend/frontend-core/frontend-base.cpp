@@ -22,9 +22,9 @@
 // frontend-base.cpp — FrontendBase implementation (Template Method pattern)
 //
 // Owns the multithread infrastructure. Subclasses override stage methods
-// (ReadInputSource01, DecodeFrame02, ConvertToBgr03) to supply decoded
-// frames via the platform-specific decode path. Stage 04 (preprocess) is
-// non-virtual and owned by the base class.
+// (ReadInputSource01, DecodeFrame02, ConvertToBgr03) to supply decoded frames
+// via the platform-specific decode path. Stage 04 (preprocess) is non-virtual
+// and owned by the base class.
 //
 // =============================================================================
 
@@ -35,133 +35,129 @@
 // ---------------------------------------------------------------------------
 FrontendBase::FrontendBase(bool use_hardware, bool multithread_enabled)
     : use_hardware_(use_hardware), multithread_enabled_(multithread_enabled) {
-    if (multithread_enabled_) {
-        raw_ch_ = std::make_unique<SingleSlotChannel<cv::Mat>>();
-        tensor_ch_ = std::make_unique<SingleSlotChannel<TensorData>>();
-    }
+	if (multithread_enabled_) {
+		raw_ch_ = std::make_unique<SingleSlotChannel<cv::Mat>>();
+		tensor_ch_ = std::make_unique<SingleSlotChannel<TensorData>>();
+	}
 }
 
 // ---------------------------------------------------------------------------
 // Destructor
 // ---------------------------------------------------------------------------
 FrontendBase::~FrontendBase() {
-    Stop();
+	Stop();
 }
 
 // ---------------------------------------------------------------------------
 // SetSourceProperties — called by subclasses after opening the source
 // ---------------------------------------------------------------------------
 void FrontendBase::SetSourceProperties(int width, int height, double fps) {
-    width_ = width;
-    height_ = height;
-    fps_ = fps;
+	width_ = width;
+	height_ = height;
+	fps_ = fps;
 }
 
 // ---------------------------------------------------------------------------
 // Accessors
 // ---------------------------------------------------------------------------
-bool FrontendBase::IsHardwarePath() const { return use_hardware_; }
-int FrontendBase::width() const { return width_; }
-int FrontendBase::height() const { return height_; }
-double FrontendBase::fps() const { return fps_; }
+bool FrontendBase::IsHardwarePath() const {
+	return use_hardware_;
+}
+int FrontendBase::width() const {
+	return width_;
+}
+int FrontendBase::height() const {
+	return height_;
+}
+double FrontendBase::fps() const {
+	return fps_;
+}
 
 const helmsman::utils::timing::StageAccumulator& FrontendBase::preprocess_acc() const {
-    return acc_lv03_02_worker_preprocess_;
+	return acc_lv03_02_worker_preprocess_;
 }
 
 const helmsman::utils::timing::StageAccumulator& FrontendBase::resize_acc() const {
-    return preprocessor_.resize_acc();
+	return preprocessor_.resize_acc();
 }
 
 // ---------------------------------------------------------------------------
-// Stage 02: default no-op (subclasses override)
+// Stage 01: default no-op (subclasses override)
 // ---------------------------------------------------------------------------
-bool FrontendBase::_DecodeFrame02(const RawPacket& /*pkt*/, HardwareFrame& /*hw_frame*/) {
-    return false;
+bool FrontendBase::_ReadInputSource01(RawPacket& /*pkt*/, ReadResult& /*result*/) {
+	return false;
 }
 
 // ---------------------------------------------------------------------------
-// Stage 03: default no-op (subclasses override)
+// Stage 02: default no-op (subclasses override).
+// Skips if result.frame already populated (NoHwFrontend Stage 01 is atomic).
 // ---------------------------------------------------------------------------
-bool FrontendBase::_ConvertToBgr03(const HardwareFrame& /*hw_frame*/, cv::Mat& /*frame*/) {
-    return false;
+bool FrontendBase::_DecodeFrame02(const RawPacket& /*pkt*/, ReadResult& result) {
+	return !result.frame.empty();
 }
 
 // ---------------------------------------------------------------------------
-// _ReadRawPacket: default no-op (subclasses override if needed)
+// Stage 03: default no-op (subclasses override).
+// Skips if result.frame already populated (NoHwFrontend Stage 01 is atomic).
 // ---------------------------------------------------------------------------
-bool FrontendBase::_ReadRawPacket(RawPacket& /*pkt*/) {
-    return false;
-}
-
-// ---------------------------------------------------------------------------
-// Stage 01: default implementation chains _ReadRawPacket + _DecodeFrame02 + _ConvertToBgr03
-//           with retry loop for hardware decoders that need multiple packets.
-// ---------------------------------------------------------------------------
-bool FrontendBase::_ReadInputSource01(ReadResult& result) {
-    RawPacket pkt;
-    while (_ReadRawPacket(pkt)) {
-        if (pkt.is_eof)
-            return false;
-
-        if (_DecodeFrame02(pkt, result.hw_frame)) {
-            return _ConvertToBgr03(result.hw_frame, result.frame);
-        }
-        // decode returned false — decoder needs more data, keep feeding
-    }
-    return false;
+bool FrontendBase::_ConvertToBgr03(ReadResult& result) {
+	return !result.frame.empty();
 }
 
 // ---------------------------------------------------------------------------
 // Stage 04: preprocess BGR frame into TensorData (non-virtual)
 // ---------------------------------------------------------------------------
 TensorData FrontendBase::_PreprocessForInference04(const cv::Mat& frame, int model_w, int model_h) {
-    helmsman::utils::timing::ManualTimer t;
-    t.start();
-    auto tensor = preprocessor_.preprocess(frame, model_w, model_h);
-    acc_lv03_02_worker_preprocess_.record(t.stop());
-    return tensor;
+	helmsman::utils::timing::ManualTimer t;
+	t.start();
+	auto tensor = preprocessor_.preprocess(frame, model_w, model_h);
+	acc_lv03_02_worker_preprocess_.record(t.stop());
+	return tensor;
 }
 
 // ---------------------------------------------------------------------------
 // _MultithreadWorkerLoop — worker thread entry point (stage 04 only)
 // ---------------------------------------------------------------------------
 void FrontendBase::_MultithreadWorkerLoop(int model_w, int model_h) {
-    while (true) {
-        auto frame_opt = raw_ch_->pop();
-        if (!frame_opt)
-            break;
+	while (true) {
+		auto frame_opt = raw_ch_->pop();
+		if (!frame_opt)
+			break;
 
-        auto tensor = _PreprocessForInference04(*frame_opt, model_w, model_h);
-        tensor_ch_->push(std::move(tensor));
-    }
-    tensor_ch_->close();
-}
-
-// ---------------------------------------------------------------------------
-// ProcessOneFrame — dispatcher: sync or multithread
-// ---------------------------------------------------------------------------
-std::optional<FrameResult> FrontendBase::ProcessOneFrame(int model_w, int model_h) {
-    if (!multithread_enabled_)
-        return _ProcessSync(model_w, model_h);
-    return _ProcessMultithread(model_w, model_h);
+		auto tensor = _PreprocessForInference04(*frame_opt, model_w, model_h);
+		tensor_ch_->push(std::move(tensor));
+	}
+	tensor_ch_->close();
 }
 
 // ---------------------------------------------------------------------------
 // _ProcessSync — single-thread mode: 4 stages on calling thread
 // ---------------------------------------------------------------------------
 std::optional<FrameResult> FrontendBase::_ProcessSync(int model_w, int model_h) {
-    // Stage 01-03: read + decode + color convert
-    ReadResult read_result;
-    if (!_ReadInputSource01(read_result))
-        return std::nullopt;
+	ReadResult read_result;
+	RawPacket pkt;
 
-    // Stage 04: preprocess
-    FrameResult result;
-    result.frame = std::move(read_result.frame);
-    result.hw_frame = read_result.hw_frame;
-    result.tensor = _PreprocessForInference04(result.frame, model_w, model_h);
-    return result;
+	// Stage 01: read raw packet (with decode retry loop for hardware decoders)
+	while (_ReadInputSource01(pkt, read_result)) {
+		if (pkt.is_eof)
+			return std::nullopt;
+
+		// Stage 02: decode
+		if (!_DecodeFrame02(pkt, read_result))
+			continue;  // decoder needs more data
+
+		// Stage 03: color convert
+		if (!_ConvertToBgr03(read_result))
+			return std::nullopt;
+
+		// Stage 04: preprocess
+		FrameResult result;
+		result.frame = std::move(read_result.frame);
+		result.hw_frame = read_result.hw_frame;
+		result.tensor = _PreprocessForInference04(result.frame, model_w, model_h);
+		return result;
+	}
+	return std::nullopt;
 }
 
 // ---------------------------------------------------------------------------
@@ -169,85 +165,106 @@ std::optional<FrameResult> FrontendBase::_ProcessSync(int model_w, int model_h) 
 //                       stage 04 on worker thread
 // ---------------------------------------------------------------------------
 std::optional<FrameResult> FrontendBase::_ProcessMultithread(int model_w, int model_h) {
-    if (mt_eof_)
-        return std::nullopt;
+	if (mt_eof_)
+		return std::nullopt;
 
-    if (!mt_started_) {
-        // Phase 1: bootstrap
-        mt_started_ = true;
+	auto read_stages_01_03 = [this](ReadResult& rr) -> bool {
+		RawPacket pkt;
+		while (_ReadInputSource01(pkt, rr)) {
+			if (pkt.is_eof)
+				return false;
+			if (_DecodeFrame02(pkt, rr))
+				return _ConvertToBgr03(rr);
+		}
+		return false;
+	};
 
-        // Stage 01-03: read frame 1
-        ReadResult read1;
-        if (!_ReadInputSource01(read1))
-            return std::nullopt;
+	if (!mt_started_) {
+		// Phase 1: bootstrap
+		mt_started_ = true;
 
-        cv::Mat frame_1 = std::move(read1.frame);
-        stored_hw_frame_ = read1.hw_frame;
+		// Stages 01-03: read frame 1
+		ReadResult read1;
+		if (!read_stages_01_03(read1))
+			return std::nullopt;
 
-        // Launch worker for stage 04
-        prefetch_worker_ = std::thread(&FrontendBase::_MultithreadWorkerLoop, this, model_w, model_h);
-        raw_ch_->push(frame_1);
+		cv::Mat frame_1 = std::move(read1.frame);
+		stored_hw_frame_ = read1.hw_frame;
 
-        // Stage 04: pop tensor from worker
-        auto tensor_1 = tensor_ch_->pop();
-        if (!tensor_1) {
-            mt_eof_ = true;
-            return std::nullopt;
-        }
+		// Launch worker for stage 04
+		prefetch_worker_ =
+		    std::thread(&FrontendBase::_MultithreadWorkerLoop, this, model_w, model_h);
+		raw_ch_->push(frame_1);
 
-        // Stage 01-03: read frame 2 (overlap with stage 04 for frame 1)
-        ReadResult read2;
-        if (_ReadInputSource01(read2)) {
-            next_frame_ = std::move(read2.frame);
-            next_hw_frame_ = read2.hw_frame;
-            raw_ch_->push(next_frame_);
-        } else {
-            raw_ch_->close();
-        }
+		// Stage 04: pop tensor from worker
+		auto tensor_1 = tensor_ch_->pop();
+		if (!tensor_1) {
+			mt_eof_ = true;
+			return std::nullopt;
+		}
 
-        FrameResult result;
-        result.frame = std::move(frame_1);
-        result.hw_frame = stored_hw_frame_;
-        result.tensor = std::move(*tensor_1);
-        return result;
-    }
+		// Stages 01-03: read frame 2 (overlaps with stage 04 for frame 1)
+		ReadResult read2;
+		if (read_stages_01_03(read2)) {
+			next_frame_ = std::move(read2.frame);
+			next_hw_frame_ = read2.hw_frame;
+			raw_ch_->push(next_frame_);
+		} else {
+			raw_ch_->close();
+		}
 
-    // Phase 2: subsequent calls
+		FrameResult result;
+		result.frame = std::move(frame_1);
+		result.hw_frame = stored_hw_frame_;
+		result.tensor = std::move(*tensor_1);
+		return result;
+	}
 
-    // Stage 04: pop tensor from worker
-    auto tensor = tensor_ch_->pop();
-    if (!tensor) {
-        mt_eof_ = true;
-        return std::nullopt;
-    }
+	// Phase 2: subsequent calls
 
-    // Save current buffered frame to return
-    cv::Mat return_frame = std::move(next_frame_);
-    HardwareFrame return_hw_frame = next_hw_frame_;
+	// Stage 04: pop tensor from worker
+	auto tensor = tensor_ch_->pop();
+	if (!tensor) {
+		mt_eof_ = true;
+		return std::nullopt;
+	}
 
-    // Stage 01-03: read next frame
-    ReadResult read_next;
-    if (_ReadInputSource01(read_next)) {
-        next_frame_ = std::move(read_next.frame);
-        next_hw_frame_ = read_next.hw_frame;
-        raw_ch_->push(next_frame_);
-    } else {
-        raw_ch_->close();
-    }
+	// Save current buffered frame to return
+	cv::Mat return_frame = std::move(next_frame_);
+	HardwareFrame return_hw_frame = next_hw_frame_;
 
-    FrameResult result;
-    result.frame = std::move(return_frame);
-    result.hw_frame = return_hw_frame;
-    result.tensor = std::move(*tensor);
-    return result;
+	// Stages 01-03: read next frame
+	ReadResult read_next;
+	if (read_stages_01_03(read_next)) {
+		next_frame_ = std::move(read_next.frame);
+		next_hw_frame_ = read_next.hw_frame;
+		raw_ch_->push(next_frame_);
+	} else {
+		raw_ch_->close();
+	}
+
+	FrameResult result;
+	result.frame = std::move(return_frame);
+	result.hw_frame = return_hw_frame;
+	result.tensor = std::move(*tensor);
+	return result;
 }
 
 // ---------------------------------------------------------------------------
 // Stop — signal prefetch worker to stop
 // ---------------------------------------------------------------------------
 void FrontendBase::Stop() {
-    if (raw_ch_)
-        raw_ch_->close();
-    if (prefetch_worker_.joinable())
-        prefetch_worker_.join();
+	if (raw_ch_)
+		raw_ch_->close();
+	if (prefetch_worker_.joinable())
+		prefetch_worker_.join();
+}
+
+// ---------------------------------------------------------------------------
+// ProcessOneFrame — dispatcher: sync or multithread
+// ---------------------------------------------------------------------------
+std::optional<FrameResult> FrontendBase::ProcessOneFrame(int model_w, int model_h) {
+	if (!multithread_enabled_)
+		return _ProcessSync(model_w, model_h);
+	return _ProcessMultithread(model_w, model_h);
 }

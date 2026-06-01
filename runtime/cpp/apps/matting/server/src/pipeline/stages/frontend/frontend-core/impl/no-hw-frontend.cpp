@@ -46,14 +46,28 @@ void NoHwFrontend::_OpenSource(const std::string& input_path) {
 
 // ---------------------------------------------------------------------------
 // Stage 01: cv::VideoCapture handles demux + decode + color convert atomically.
-// Stages 02 and 03 are not needed — they use base class no-op defaults.
+// Returns complete BGR frame in result.frame. Stages 02 and 03 are no-ops.
 // ---------------------------------------------------------------------------
-bool NoHwFrontend::_ReadInputSource01(ReadResult& result) {
-    if (!cv_cap_.isOpened())
-        return false;
+bool NoHwFrontend::_ReadInputSource01(RawPacket& pkt, ReadResult& result) {
+    if (!cv_cap_.isOpened()) {
+        pkt.is_eof = true;
+        return true;
+    }
 
-    if (!cv_cap_.read(result.frame))
-        return false;
+    if (!cv_cap_.read(result.frame)) {
+        pkt.is_eof = true;
+        return true;
+    }
 
     return true;
+}
+
+// Stage 02: no-op — frame already decoded by cv::VideoCapture in Stage 01.
+bool NoHwFrontend::_DecodeFrame02(const RawPacket& /*pkt*/, ReadResult& result) {
+    return !result.frame.empty();
+}
+
+// Stage 03: no-op — frame already BGR from cv::VideoCapture in Stage 01.
+bool NoHwFrontend::_ConvertToBgr03(ReadResult& result) {
+    return !result.frame.empty();
 }

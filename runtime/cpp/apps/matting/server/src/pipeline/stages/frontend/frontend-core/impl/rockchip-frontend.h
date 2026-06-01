@@ -42,14 +42,14 @@ public:
 protected:
     void _OpenSource(const std::string& input_path) override;
 
+    // Stage 01: FFmpeg read raw packet
+    bool _ReadInputSource01(RawPacket& pkt, ReadResult& result) override;
+
     // Stage 02: MPP hardware decode
-    bool _DecodeFrame02(const RawPacket& pkt, HardwareFrame& hw_frame) override;
+    bool _DecodeFrame02(const RawPacket& pkt, ReadResult& result) override;
 
     // Stage 03: RGA NV12 → BGR color convert
-    bool _ConvertToBgr03(const HardwareFrame& hw_frame, cv::Mat& frame) override;
-
-    // Stage 01: FFmpeg read raw packet
-    bool _ReadRawPacket(RawPacket& pkt) override;
+    bool _ConvertToBgr03(ReadResult& result) override;
 
 private:
     // Hardware decode components

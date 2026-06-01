@@ -41,8 +41,8 @@ Pipeline::Run()
 ### 为什么 Frontend 是虚基类？
 - 唯一差异点：帧读取方式（硬件解码 vs OpenCV 软解）
 - 共享部分：预处理、多线程模式、计时、channel 基础设施
-- 4 个阶段虚方法（`_ReadInputSource01`、`_DecodeFrame02`、`_ConvertToBgr03`）提供细粒度覆盖点
-- `_ReadRawPacket` 是内部 helper，被 `_ReadInputSource01` 默认实现调用
+- 4 个阶段虚方法（`_ReadInputSource01`、`_DecodeFrame02`、`_ConvertToBgr03`、`_PreprocessForInference04`）提供细粒度覆盖点
+- `_ProcessSync` / `_ProcessMultithread` 显式调用全部 4 个 stage
 
 ### 为什么 Backend 由 Pipeline 拥有？
 - Backend 配置（输出路径、背景路径）在 Init 时设置一次

@@ -44,7 +44,7 @@
 #include "pipeline/stages/frontend/stages/04-preprocess/preprocessor.h"
 
 /**
- * Result from _ReadInputSource01() — one decoded frame.
+ * Result passed through stages 01-03 — carries frame data through the decode pipeline.
  */
 struct ReadResult {
     cv::Mat frame;
@@ -118,19 +118,19 @@ protected:
 
     // --- Stage 01-03: Frame decode pipeline (virtual, subclass-overridable) ---
 
-    // Stage 01: Read input source. Default implementation chains _ReadRawPacket +
-    // _DecodeFrame02 + _ConvertToBgr with a retry loop for hardware decoders.
-    // NoHwFrontend overrides this directly since cv::VideoCapture handles 01-03 atomically.
-    // Returns false on EOF.
-    virtual bool _ReadInputSource01(ReadResult& result);
+    // Stage 01: Read one raw packet from the input source.
+    // NoHwFrontend overrides to return a complete BGR frame (cv::VideoCapture handles 01-03 atomically).
+    virtual bool _ReadInputSource01(RawPacket& pkt, ReadResult& result);
 
     // Stage 02: Decode one compressed packet into a hardware frame.
+    // Default impl: no-op (NoHwFrontend skips this — frame already in result from Stage 01).
     // Returns true if a decoded frame is available, false if decoder needs more data.
-    virtual bool _DecodeFrame02(const RawPacket& pkt, HardwareFrame& hw_frame);
+    virtual bool _DecodeFrame02(const RawPacket& pkt, ReadResult& result);
 
     // Stage 03: Convert hardware frame to BGR cv::Mat.
+    // Default impl: no-op (NoHwFrontend skips this — BGR frame already in result from Stage 01).
     // Returns true on success, false on failure.
-    virtual bool _ConvertToBgr03(const HardwareFrame& hw_frame, cv::Mat& frame);
+    virtual bool _ConvertToBgr03(ReadResult& result);
 
     // Open the source and set source properties (width, height, fps).
     // Called from the constructor. Throws std::runtime_error on failure.
@@ -139,9 +139,6 @@ protected:
 private:
     // Stage 04: Preprocess BGR frame into TensorData for inference. Non-virtual.
     TensorData _PreprocessForInference04(const cv::Mat& frame, int model_w, int model_h);
-
-    // Read one raw packet from the input source. Used by _ReadInputSource01 default impl.
-    virtual bool _ReadRawPacket(RawPacket& pkt);
 
     // Sync mode: 4 stages on calling thread.
     std::optional<FrameResult> _ProcessSync(int model_w, int model_h);

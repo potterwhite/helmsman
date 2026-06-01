@@ -75,7 +75,7 @@ void RockchipFrontend::_OpenSource(const std::string& input_path) {
 // ---------------------------------------------------------------------------
 // Stage 01: Read raw packet from FFmpeg input source
 // ---------------------------------------------------------------------------
-bool RockchipFrontend::_ReadRawPacket(RawPacket& pkt) {
+bool RockchipFrontend::_ReadInputSource01(RawPacket& pkt, ReadResult& /*result*/) {
     if (!source_)
         return false;
     return source_->ReadRaw(pkt);
@@ -84,17 +84,17 @@ bool RockchipFrontend::_ReadRawPacket(RawPacket& pkt) {
 // ---------------------------------------------------------------------------
 // Stage 02: Decode one compressed packet via MPP hardware decoder
 // ---------------------------------------------------------------------------
-bool RockchipFrontend::_DecodeFrame02(const RawPacket& pkt, HardwareFrame& hw_frame) {
+bool RockchipFrontend::_DecodeFrame02(const RawPacket& pkt, ReadResult& result) {
     if (!decoder_)
         return false;
-    return decoder_->decode(pkt.data, pkt.size, hw_frame);
+    return decoder_->decode(pkt.data, pkt.size, result.hw_frame);
 }
 
 // ---------------------------------------------------------------------------
 // Stage 03: Convert NV12 hardware frame to BGR via RGA
 // ---------------------------------------------------------------------------
-bool RockchipFrontend::_ConvertToBgr03(const HardwareFrame& hw_frame, cv::Mat& frame) {
+bool RockchipFrontend::_ConvertToBgr03(ReadResult& result) {
     if (!color_converter_)
         return false;
-    return color_converter_->convert(hw_frame, frame);
+    return color_converter_->convert(result.hw_frame, result.frame);
 }
