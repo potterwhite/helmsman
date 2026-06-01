@@ -23,8 +23,10 @@
 #include <chrono>
 #include <cstring>
 #include <functional>
+#include <iomanip>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
+#include <sstream>
 #include <thread>
 #include "RGAKit/rga_resize.h"
 #include "Utils/timing/timer.h"
@@ -201,22 +203,26 @@ RvmModelState RVMMode::InitModelState(InferenceEngine* engine) {
 }
 
 void RVMMode::_ReportAllAccumulatedTimers(void) {
-	acc_lv03_01_mainloop.report(config_.timing_enabled, GetLogger(), kRvmModuleName);
+	if (!config_.timing_enabled)
+		return;
 
-	frontend_->read_input_acc().report(config_.timing_enabled, GetLogger(), kRvmModuleName);
-	frontend_->decode_acc().report(config_.timing_enabled, GetLogger(), kRvmModuleName);
-	frontend_->color_convert_acc().report(config_.timing_enabled, GetLogger(), kRvmModuleName);
-	frontend_->preprocess_acc().report(config_.timing_enabled, GetLogger(), kRvmModuleName);
-	frontend_->resize_acc().report(config_.timing_enabled, GetLogger(), kRvmModuleName);
-	acc_lv03_02_01_mainloop_frontend_decode_.report(config_.timing_enabled, GetLogger(),
-	                                                kRvmModuleName);
+	GetLogger().Info("────────── Frontend ──────────", kRvmModuleName);
+	frontend_->read_input_acc().report(true, GetLogger(), kRvmModuleName, "read_input_source");
+	frontend_->decode_acc().report(true, GetLogger(), kRvmModuleName, "decode_frame");
+	frontend_->color_convert_acc().report(true, GetLogger(), kRvmModuleName, "convert_to_bgr");
+	frontend_->preprocess_acc().report(true, GetLogger(), kRvmModuleName, "preprocess");
+	frontend_->resize_acc().report(true, GetLogger(), kRvmModuleName, "  resize");
 
-	engine_->infer_acc().report(config_.timing_enabled, GetLogger(), kRvmModuleName);
+	GetLogger().Info("────────── Inference ──────────", kRvmModuleName);
+	engine_->infer_acc().report(true, GetLogger(), kRvmModuleName, "infer");
 
-	acc_lv03_04_02_mainloop_backend_composite_.report(config_.timing_enabled, GetLogger(),
-	                                                  kRvmModuleName);
-	acc_lv03_04_03_mainloop_backend_display_.report(config_.timing_enabled, GetLogger(),
-	                                                kRvmModuleName);
+	GetLogger().Info("────────── Backend ──────────", kRvmModuleName);
+	acc_lv03_04_02_mainloop_backend_composite_.report(true, GetLogger(), kRvmModuleName,
+	                                                  "composite");
+	acc_lv03_04_03_mainloop_backend_display_.report(true, GetLogger(), kRvmModuleName, "  display");
+
+	GetLogger().Info("────────── Overall ──────────", kRvmModuleName);
+	acc_lv03_01_mainloop.report(true, GetLogger(), kRvmModuleName, "mainloop (per frame)");
 }
 
 void RVMMode::_DoCleaningThings(const std::chrono::steady_clock::time_point& pipeline_start,
@@ -314,8 +320,8 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		if (!result)
 			break;
 
-		GetLogger().Info("=== RVM Frame " + std::to_string(frame_count_ + 1) + " ===",
-		                 kRvmModuleName);
+		// GetLogger().Info("=== RVM Frame " + std::to_string(frame_count_ + 1) + " ===",
+		//                  kRvmModuleName);
 
 		const int model_w = setup.model_input_width;
 		const int model_h = setup.model_input_height;
@@ -336,21 +342,41 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		const int output_h =
 		    (config_.output_mode == OutputMode::kDrm) ? drm_panel_h_ : result->frame.rows;
 		cv::Mat composed;
-
-		double composite_ms =
+		const double composite_ms =
 		    _Composite(result->frame, alpha_8u, model_w, model_h, output_w, output_h, composed);
 
 		// -------------------------------------------------------------
 		// --- 5th: backend - display ---
-		double display_ms = _Display(composed, output_w, output_h);
+		const double display_ms = _Display(composed, output_w, output_h);
 
 		// -------------------------------------------------------------
-		// --- end: log per-frame stats ---
-		GetLogger().Info("[PerFrame] frame=" + std::to_string(frame_count_) +
-		                     "  [3rd]infer=" + std::to_string(infer_ms) + "ms" +
-		                     "  composite=" + std::to_string(composite_ms) + "ms" +
-		                     "  display=" + std::to_string(display_ms) + "ms",
+		// --- end: per-frame timing block ---
+		const double frame_total = loop_t.elapsed_ms();
+		const int fn = static_cast<int>(frame_count_ + 1);
+		const auto fm = [&](double v) -> std::string {
+			std::ostringstream o;
+			o << std::fixed << std::setprecision(3) << v;
+			return o.str();
+		};
+
+		GetLogger().Info("───── Frame " + std::to_string(fn) + " ─────", kRvmModuleName);
+		GetLogger().Info("  frontend(read_input_source: " + fm(result->read_ms) +
+		                     "ms; decode_frame: " + fm(result->decode_ms) +
+		                     "ms; convert_to_bgr: " + fm(result->color_convert_ms) +
+		                     "ms; preprocess: " + fm(result->preprocess_ms) + "ms)",
 		                 kRvmModuleName);
+		GetLogger().Info("  inference(infer: " + fm(infer_ms) + "ms)", kRvmModuleName);
+		GetLogger().Info(
+		    "  backend(composite: " + fm(composite_ms) + "ms; display: " + fm(display_ms) + "ms)",
+		    kRvmModuleName);
+		GetLogger().Info("  total: " + fm(frame_total) + "ms", kRvmModuleName);
+
+		// // --- old per-frame stats (commented out) ---
+		// GetLogger().Info("[PerFrame] frame=" + std::to_string(frame_count) +
+		//                      "  [3rd]infer=" + std::to_string(infer_ms) + "ms" +
+		//                      "  composite=" + std::to_string(composite_ms) + "ms" +
+		//                      "  display=" + std::to_string(display_ms) + "ms",
+		//                  kRvmModuleName);
 
 		// FPS measurement: report every 30 frames
 		if (frame_count_ % 30 == 0) {
@@ -367,10 +393,6 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 
 		// increment frame count at the very end, so that logs show the current frame number (starting from 1)
 		frame_count_++;
-
-		// end of frame
-		GetLogger().Info(" --- End of RVM Frame " + std::to_string(frame_count_) + " ---\n",
-		                 kRvmModuleName);
 	}
 }
 

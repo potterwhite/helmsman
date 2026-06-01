@@ -195,9 +195,17 @@ class StageAccumulator {
     void report(bool timing_enabled,
                 helmsman::utils::Logger& logger,
                 std::string_view module) const {
+        report(timing_enabled, logger, module, name_);
+    }
+
+    // Overload: use custom_label instead of the internal stage name.
+    void report(bool timing_enabled,
+                helmsman::utils::Logger& logger,
+                std::string_view module,
+                std::string_view custom_label) const {
         if (!timing_enabled) return;
         if (samples_.empty()) {
-            logger.Info("[Timing] " + name_ + ": no samples recorded.", module);
+            logger.Info("  " + std::string(custom_label) + ": no samples recorded.", module);
             return;
         }
 
@@ -211,7 +219,7 @@ class StageAccumulator {
         }
         double avg = sum / static_cast<double>(samples_.size());
 
-        logger.Info("[Timing] " + name_ +
+        logger.Info("  " + std::string(custom_label) +
                         " — count: " + std::to_string(samples_.size()) +
                         "  min: "    + std::to_string(vmin) + " ms" +
                         "  avg: "    + std::to_string(avg)  + " ms" +

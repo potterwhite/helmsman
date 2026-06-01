@@ -59,6 +59,12 @@ struct FrameResult {
     cv::Mat frame;          // Raw BGR frame (for compositing)
     HardwareFrame hw_frame; // Hardware frame metadata (for hardware path)
     TensorData tensor;      // Preprocessed tensor (for inference)
+
+    // Per-frame timing (milliseconds). Populated by ProcessOneFrame.
+    double read_ms = 0;
+    double decode_ms = 0;
+    double color_convert_ms = 0;
+    double preprocess_ms = 0;
 };
 
 /**
@@ -173,6 +179,8 @@ private:
     cv::Mat next_frame_;
     HardwareFrame next_hw_frame_;
     HardwareFrame stored_hw_frame_;  // hw_frame for current frame (stages 01-03 done, stage 04 pending)
+    struct StageTiming { double read_ms = 0; double decode_ms = 0; double color_ms = 0; };
+    StageTiming next_timing_;
 
     // Timing
     helmsman::utils::timing::StageAccumulator acc_lv03_02_frontend_read_{

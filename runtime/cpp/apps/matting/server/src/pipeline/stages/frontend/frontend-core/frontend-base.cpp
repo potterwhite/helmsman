@@ -148,6 +148,8 @@ void FrontendBase::_MultithreadWorkerLoop(int model_w, int model_h) {
 std::optional<FrameResult> FrontendBase::_ProcessSync(int model_w, int model_h) {
 	ReadResult read_result;
 	RawPacket pkt;
+	FrameResult result;
+	double read_total = 0, decode_total = 0, color_total = 0;
 
 	// Stages 01-03: read + decode + color convert (with retry loop for hardware decoders)
 	while (true) {
@@ -156,7 +158,9 @@ std::optional<FrameResult> FrontendBase::_ProcessSync(int model_w, int model_h) 
 			t.start();
 			if (!_ReadInputSource01(pkt, read_result))
 				return std::nullopt;
-			acc_lv03_02_frontend_read_.record(t.stop());
+			double ms = t.stop();
+			acc_lv03_02_frontend_read_.record(ms);
+			read_total += ms;
 		}
 		if (pkt.is_eof)
 			return std::nullopt;
@@ -165,7 +169,9 @@ std::optional<FrameResult> FrontendBase::_ProcessSync(int model_w, int model_h) 
 			helmsman::utils::timing::ManualTimer t;
 			t.start();
 			bool decoded = _DecodeFrame02(pkt, read_result);
-			acc_lv03_03_frontend_decode_.record(t.stop());
+			double ms = t.stop();
+			acc_lv03_03_frontend_decode_.record(ms);
+			decode_total += ms;
 			if (!decoded)
 				continue;  // decoder needs more data
 		}
@@ -175,14 +181,22 @@ std::optional<FrameResult> FrontendBase::_ProcessSync(int model_w, int model_h) 
 			t.start();
 			if (!_ConvertToBgr03(read_result))
 				return std::nullopt;
-			acc_lv03_04_frontend_color_convert_.record(t.stop());
+			double ms = t.stop();
+			acc_lv03_04_frontend_color_convert_.record(ms);
+			color_total += ms;
 		}
 
 		// Stage 04: preprocess
-		FrameResult result;
 		result.frame = std::move(read_result.frame);
 		result.hw_frame = read_result.hw_frame;
+		helmsman::utils::timing::ManualTimer t_prep;
+		t_prep.start();
 		result.tensor = _PreprocessForInference04(result.frame, model_w, model_h);
+		result.preprocess_ms = t_prep.stop();
+
+		result.read_ms = read_total;
+		result.decode_ms = decode_total;
+		result.color_convert_ms = color_total;
 		return result;
 	}
 }
@@ -195,7 +209,7 @@ std::optional<FrameResult> FrontendBase::_ProcessMultithread(int model_w, int mo
 	if (mt_eof_)
 		return std::nullopt;
 
-	auto read_stages_01_03 = [this](ReadResult& rr) -> bool {
+	auto read_stages_01_03 = [this](ReadResult& rr, StageTiming& timing) -> bool {
 		RawPacket pkt;
 		while (true) {
 			{
@@ -203,7 +217,9 @@ std::optional<FrameResult> FrontendBase::_ProcessMultithread(int model_w, int mo
 				t.start();
 				if (!_ReadInputSource01(pkt, rr))
 					return false;
-				acc_lv03_02_frontend_read_.record(t.stop());
+				double ms = t.stop();
+				acc_lv03_02_frontend_read_.record(ms);
+				timing.read_ms += ms;
 			}
 			if (pkt.is_eof)
 				return false;
@@ -211,7 +227,9 @@ std::optional<FrameResult> FrontendBase::_ProcessMultithread(int model_w, int mo
 				helmsman::utils::timing::ManualTimer t;
 				t.start();
 				bool decoded = _DecodeFrame02(pkt, rr);
-				acc_lv03_03_frontend_decode_.record(t.stop());
+				double ms = t.stop();
+				acc_lv03_03_frontend_decode_.record(ms);
+				timing.decode_ms += ms;
 				if (!decoded)
 					continue;
 			}
@@ -219,7 +237,9 @@ std::optional<FrameResult> FrontendBase::_ProcessMultithread(int model_w, int mo
 				helmsman::utils::timing::ManualTimer t;
 				t.start();
 				bool ok = _ConvertToBgr03(rr);
-				acc_lv03_04_frontend_color_convert_.record(t.stop());
+				double ms = t.stop();
+				acc_lv03_04_frontend_color_convert_.record(ms);
+				timing.color_ms += ms;
 				return ok;
 			}
 		}
@@ -231,7 +251,8 @@ std::optional<FrameResult> FrontendBase::_ProcessMultithread(int model_w, int mo
 
 		// Stages 01-03: read frame 1
 		ReadResult read1;
-		if (!read_stages_01_03(read1))
+		StageTiming timing1;
+		if (!read_stages_01_03(read1, timing1))
 			return std::nullopt;
 
 		cv::Mat frame_1 = std::move(read1.frame);
@@ -243,17 +264,22 @@ std::optional<FrameResult> FrontendBase::_ProcessMultithread(int model_w, int mo
 		raw_ch_->push(frame_1);
 
 		// Stage 04: pop tensor from worker
+		helmsman::utils::timing::ManualTimer t_pop1;
+		t_pop1.start();
 		auto tensor_1 = tensor_ch_->pop();
 		if (!tensor_1) {
 			mt_eof_ = true;
 			return std::nullopt;
 		}
+		double preprocess_1_ms = t_pop1.stop();
 
 		// Stages 01-03: read frame 2 (overlaps with stage 04 for frame 1)
 		ReadResult read2;
-		if (read_stages_01_03(read2)) {
+		StageTiming timing2;
+		if (read_stages_01_03(read2, timing2)) {
 			next_frame_ = std::move(read2.frame);
 			next_hw_frame_ = read2.hw_frame;
+			next_timing_ = timing2;
 			raw_ch_->push(next_frame_);
 		} else {
 			raw_ch_->close();
@@ -263,27 +289,37 @@ std::optional<FrameResult> FrontendBase::_ProcessMultithread(int model_w, int mo
 		result.frame = std::move(frame_1);
 		result.hw_frame = stored_hw_frame_;
 		result.tensor = std::move(*tensor_1);
+		result.read_ms = timing1.read_ms;
+		result.decode_ms = timing1.decode_ms;
+		result.color_convert_ms = timing1.color_ms;
+		result.preprocess_ms = preprocess_1_ms;
 		return result;
 	}
 
 	// Phase 2: subsequent calls
 
 	// Stage 04: pop tensor from worker
+	helmsman::utils::timing::ManualTimer t_pop;
+	t_pop.start();
 	auto tensor = tensor_ch_->pop();
 	if (!tensor) {
 		mt_eof_ = true;
 		return std::nullopt;
 	}
+	double preprocess_ms = t_pop.stop();
 
 	// Save current buffered frame to return
 	cv::Mat return_frame = std::move(next_frame_);
 	HardwareFrame return_hw_frame = next_hw_frame_;
+	StageTiming return_timing = next_timing_;
 
 	// Stages 01-03: read next frame
 	ReadResult read_next;
-	if (read_stages_01_03(read_next)) {
+	StageTiming next_t;
+	if (read_stages_01_03(read_next, next_t)) {
 		next_frame_ = std::move(read_next.frame);
 		next_hw_frame_ = read_next.hw_frame;
+		next_timing_ = next_t;
 		raw_ch_->push(next_frame_);
 	} else {
 		raw_ch_->close();
@@ -293,6 +329,10 @@ std::optional<FrameResult> FrontendBase::_ProcessMultithread(int model_w, int mo
 	result.frame = std::move(return_frame);
 	result.hw_frame = return_hw_frame;
 	result.tensor = std::move(*tensor);
+	result.read_ms = return_timing.read_ms;
+	result.decode_ms = return_timing.decode_ms;
+	result.color_convert_ms = return_timing.color_ms;
+	result.preprocess_ms = preprocess_ms;
 	return result;
 }
 
