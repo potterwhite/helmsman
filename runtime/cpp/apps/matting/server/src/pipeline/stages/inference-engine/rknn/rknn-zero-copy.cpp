@@ -417,67 +417,25 @@ void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(const std::vector<TensorDat
 }
 
 // ============================================================================
-// Step 4 — Inference Profiling
-//
-// Log per-step timing: input conversion, NPU execution, output conversion,
-// and binary dump. Also logs the primary input's precision type.
-// ============================================================================
-void InferenceEngineRKNNZeroCP::LogInferenceProfile4th(double cast_in_ms, double npu_run_ms,
-                                                       double cast_out_ms, double dump_ms) {
-	auto& logger = helmsman::utils::Logger::GetInstance();
-
-	bool is_int8_primary =
-	    (input_attrs_[0].type == RKNN_TENSOR_INT8 || input_attrs_[0].type == RKNN_TENSOR_UINT8);
-	bool is_fp16_primary = (input_attrs_[0].type == RKNN_TENSOR_FLOAT16);
-	std::string precision_str = is_int8_primary ? "INT8" : (is_fp16_primary ? "FP16" : "FP32");
-
-	logger.Info("   [Profiler] Input conversion (" + precision_str +
-	                ") cost: " + std::to_string(cast_in_ms) + " ms.",
-	            kcurrent_module_name);
-	logger.Info("   [Profiler] Pure RKNN Run cost:   " + std::to_string(npu_run_ms) + " ms.",
-	            kcurrent_module_name);
-	logger.Info("   [Profiler] Output conversion cost: " + std::to_string(cast_out_ms) + " ms.",
-	            kcurrent_module_name);
-
-	if (dump_ms > 0.0) {
-		logger.Info("   [Profiler] Binary Dump cost:     " + std::to_string(dump_ms) + " ms.",
-		            kcurrent_module_name);
-	} else {
-		logger.Info("   [Profiler] Binary Dump:           disabled (no stats)",
-		            kcurrent_module_name);
-	}
-}
-
-// ============================================================================
 // Inference — N inputs → M outputs (Zero-Copy)
 //
-// Orchestrates the 4-step inference pipeline:
+// Orchestrates the 3-step inference pipeline:
 //   1st: CPU → NPU input conversion
 //   2nd: NPU execution
 //   3rd: NPU → CPU output conversion
-//   4th: profiling log
 // ============================================================================
 void InferenceEngineRKNNZeroCP::DoInfer(const std::vector<TensorData>& inputs,
                                         std::vector<TensorData>& outputs) {
-	auto t0 = std::chrono::high_resolution_clock::now();
-
 	// Step 1 - CPU → NPU: convert and write input buffers
 	WriteInputBuffers1st(inputs);
-
-	auto t1 = std::chrono::high_resolution_clock::now();
 
 	// Step 2 - NPU execution
 	ExecuteNpu2nd();
 
-	auto t2 = std::chrono::high_resolution_clock::now();
-
 	// Step 3 - NPU → CPU: read and convert output buffers
 	ReadOutputBuffers3rd(inputs, outputs);
 
-	auto t3 = std::chrono::high_resolution_clock::now();
-
 	// Debug dump for pha output (name-based lookup)
-	double dump_ms = 0.0;
 	if (dump_enabled_ && !output_bin_path_.empty()) {
 		for (const auto& td : outputs) {
 			if (td.name == "pha") {
@@ -486,19 +444,7 @@ void InferenceEngineRKNNZeroCP::DoInfer(const std::vector<TensorData>& inputs,
 				break;
 			}
 		}
-		auto t4 = std::chrono::high_resolution_clock::now();
-		dump_ms = std::chrono::duration<double, std::milli>(t4 - t3).count();
 	}
-
-	// Step 4 - Profiling
-	LogInferenceProfile4th(std::chrono::duration<double, std::milli>(t1 - t0).count(),
-	                       std::chrono::duration<double, std::milli>(t2 - t1).count(),
-	                       std::chrono::duration<double, std::milli>(t3 - t2).count(), dump_ms);
-
-	helmsman::utils::Logger::GetInstance().Info(
-	    "infer() complete: " + std::to_string(io_num_.n_input) + " in / " +
-	        std::to_string(io_num_.n_output) + " out",
-	    kcurrent_module_name);
 }
 
 // ============================================================================

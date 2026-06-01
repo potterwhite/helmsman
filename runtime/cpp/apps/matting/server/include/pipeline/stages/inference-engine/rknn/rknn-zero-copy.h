@@ -72,8 +72,6 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 	void ExecuteNpu2nd();
 	void ReadOutputBuffers3rd(const std::vector<TensorData>& inputs,
 	                          std::vector<TensorData>& outputs);
-	void LogInferenceProfile4th(double cast_in_ms, double npu_run_ms, double cast_out_ms,
-	                            double dump_ms);
 
 	void ReleaseBuffers();
 
