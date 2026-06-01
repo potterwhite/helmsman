@@ -73,8 +73,20 @@ double FrontendBase::fps() const {
 	return fps_;
 }
 
+const helmsman::utils::timing::StageAccumulator& FrontendBase::read_input_acc() const {
+	return acc_lv03_02_frontend_read_;
+}
+
+const helmsman::utils::timing::StageAccumulator& FrontendBase::decode_acc() const {
+	return acc_lv03_03_frontend_decode_;
+}
+
+const helmsman::utils::timing::StageAccumulator& FrontendBase::color_convert_acc() const {
+	return acc_lv03_04_frontend_color_convert_;
+}
+
 const helmsman::utils::timing::StageAccumulator& FrontendBase::preprocess_acc() const {
-	return acc_lv03_02_worker_preprocess_;
+	return acc_lv03_05_frontend_preprocess_;
 }
 
 const helmsman::utils::timing::StageAccumulator& FrontendBase::resize_acc() const {
@@ -111,7 +123,7 @@ TensorData FrontendBase::_PreprocessForInference04(const cv::Mat& frame, int mod
 	helmsman::utils::timing::ManualTimer t;
 	t.start();
 	auto tensor = preprocessor_.preprocess(frame, model_w, model_h);
-	acc_lv03_02_worker_preprocess_.record(t.stop());
+	acc_lv03_05_frontend_preprocess_.record(t.stop());
 	return tensor;
 }
 
@@ -137,18 +149,34 @@ std::optional<FrameResult> FrontendBase::_ProcessSync(int model_w, int model_h) 
 	ReadResult read_result;
 	RawPacket pkt;
 
-	// Stage 01: read raw packet (with decode retry loop for hardware decoders)
-	while (_ReadInputSource01(pkt, read_result)) {
+	// Stages 01-03: read + decode + color convert (with retry loop for hardware decoders)
+	while (true) {
+		{
+			helmsman::utils::timing::ManualTimer t;
+			t.start();
+			if (!_ReadInputSource01(pkt, read_result))
+				return std::nullopt;
+			acc_lv03_02_frontend_read_.record(t.stop());
+		}
 		if (pkt.is_eof)
 			return std::nullopt;
 
-		// Stage 02: decode
-		if (!_DecodeFrame02(pkt, read_result))
-			continue;  // decoder needs more data
+		{
+			helmsman::utils::timing::ManualTimer t;
+			t.start();
+			bool decoded = _DecodeFrame02(pkt, read_result);
+			acc_lv03_03_frontend_decode_.record(t.stop());
+			if (!decoded)
+				continue;  // decoder needs more data
+		}
 
-		// Stage 03: color convert
-		if (!_ConvertToBgr03(read_result))
-			return std::nullopt;
+		{
+			helmsman::utils::timing::ManualTimer t;
+			t.start();
+			if (!_ConvertToBgr03(read_result))
+				return std::nullopt;
+			acc_lv03_04_frontend_color_convert_.record(t.stop());
+		}
 
 		// Stage 04: preprocess
 		FrameResult result;
@@ -157,7 +185,6 @@ std::optional<FrameResult> FrontendBase::_ProcessSync(int model_w, int model_h) 
 		result.tensor = _PreprocessForInference04(result.frame, model_w, model_h);
 		return result;
 	}
-	return std::nullopt;
 }
 
 // ---------------------------------------------------------------------------
@@ -170,13 +197,32 @@ std::optional<FrameResult> FrontendBase::_ProcessMultithread(int model_w, int mo
 
 	auto read_stages_01_03 = [this](ReadResult& rr) -> bool {
 		RawPacket pkt;
-		while (_ReadInputSource01(pkt, rr)) {
+		while (true) {
+			{
+				helmsman::utils::timing::ManualTimer t;
+				t.start();
+				if (!_ReadInputSource01(pkt, rr))
+					return false;
+				acc_lv03_02_frontend_read_.record(t.stop());
+			}
 			if (pkt.is_eof)
 				return false;
-			if (_DecodeFrame02(pkt, rr))
-				return _ConvertToBgr03(rr);
+			{
+				helmsman::utils::timing::ManualTimer t;
+				t.start();
+				bool decoded = _DecodeFrame02(pkt, rr);
+				acc_lv03_03_frontend_decode_.record(t.stop());
+				if (!decoded)
+					continue;
+			}
+			{
+				helmsman::utils::timing::ManualTimer t;
+				t.start();
+				bool ok = _ConvertToBgr03(rr);
+				acc_lv03_04_frontend_color_convert_.record(t.stop());
+				return ok;
+			}
 		}
-		return false;
 	};
 
 	if (!mt_started_) {

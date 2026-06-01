@@ -58,12 +58,7 @@ void Preprocessor::SetDumpEnabled(bool enabled) { dump_enabled_ = enabled; }
 TensorData Preprocessor::preprocess(const cv::Mat& bgr_frame,
                                      int model_width,
                                      int model_height) {
-    return PreprocessCore(bgr_frame.clone(), model_width, model_height);
-}
-
-TensorData Preprocessor::PreprocessCore(cv::Mat img,
-                                         int model_width,
-                                         int model_height) {
+    cv::Mat img = bgr_frame.clone();
     TensorData tensor_data;
 
     auto& logger = helmsman::utils::Logger::GetInstance();

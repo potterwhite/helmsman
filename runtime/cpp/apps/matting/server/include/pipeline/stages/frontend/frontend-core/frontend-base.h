@@ -86,10 +86,11 @@ public:
     // Signal the prefetch worker to stop. Safe to call multiple times.
     void Stop();
 
-    // Access the preprocess timing accumulator (thread-safe record(), main-thread report()).
+    // Access timing accumulators (thread-safe record(), main-thread report()).
+    const helmsman::utils::timing::StageAccumulator& read_input_acc() const;
+    const helmsman::utils::timing::StageAccumulator& decode_acc() const;
+    const helmsman::utils::timing::StageAccumulator& color_convert_acc() const;
     const helmsman::utils::timing::StageAccumulator& preprocess_acc() const;
-
-    // Access the resize timing accumulator (sub-step of preprocess).
     const helmsman::utils::timing::StageAccumulator& resize_acc() const;
 
     // Whether the hardware decode path is active.
@@ -174,6 +175,12 @@ private:
     HardwareFrame stored_hw_frame_;  // hw_frame for current frame (stages 01-03 done, stage 04 pending)
 
     // Timing
-    helmsman::utils::timing::StageAccumulator acc_lv03_02_worker_preprocess_{
-        "  Lv03-02::worker::preprocess"};
+    helmsman::utils::timing::StageAccumulator acc_lv03_02_frontend_read_{
+        "    Lv03-02-01::frontend::read_input_source"};
+    helmsman::utils::timing::StageAccumulator acc_lv03_03_frontend_decode_{
+        "    Lv03-02-02::frontend::decode_frame"};
+    helmsman::utils::timing::StageAccumulator acc_lv03_04_frontend_color_convert_{
+        "    Lv03-02-03::frontend::convert_to_bgr"};
+    helmsman::utils::timing::StageAccumulator acc_lv03_05_frontend_preprocess_{
+        "  Lv03-02::frontend::preprocess"};
 };

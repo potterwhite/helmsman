@@ -107,7 +107,7 @@ class RVMMode {
 	std::vector<uint8_t> argb_buf_;  // reusable buffer for BGR→XRGB conversion
 
 	/* -------------------------------------------------------------------------
-	// Pipeline timing layout (s10 — full coverage)
+	// Pipeline timing layout (s11 — full coverage)
 	//
 	// Whole-run timers (overlap with the above; cheap, kept for context)
 	//
@@ -119,12 +119,15 @@ class RVMMode {
 	//
 	//   [main thread]                                                      [worker thread]
 	//   acc_lv03_01_mainloop  (whole iteration)
-	//     ├── tensor_ch.pop()                          ◄────────────       acc_lv03_02_worker_preprocess_
+	//     ├── tensor_ch.pop()                          ◄────────────       acc_lv03_05_frontend_preprocess_
 	//     │   (blocks if worker                        pushes here         (run on worker:
 	//     │    not done yet)                                                BGR→tensor resize+norm)
 	//     ├── acc_lv03_02_01_mainloop_frontend_decode_ ────────────►       raw_ch.pop()
 	//     │   (read next frame                                             (worker waits here)
 	//     │    + push to raw_ch)
+	//     │     ├── acc_lv03_02-01::frontend::read_input_source
+	//     │     ├── acc_lv03_02-02::frontend::decode_frame
+	//     │     └── acc_lv03_02-03::frontend::convert_to_bgr
 	//     ├── acc_lv03_03_mainloop_inferenceengine_infer_     (NPU inference, current frame)
 	//     ├── acc_lv03_04_02_mainloop_backend_composite_      (composite + write, current frame)
 	//     └── acc_lv03_04_03_mainloop_backend_display_        ()
@@ -135,6 +138,7 @@ class RVMMode {
 	//
 	// Identity (approx, ignoring tiny logging overhead):
 	//   acc_lv03_01_mainloop ≈ max(tensor_ch.pop wait, 0) + acc_lv03_02_01_mainloop_frontend_decode_ + acc_lv03_03_mainloop_inferenceengine_infer_ + acc_lv03_04_02_mainloop_backend_composite_
+	//   acc_lv03_02_01_mainloop_frontend_decode_ ≈ read_input_source + decode_frame + convert_to_bgr
 	//   acc_lv03_04_02_mainloop_backend_composite_ ≈ Backend::Composite() + writer
 	// ------------------------------------------------------------------------- */
 	using sa = helmsman::utils::timing::StageAccumulator;

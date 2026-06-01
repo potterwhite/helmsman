@@ -53,8 +53,6 @@ public:
     const sa& resize_acc() const { return acc_resize_; }
 
 private:
-    TensorData PreprocessCore(cv::Mat img, int model_width, int model_height);
-
     std::string output_bin_path_;
     bool dump_enabled_ = false;
     helmsman::cvkit::Base cvkit_;
