@@ -65,6 +65,8 @@ class InferenceEngine {
 
 	// --- Timing ---
 	const helmsman::utils::timing::StageAccumulator& infer_acc() const { return infer_acc_; }
+	void ReportAccumulatedTimers(bool timing_enabled, helmsman::utils::Logger& logger,
+	                              std::string_view module) const;
 
 	// --- Query (unchanged) ---
 	virtual int GetInputHeight() const;

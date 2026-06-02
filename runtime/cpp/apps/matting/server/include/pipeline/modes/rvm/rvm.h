@@ -119,36 +119,26 @@ class RVMMode {
 	//
 	//   [main thread]                                                      [worker thread]
 	//   acc_lv03_01_mainloop  (whole iteration)
-	//     ├── tensor_ch.pop()                          ◄────────────       acc_lv03_05_frontend_preprocess_
-	//     │   (blocks if worker                        pushes here         (run on worker:
-	//     │    not done yet)                                                BGR→tensor resize+norm)
-	//     ├── acc_lv03_02_01_mainloop_frontend_decode_ ────────────►       raw_ch.pop()
-	//     │   (read next frame                                             (worker waits here)
-	//     │    + push to raw_ch)
-	//     │     ├── acc_lv03_02-01::frontend::read_input_source
-	//     │     ├── acc_lv03_02-02::frontend::decode_frame
-	//     │     └── acc_lv03_02-03::frontend::convert_to_bgr
-	//     ├── acc_lv03_03_mainloop_inferenceengine_infer_     (NPU inference, current frame)
-	//     ├── MattingBackend::postprocess_acc_                (Postprocess, in backend)
-	//     ├── MattingBackend::composite_acc_                 (Composite, in backend)
-	//     └── acc_lv03_04_03_mainloop_backend_display_        ()
+	//     ├── FrontendBase::total_acc_                           ◄── frontend sub-timers
+	//     ├── InferenceEngine::infer_acc_                                (NPU inference)
+	//     └── MattingBackend::total_acc_  ◄── postprocess + composite + display
 	//
 	//
 	//   [FPS]   line every 30 frames                                         — moving fps
 	//   [PerFrame] line every frame                                          — infer + comp
 	//
 	// Identity (approx, ignoring tiny logging overhead):
-	//   acc_lv03_01_mainloop ≈ max(tensor_ch.pop wait, 0) + acc_lv03_02_01_mainloop_frontend_decode_ + acc_lv03_03_mainloop_inferenceengine_infer_ + MattingBackend::composite_acc_
-	//   acc_lv03_02_01_mainloop_frontend_decode_ ≈ read_input_source + decode_frame + convert_to_bgr
-	//   MattingBackend::composite_acc_ ≈ Backend::Composite() + writer
+	//   acc_lv03_01_mainloop ≈ FrontendBase::total_acc_ + InferenceEngine::infer_acc_ + MattingBackend::total_acc_
+	//   FrontendBase::total_acc_ ≈ read + decode + color_convert + preprocess
+	//   MattingBackend::total_acc_ ≈ postprocess + composite + display
 	// ------------------------------------------------------------------------- */
 	using sa = helmsman::utils::timing::StageAccumulator;
 
 	sa acc_lv03_01_mainloop{"Lv03-01::mainloop"};
-	sa acc_lv03_02_01_mainloop_frontend_decode_{"  Lv03-02-01::mainloop::frontend::decode"};
-	// acc_lv03_03_mainloop_inferenceengine_infer_ moved to InferenceEngine::infer_acc_
-	// acc_lv03_04_01/02 moved to MattingBackend (postprocess_acc, composite_acc)
-	sa acc_lv03_04_03_mainloop_backend_display_{"    Lv03-04-03::mainloop::backend::display"};
+	// Sub-stage accumulators moved to their respective stage classes:
+	//   frontend → FrontendBase::total_acc()
+	//   inference → InferenceEngine::infer_acc()
+	//   postprocess/composite/display → MattingBackend
 
 	size_t frame_count_ = 0;
 	std::chrono::steady_clock::time_point fps_window_start_;

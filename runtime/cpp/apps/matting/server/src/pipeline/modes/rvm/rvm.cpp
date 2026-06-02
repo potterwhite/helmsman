@@ -154,7 +154,7 @@ double RVMMode::_Display(const cv::Mat& composed, int output_w, int output_h) {
 
 	// 4th. stop accumulating and record
 	t.stop();
-	acc_lv03_04_03_mainloop_backend_display_.record(t.elapsed_ms());
+	backend_->RecordDisplay(t.elapsed_ms());
 
 	return t.elapsed_ms();
 }
@@ -198,22 +198,17 @@ void RVMMode::_ReportAllAccumulatedTimers(void) {
 	if (!config_.timing_enabled)
 		return;
 
-	GetLogger().Info("", kRvmModuleName);  // blank line: separator before accumulated stats
+	GetLogger().Info("", kRvmModuleName);
 	GetLogger().Info("═══════════ Accumulated Timing Stats ═══════════", kRvmModuleName);
+
 	GetLogger().Info("────────── Frontend ──────────", kRvmModuleName);
-	frontend_->read_input_acc().report(true, GetLogger(), kRvmModuleName, "read_input_source");
-	frontend_->decode_acc().report(true, GetLogger(), kRvmModuleName, "decode_frame");
-	frontend_->color_convert_acc().report(true, GetLogger(), kRvmModuleName, "convert_to_bgr");
-	frontend_->preprocess_acc().report(true, GetLogger(), kRvmModuleName, "preprocess");
-	frontend_->resize_acc().report(true, GetLogger(), kRvmModuleName, "  resize");
+	frontend_->ReportAccumulatedTimers(true, GetLogger(), kRvmModuleName);
 
 	GetLogger().Info("────────── Inference ──────────", kRvmModuleName);
-	engine_->infer_acc().report(true, GetLogger(), kRvmModuleName, "infer");
+	engine_->ReportAccumulatedTimers(true, GetLogger(), kRvmModuleName);
 
 	GetLogger().Info("────────── Backend ──────────", kRvmModuleName);
-	backend_->postprocess_acc().report(true, GetLogger(), kRvmModuleName, "postprocess");
-	backend_->composite_acc().report(true, GetLogger(), kRvmModuleName, "composite");
-	acc_lv03_04_03_mainloop_backend_display_.report(true, GetLogger(), kRvmModuleName, "  display");
+	backend_->ReportAccumulatedTimers(true, GetLogger(), kRvmModuleName);
 
 	GetLogger().Info("────────── Overall ──────────", kRvmModuleName);
 	acc_lv03_01_mainloop.report(true, GetLogger(), kRvmModuleName, "mainloop (per frame)");
@@ -333,8 +328,10 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		const double infer_ms = engine->Infer({result->tensor}, outputs);
 
 		// -------------------------------------------------------------
-		// --- 3rd: backend - postprocess ---
-		// Detect no-resize model by checking for A tensor ("777") in outputs.
+		// --- 3rd: backend (postprocess + composite + display) ---
+		ManualTimer backend_t;
+		backend_t.start();
+
 		// Postprocess() internally records timing to backend's postprocess_acc()
 		double postprocess_ms = 0.0;
 		cv::Mat alpha_8u;
@@ -354,8 +351,7 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 			postprocess_ms = pp_t.elapsed_ms();
 		}
 
-		// -------------------------------------------------------------
-		// --- 4th: backend - composite ---
+		// Composite() internally records timing to backend's composite_acc()
 		const int output_w =
 		    (config_.output_mode == OutputMode::kDrm) ? drm_panel_w_ : result->frame.cols;
 		const int output_h =
@@ -364,9 +360,11 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		const double composite_ms =
 		    _Composite(result->frame, alpha_8u, model_w, model_h, output_w, output_h, composed);
 
-		// -------------------------------------------------------------
-		// --- 5th: backend - display ---
+		// Display records timing to backend's display_acc()
 		const double display_ms = _Display(composed, output_w, output_h);
+
+		// Record backend total (postprocess + composite + display)
+		backend_->RecordTotal(backend_t.stop());
 
 		// -------------------------------------------------------------
 		// --- end: per-frame timing block ---

@@ -93,6 +93,21 @@ const helmsman::utils::timing::StageAccumulator& FrontendBase::resize_acc() cons
 	return preprocessor_.resize_acc();
 }
 
+const helmsman::utils::timing::StageAccumulator& FrontendBase::total_acc() const {
+	return acc_total_;
+}
+
+void FrontendBase::ReportAccumulatedTimers(bool timing_enabled,
+                                            helmsman::utils::Logger& logger,
+                                            std::string_view module) const {
+	read_input_acc().report(timing_enabled, logger, module, "read_input_source");
+	decode_acc().report(timing_enabled, logger, module, "decode_frame");
+	color_convert_acc().report(timing_enabled, logger, module, "convert_to_bgr");
+	preprocess_acc().report(timing_enabled, logger, module, "preprocess");
+	resize_acc().report(timing_enabled, logger, module, "  resize");
+	acc_total_.report(timing_enabled, logger, module, "frontend(total)");
+}
+
 // ---------------------------------------------------------------------------
 // Stage 01: default no-op (subclasses override)
 // ---------------------------------------------------------------------------
@@ -350,7 +365,10 @@ void FrontendBase::Stop() {
 // ProcessOneFrame — dispatcher: sync or multithread
 // ---------------------------------------------------------------------------
 std::optional<FrameResult> FrontendBase::ProcessOneFrame(int model_w, int model_h) {
-	if (!multithread_enabled_)
-		return _ProcessSync(model_w, model_h);
-	return _ProcessMultithread(model_w, model_h);
+	helmsman::utils::timing::ManualTimer t;
+	t.start();
+	auto result = multithread_enabled_ ? _ProcessMultithread(model_w, model_h)
+	                                   : _ProcessSync(model_w, model_h);
+	acc_total_.record(t.stop());
+	return result;
 }

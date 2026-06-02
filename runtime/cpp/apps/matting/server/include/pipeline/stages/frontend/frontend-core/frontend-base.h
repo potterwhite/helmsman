@@ -98,6 +98,11 @@ public:
     const helmsman::utils::timing::StageAccumulator& color_convert_acc() const;
     const helmsman::utils::timing::StageAccumulator& preprocess_acc() const;
     const helmsman::utils::timing::StageAccumulator& resize_acc() const;
+    const helmsman::utils::timing::StageAccumulator& total_acc() const;
+
+    // Report all accumulated timing stats (call from main thread after pipeline ends).
+    void ReportAccumulatedTimers(bool timing_enabled, helmsman::utils::Logger& logger,
+                                  std::string_view module) const;
 
     // Whether the hardware decode path is active.
     bool IsHardwarePath() const;
@@ -191,4 +196,5 @@ private:
         "    Lv03-02-03::frontend::convert_to_bgr"};
     helmsman::utils::timing::StageAccumulator acc_lv03_05_frontend_preprocess_{
         "  Lv03-02::frontend::preprocess"};
+    helmsman::utils::timing::StageAccumulator acc_total_{"Lv03-02::frontend"};
 };

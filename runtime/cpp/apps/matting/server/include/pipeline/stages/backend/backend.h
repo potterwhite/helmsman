@@ -52,6 +52,15 @@ class MattingBackend {
 	// Timing accessors (for RVMMode accumulated stats reporting)
 	const helmsman::utils::timing::StageAccumulator& postprocess_acc() const { return acc_postprocess_; }
 	const helmsman::utils::timing::StageAccumulator& composite_acc() const { return acc_composite_; }
+	const helmsman::utils::timing::StageAccumulator& total_acc() const { return acc_total_; }
+
+	// Timing recorders (called by RVMMode for operations that happen outside backend)
+	void RecordDisplay(double ms) { acc_display_.record(ms); }
+	void RecordTotal(double ms) { acc_total_.record(ms); }
+
+	// Report all accumulated timing stats (call from main thread after pipeline ends).
+	void ReportAccumulatedTimers(bool timing_enabled, helmsman::utils::Logger& logger,
+	                              std::string_view module) const;
 
 	// --- Video compositing setup ---
 
@@ -123,6 +132,8 @@ class MattingBackend {
 	using sa = helmsman::utils::timing::StageAccumulator;
 	sa acc_postprocess_{"  Lv03-04-01::mainloop::backend::postprocess"};
 	sa acc_composite_{"  Lv03-04-02::mainloop::backend::composite"};
+	sa acc_display_{"    Lv03-04-03::mainloop::backend::display"};
+	sa acc_total_{"Lv03-04::backend"};
 
 	cv::Mat nchwToHwc(const TensorData& tensor);
 };

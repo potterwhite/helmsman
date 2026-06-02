@@ -627,6 +627,18 @@ void MattingBackend::SetBackgroundModelImage(const cv::Mat& bg) {
 	bg_model_u8_ = bg;
 }
 
+// ---------------------------------------------------------------------------
+// ReportAccumulatedTimers — report all timing stats for this stage
+// ---------------------------------------------------------------------------
+void MattingBackend::ReportAccumulatedTimers(bool timing_enabled,
+                                              helmsman::utils::Logger& logger,
+                                              std::string_view module) const {
+	acc_postprocess_.report(timing_enabled, logger, module, "postprocess");
+	acc_composite_.report(timing_enabled, logger, module, "composite");
+	acc_display_.report(timing_enabled, logger, module, "  display");
+	acc_total_.report(timing_enabled, logger, module, "backend(total)");
+}
+
 
 cv::Mat MattingBackend::Composite(const cv::Mat& frame, const cv::Mat& alpha_8u,
                                    int model_w, int model_h, int output_w, int output_h) {
