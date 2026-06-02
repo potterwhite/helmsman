@@ -342,7 +342,19 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 
 		// -------------------------------------------------------------
 		// --- 3rd: backend - postprocess ---
-		cv::Mat alpha_8u = backend_->Postprocess(outputs, result->frame);
+		// Detect no-resize model by checking for A tensor ("777") in outputs.
+		cv::Mat alpha_8u;
+		{
+			bool is_no_resize = false;
+			for (const auto& td : outputs) {
+				if (td.name == "777") { is_no_resize = true; break; }
+			}
+			if (is_no_resize) {
+				alpha_8u = backend_->Postprocess(outputs, result->frame, result->tensor);
+			} else {
+				alpha_8u = backend_->Postprocess(outputs, result->frame);
+			}
+		}
 
 		// -------------------------------------------------------------
 		// --- 4th: backend - composite ---

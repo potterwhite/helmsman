@@ -62,7 +62,7 @@ class MattingBackend {
 	// Accept multi-tensor output from InferenceEngine.
 	// Selects the pha (alpha matte) tensor by name or position:
 	//   - MODNet: outputs[0] = pha
-	//   - RVM:    outputs[1] = pha (outputs[0] = fgr)
+	//   - RVM (original): outputs = [pha, r1o, r2o, r3o, r4o]
 	cv::Mat Postprocess(const std::vector<TensorData>& outputs);
 
 	/**
@@ -71,6 +71,15 @@ class MattingBackend {
 	 * When guide_bgr is non-empty it takes priority over foreground_image_path_.
 	 */
 	cv::Mat Postprocess(const std::vector<TensorData>& outputs, const cv::Mat& guide_bgr);
+
+	/**
+	 * No-resize RVM overload: caller supplies the src input tensor (model input)
+	 * for guided filter combination. Used with no-resize RKNN model where
+	 * outputs contain A(777) + b(779) + r1o~r4o instead of pha + fgr.
+	 */
+	cv::Mat Postprocess(const std::vector<TensorData>& outputs,
+	                    const cv::Mat& guide_bgr,
+	                    const TensorData& src_tensor);
 
 	// --- Video compositing ---
 

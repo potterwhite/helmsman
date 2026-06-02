@@ -306,6 +306,251 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 	return output_8u;
 }
 
+// ============================================================================
+// Postprocess — no-resize RVM model (A+b guided filter combination)
+//
+// No-resize model outputs: A(777, 4ch, 272×480) + b(779, 4ch, 272×480) + r1o~r4o
+// Guided filter formula:
+//   fine_x = [src, src_mean]  (4ch, model resolution)
+//   out = A_up * fine_x + b_up  (4ch, model resolution)
+//   pha = clip(out[:,3:], 0, 1)
+// ============================================================================
+cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
+                                    const cv::Mat& guide_bgr_override,
+                                    const TensorData& src_tensor) {
+	const int current_frame = process_count_++;
+
+	auto& logger = helmsman::utils::Logger::GetInstance();
+
+	// --- Find A and b tensors by name ---
+	const TensorData* td_A = nullptr;
+	const TensorData* td_b = nullptr;
+	for (const auto& td : outputs) {
+		if (td.name == "777") td_A = &td;
+		if (td.name == "779") td_b = &td;
+	}
+	if (!td_A || !td_b) {
+		throw std::runtime_error(
+		    "Backend(no-resize): A('777') or b('779') not found in " +
+		    std::to_string(outputs.size()) + " outputs");
+	}
+
+	// --- Validate shapes ---
+	// A/b: NCHW (RKNN output), src: NHWC (Preprocessor stores HWC layout)
+	if (td_A->shape.size() != 4 || td_b->shape.size() != 4 ||
+	    td_A->shape[1] != 4 || td_b->shape[1] != 4) {
+		throw std::runtime_error("Backend(no-resize): A and b must be NCHW with C=4");
+	}
+	if (src_tensor.shape.size() != 4 || src_tensor.shape[3] != 3) {
+		throw std::runtime_error("Backend(no-resize): src must be NHWC with C=3");
+	}
+
+	const int dH = static_cast<int>(td_A->shape[2]);
+	const int dW = static_cast<int>(td_A->shape[3]);
+	const int H = static_cast<int>(src_tensor.shape[1]);
+	const int W = static_cast<int>(src_tensor.shape[2]);
+
+	if (dump_enabled_)
+		logger.Info("Backend(no-resize): A=" + std::to_string(dH) + "x" + std::to_string(dW) +
+		                " src=" + std::to_string(H) + "x" + std::to_string(W),
+		            kcurrent_module_name);
+
+	// --- 1. NCHW → HWC for A and b (4 channels) ---
+	const size_t plane_size_d = static_cast<size_t>(dH) * static_cast<size_t>(dW);
+
+	auto nchw4_to_hwc4 = [&](const std::vector<float>& data) -> cv::Mat {
+		std::vector<cv::Mat> planes(4);
+		for (size_t c = 0; c < 4; ++c) {
+			planes[c] = cv::Mat(dH, dW, CV_32FC1,
+			                    const_cast<float*>(data.data() + c * plane_size_d));
+		}
+		cv::Mat result;
+		cv::merge(planes, result);
+		return result;
+	};
+
+	cv::Mat A_hwc = nchw4_to_hwc4(td_A->data);  // CV_32FC4, dH×dW
+	cv::Mat b_hwc = nchw4_to_hwc4(td_b->data);  // CV_32FC4, dH×dW
+
+	logger.Info("Backend(no-resize) data: A.data=" + std::to_string(td_A->data.size()) +
+	            " b.data=" + std::to_string(td_b->data.size()) +
+	            " src.data=" + std::to_string(src_tensor.data.size()) +
+	            " A_hwc=" + std::to_string(A_hwc.cols) + "x" + std::to_string(A_hwc.rows) +
+	            "ch" + std::to_string(A_hwc.channels()) +
+	            " b_hwc=" + std::to_string(b_hwc.cols) + "x" + std::to_string(b_hwc.rows) +
+	            "ch" + std::to_string(b_hwc.channels()),
+	            kcurrent_module_name);
+
+	// --- 2. Create src (model input) as HWC CV_32FC3 ---
+	// Preprocessor stores data as HWC interleaved, shape = {1, H, W, 3}
+	// Data is float32 [0,255]; guided filter expects [0,1] → normalize
+	cv::Mat src_hwc(H, W, CV_32FC3,
+	                const_cast<float*>(src_tensor.data.data()));  // zero-copy wrap
+	src_hwc.convertTo(src_hwc, CV_32FC3, 1.0 / 255.0);  // → [0,1], allocates new copy
+
+	// --- 3. Upsample A and b to model resolution (INTER_LINEAR) ---
+	cv::Mat A_up, b_up;
+	cv::resize(A_hwc, A_up, cv::Size(W, H), 0, 0, cv::INTER_LINEAR);
+	cv::resize(b_hwc, b_up, cv::Size(W, H), 0, 0, cv::INTER_LINEAR);
+
+	// --- 4. Compute src_mean (per-pixel average across 3 channels) ---
+	cv::Mat src_mean;
+	{
+		std::vector<cv::Mat> ch(3);
+		cv::split(src_hwc, ch);
+		src_mean = (ch[0] + ch[1] + ch[2]) / 3.0f;  // CV_32FC1, H×W
+	}
+
+	// --- 5. fine_x = [src, src_mean] (4 channels) ---
+	cv::Mat fine_x;
+	{
+		std::vector<cv::Mat> src_ch(3);
+		cv::split(src_hwc, src_ch);
+		std::vector<cv::Mat> fine_ch = {src_ch[0], src_ch[1], src_ch[2], src_mean};
+		cv::merge(fine_ch, fine_x);  // CV_32FC4, H×W
+	}
+
+	// Debug: print shapes before arithmetic
+	logger.Info("Backend(no-resize) shapes: A_up=" + std::to_string(A_up.cols) + "x" +
+	            std::to_string(A_up.rows) + "ch" + std::to_string(A_up.channels()) +
+	            " fine_x=" + std::to_string(fine_x.cols) + "x" +
+	            std::to_string(fine_x.rows) + "ch" + std::to_string(fine_x.channels()) +
+	            " b_up=" + std::to_string(b_up.cols) + "x" +
+	            std::to_string(b_up.rows) + "ch" + std::to_string(b_up.channels()),
+	            kcurrent_module_name);
+
+	// --- 6. out = A_up * fine_x + b_up ---
+	cv::Mat out = A_up.mul(fine_x) + b_up;  // CV_32FC4, H×W
+
+	// --- 7. Split: fgr_part = out[:,:3], pha = out[:,3:] ---
+	cv::Mat fgr_part, pha_raw;
+	{
+		std::vector<cv::Mat> out_ch(4);
+		cv::split(out, out_ch);
+		std::vector<cv::Mat> fgr_ch = {out_ch[0], out_ch[1], out_ch[2]};
+		cv::merge(fgr_ch, fgr_part);  // CV_32FC3
+		pha_raw = out_ch[3];          // CV_32FC1
+	}
+
+	// --- 8. fgr = clip(fgr_part + src, 0, 1); pha = clip(pha, 0, 1) ---
+	cv::Mat fgr_f32, pha_f32;
+	cv::min(cv::max(fgr_part + src_hwc, 0.0f), 1.0f, fgr_f32);
+	cv::min(cv::max(pha_raw, 0.0f), 1.0f, pha_f32);
+
+	// --- 9. Crop letterbox padding ---
+	const int valid_w = W - src_tensor.pad_left - src_tensor.pad_right;
+	const int valid_h = H - src_tensor.pad_top - src_tensor.pad_bottom;
+	cv::Rect roi(src_tensor.pad_left, src_tensor.pad_top, valid_w, valid_h);
+	cv::Mat pha_cropped = pha_f32(roi);
+
+	// --- 10. Resize to original resolution ---
+	cv::Mat restored_mat;
+	cv::resize(pha_cropped, restored_mat,
+	           cv::Size(src_tensor.orig_width, src_tensor.orig_height),
+	           0, 0, cv::INTER_LINEAR);
+
+	// --- 11. Diagnostics ---
+	{
+		cv::Scalar mean_val = cv::mean(restored_mat);
+		if (dump_enabled_)
+			logger.Info("PHA_MEAN frame=" + std::to_string(current_frame) +
+			            " mean=" + std::to_string(mean_val[0]), kcurrent_module_name);
+
+		if (current_frame >= 50 && current_frame <= 70 && !output_path_.empty()) {
+			cv::Mat pha_debug_u8;
+			restored_mat.convertTo(pha_debug_u8, CV_8UC1, 255.0);
+			char fname[64];
+			snprintf(fname, sizeof(fname), "/debug_pha_rknn_frame%04d.png", current_frame);
+			cv::imwrite(output_path_ + fname, pha_debug_u8);
+		}
+	}
+
+	// --- 12. Post-processing (GuidedFilter edge refinement) ---
+	if (post_processor_) {
+		cv::Mat guide;
+		if (!guide_bgr_override.empty()) {
+			guide = guide_bgr_override;
+		} else {
+			guide = cv::imread(foreground_image_path_, cv::IMREAD_COLOR);
+		}
+		if (guide.empty()) {
+			logger.Warning(
+			    "Post-processor skipped: guide image unavailable (path='" +
+			        foreground_image_path_ + "')",
+			    kcurrent_module_name);
+		} else {
+			restored_mat = post_processor_->process(restored_mat, guide);
+		}
+	}
+
+	// --- 13. Convert to 8-bit ---
+	cv::Mat output_8u;
+	restored_mat.convertTo(output_8u, CV_8UC1, 255.0);
+
+	if (dump_enabled_) {
+		cv::imwrite(output_path_ + "/cpp_11_result.png", output_8u);
+	}
+
+	// --- 14. Background composition (same as original Postprocess) ---
+	if (!background_path_.empty() && !foreground_image_path_.empty()) {
+		cv::Mat fg_bgr = cv::imread(foreground_image_path_, cv::IMREAD_COLOR);
+		if (fg_bgr.empty()) {
+			logger.Warning("Cannot load foreground image: " + foreground_image_path_ +
+			                   ", skipping composition.",
+			               kcurrent_module_name);
+		} else {
+			cv::Mat bg_bgr_raw = cv::imread(background_path_, cv::IMREAD_COLOR);
+			if (bg_bgr_raw.empty()) {
+				logger.Warning("Cannot load background image: " + background_path_ +
+				                   ", skipping composition.",
+				               kcurrent_module_name);
+			} else {
+				cv::Mat bg_bgr;
+				bg_bgr.create(fg_bgr.rows, fg_bgr.cols, CV_8UC3);
+				ImageDescriptor bg_src(bg_bgr_raw.data, bg_bgr_raw.cols, bg_bgr_raw.rows, RgaPixelFormat::kBgr888);
+				ImageDescriptor bg_dst(bg_bgr.data, fg_bgr.cols, fg_bgr.rows, RgaPixelFormat::kBgr888);
+				if (!RgaResize::Instance().Execute(bg_src, bg_dst)) {
+					fprintf(stderr, "[FATAL] RGA resize failed for background — hardware error\n");
+					std::abort();
+				}
+
+				cv::Mat alpha_8u;
+				if (output_8u.channels() == 1) {
+					alpha_8u = output_8u;
+				} else {
+					std::vector<cv::Mat> channels;
+					cv::split(output_8u, channels);
+					alpha_8u = channels[0];
+				}
+
+				if (alpha_8u.size() != fg_bgr.size()) {
+					cv::resize(alpha_8u, alpha_8u, fg_bgr.size(), 0, 0, cv::INTER_LINEAR);
+				}
+
+				cv::Mat alpha_f32, alpha_3ch;
+				alpha_8u.convertTo(alpha_f32, CV_32FC1, 1.0 / 255.0);
+				cv::cvtColor(alpha_f32, alpha_3ch, cv::COLOR_GRAY2BGR);
+
+				cv::Mat fg_f32, bg_f32;
+				fg_bgr.convertTo(fg_f32, CV_32FC3, 1.0 / 255.0);
+				bg_bgr.convertTo(bg_f32, CV_32FC3, 1.0 / 255.0);
+
+				cv::Mat composed_f32 = alpha_3ch.mul(fg_f32) +
+				                      (cv::Scalar(1.0, 1.0, 1.0) - alpha_3ch).mul(bg_f32);
+
+				cv::Mat composed_8u;
+				composed_f32.convertTo(composed_8u, CV_8UC3, 255.0);
+
+				cv::imwrite(output_path_ + "/cpp_12_composed.jpg", composed_8u);
+				logger.Info("Background composition saved: cpp_12_composed.jpg",
+				            kcurrent_module_name);
+			}
+		}
+	}
+
+	return output_8u;
+}
+
 void MattingBackend::SetBackgroundModelImage(const cv::Mat& bg) {
 	bg_model_u8_ = bg;
 }
