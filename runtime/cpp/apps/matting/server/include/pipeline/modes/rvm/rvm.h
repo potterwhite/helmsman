@@ -129,7 +129,8 @@ class RVMMode {
 	//     │     ├── acc_lv03_02-02::frontend::decode_frame
 	//     │     └── acc_lv03_02-03::frontend::convert_to_bgr
 	//     ├── acc_lv03_03_mainloop_inferenceengine_infer_     (NPU inference, current frame)
-	//     ├── acc_lv03_04_02_mainloop_backend_composite_      (composite + write, current frame)
+	//     ├── MattingBackend::postprocess_acc_                (Postprocess, in backend)
+	//     ├── MattingBackend::composite_acc_                 (Composite, in backend)
 	//     └── acc_lv03_04_03_mainloop_backend_display_        ()
 	//
 	//
@@ -137,17 +138,16 @@ class RVMMode {
 	//   [PerFrame] line every frame                                          — infer + comp
 	//
 	// Identity (approx, ignoring tiny logging overhead):
-	//   acc_lv03_01_mainloop ≈ max(tensor_ch.pop wait, 0) + acc_lv03_02_01_mainloop_frontend_decode_ + acc_lv03_03_mainloop_inferenceengine_infer_ + acc_lv03_04_02_mainloop_backend_composite_
+	//   acc_lv03_01_mainloop ≈ max(tensor_ch.pop wait, 0) + acc_lv03_02_01_mainloop_frontend_decode_ + acc_lv03_03_mainloop_inferenceengine_infer_ + MattingBackend::composite_acc_
 	//   acc_lv03_02_01_mainloop_frontend_decode_ ≈ read_input_source + decode_frame + convert_to_bgr
-	//   acc_lv03_04_02_mainloop_backend_composite_ ≈ Backend::Composite() + writer
+	//   MattingBackend::composite_acc_ ≈ Backend::Composite() + writer
 	// ------------------------------------------------------------------------- */
 	using sa = helmsman::utils::timing::StageAccumulator;
 
 	sa acc_lv03_01_mainloop{"Lv03-01::mainloop"};
 	sa acc_lv03_02_01_mainloop_frontend_decode_{"  Lv03-02-01::mainloop::frontend::decode"};
 	// acc_lv03_03_mainloop_inferenceengine_infer_ moved to InferenceEngine::infer_acc_
-	sa acc_lv03_04_01_mainloop_backend_postprocess_{"  Lv03-04-01::mainloop::backend::postprocess"};
-	sa acc_lv03_04_02_mainloop_backend_composite_{"  Lv03-04-02::mainloop::backend::composite"};
+	// acc_lv03_04_01/02 moved to MattingBackend (postprocess_acc, composite_acc)
 	sa acc_lv03_04_03_mainloop_backend_display_{"    Lv03-04-03::mainloop::backend::display"};
 
 	size_t frame_count_ = 0;

@@ -49,6 +49,10 @@ class MattingBackend {
 	 */
 	void SetPostProcessor(std::shared_ptr<BasePostProcessor> processor);
 
+	// Timing accessors (for RVMMode accumulated stats reporting)
+	const sa& postprocess_acc() const { return acc_postprocess_; }
+	const sa& composite_acc() const { return acc_composite_; }
+
 	// --- Video compositing setup ---
 
 	/**
@@ -115,12 +119,10 @@ class MattingBackend {
 	// Video compositing resources (set via setters)
 	cv::Mat bg_model_u8_;  // Background at model resolution (CV_8UC3)
 
-	// Composite sub-step timing accumulators
+	// Timing accumulators (top-level, reported by RVMMode)
 	using sa = helmsman::utils::timing::StageAccumulator;
-	sa acc_resize_alpha_{"    comp::resize_alpha"};
-	sa acc_resize_frame_{"    comp::resize_frame"};
-	sa acc_blend_{"    comp::blend"};
-	sa acc_upscale_{"    comp::upscale"};
+	sa acc_postprocess_{"  Lv03-04-01::mainloop::backend::postprocess"};
+	sa acc_composite_{"  Lv03-04-02::mainloop::backend::composite"};
 
 	cv::Mat nchwToHwc(const TensorData& tensor);
 };

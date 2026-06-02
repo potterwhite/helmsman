@@ -68,6 +68,8 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs) {
 
 cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
                                     const cv::Mat& guide_bgr_override) {
+	helmsman::utils::timing::ManualTimer t;
+	t.start();
 
 	const int current_frame = process_count_++;  // 0-indexed frame number
 
@@ -301,8 +303,7 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 		}
 	}
 
-
-
+	acc_postprocess_.record(t.stop());
 	return output_8u;
 }
 
@@ -360,6 +361,9 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
                                     const cv::Mat& guide_bgr_override,
                                     const TensorData& src_tensor) {
+	helmsman::utils::timing::ManualTimer t;
+	t.start();
+
 	const int current_frame = process_count_++;
 
 	auto& logger = helmsman::utils::Logger::GetInstance();
@@ -615,6 +619,7 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 		}
 	}
 
+	acc_postprocess_.record(t.stop());
 	return output_8u;
 }
 
@@ -627,24 +632,23 @@ cv::Mat MattingBackend::Composite(const cv::Mat& frame, const cv::Mat& alpha_8u,
                                    int model_w, int model_h, int output_w, int output_h) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 	helmsman::utils::timing::ManualTimer t;
+	t.start();
 
 	if (alpha_8u.empty() || bg_model_u8_.empty()) {
 		logger.Warning("Composite skipped: alpha or background is empty.", kcurrent_module_name);
+		acc_composite_.record(t.stop());
 		return frame;
 	}
 
 	// 1. Resize alpha to model resolution (CPU — RGA doesn't support single-channel YUV400)
 	cv::Mat alpha_model;
-	t.start();
 	{
 		alpha_model.create(model_h, model_w, CV_8UC1);
 		cv::resize(alpha_8u, alpha_model, cv::Size(model_w, model_h), 0, 0, cv::INTER_LINEAR);
 	}
-	acc_resize_alpha_.record(t.stop());
 
 	// 2. Resize frame to model resolution (RGA hardware, fallback: cv::resize)
 	cv::Mat frame_model;
-	t.start();
 	{
 		frame_model.create(model_h, model_w, CV_8UC3);
 		ImageDescriptor src(frame.data, frame.cols, frame.rows, RgaPixelFormat::kBgr888);
@@ -654,11 +658,9 @@ cv::Mat MattingBackend::Composite(const cv::Mat& frame, const cv::Mat& alpha_8u,
 			std::abort();
 		}
 	}
-	acc_resize_frame_.record(t.stop());
 
 	// 3. CPU alpha blend: fg_bgr * alpha + bg_bgr * (1-alpha) → composed_bgr
 	cv::Mat composed_model(model_h, model_w, CV_8UC3);
-	t.start();
 	{
 		const int pixels = model_h * model_w;
 		const uint8_t* fg_ptr = frame_model.ptr<uint8_t>(0);
@@ -682,11 +684,9 @@ cv::Mat MattingBackend::Composite(const cv::Mat& frame, const cv::Mat& alpha_8u,
 			out += 3;
 		}
 	}
-	acc_blend_.record(t.stop());
 
 	// 4. Upscale to output resolution (RGA hardware, fallback: cv::resize)
 	cv::Mat composed_output;
-	t.start();
 	{
 		composed_output.create(output_h, output_w, CV_8UC3);
 		ImageDescriptor src(composed_model.data, model_w, model_h, RgaPixelFormat::kBgr888);
@@ -696,7 +696,7 @@ cv::Mat MattingBackend::Composite(const cv::Mat& frame, const cv::Mat& alpha_8u,
 			std::abort();
 		}
 	}
-	acc_upscale_.record(t.stop());
 
+	acc_composite_.record(t.stop());
 	return composed_output;
 }

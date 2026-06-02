@@ -103,22 +103,14 @@ void RVMMode::InitBackgroundImage(int width, int height) {
 
 double RVMMode::_Composite(const cv::Mat& frame, const cv::Mat& alpha_8u, int model_w, int model_h,
                            int output_w, int output_h, cv::Mat& composed) {
-	// 1st. sanity check
 	if (alpha_8u.empty())
 		return 0.0;
 
-	// 2nd. start accumulating
+	// Composite() internally records timing to backend's composite_acc()
 	ManualTimer t;
 	t.start();
-
-	// 3rd. backend compositing
 	composed = backend_->Composite(frame, alpha_8u, model_w, model_h, output_w, output_h);
-
-	// 4th. stop compositing timer and record
-	t.stop();
-	acc_lv03_04_02_mainloop_backend_composite_.record(t.elapsed_ms());
-
-	return t.elapsed_ms();
+	return t.stop();
 }
 
 double RVMMode::_Display(const cv::Mat& composed, int output_w, int output_h) {
@@ -219,8 +211,8 @@ void RVMMode::_ReportAllAccumulatedTimers(void) {
 	engine_->infer_acc().report(true, GetLogger(), kRvmModuleName, "infer");
 
 	GetLogger().Info("────────── Backend ──────────", kRvmModuleName);
-	acc_lv03_04_02_mainloop_backend_composite_.report(true, GetLogger(), kRvmModuleName,
-	                                                  "composite");
+	backend_->postprocess_acc().report(true, GetLogger(), kRvmModuleName, "postprocess");
+	backend_->composite_acc().report(true, GetLogger(), kRvmModuleName, "composite");
 	acc_lv03_04_03_mainloop_backend_display_.report(true, GetLogger(), kRvmModuleName, "  display");
 
 	GetLogger().Info("────────── Overall ──────────", kRvmModuleName);
@@ -343,8 +335,12 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		// -------------------------------------------------------------
 		// --- 3rd: backend - postprocess ---
 		// Detect no-resize model by checking for A tensor ("777") in outputs.
+		// Postprocess() internally records timing to backend's postprocess_acc()
+		double postprocess_ms = 0.0;
 		cv::Mat alpha_8u;
 		{
+			ManualTimer pp_t;
+			pp_t.start();
 			bool is_no_resize = false;
 			for (const auto& td : outputs) {
 				if (td.name == "777") { is_no_resize = true; break; }
@@ -354,6 +350,8 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 			} else {
 				alpha_8u = backend_->Postprocess(outputs, result->frame);
 			}
+			pp_t.stop();
+			postprocess_ms = pp_t.elapsed_ms();
 		}
 
 		// -------------------------------------------------------------
@@ -386,7 +384,9 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		                 kRvmModuleName);
 		GetLogger().Info("  inference(infer: " + fm(infer_ms) + "ms)", kRvmModuleName);
 		GetLogger().Info(
-		    "  backend(composite: " + fm(composite_ms) + "ms; display: " + fm(display_ms) + "ms)",
+		    "  backend(postprocess: " + fm(postprocess_ms) +
+		        "ms; composite: " + fm(composite_ms) +
+		        "ms; display: " + fm(display_ms) + "ms)",
 		    kRvmModuleName);
 		GetLogger().Info("  total: " + fm(frame_total) + "ms", kRvmModuleName);
 
