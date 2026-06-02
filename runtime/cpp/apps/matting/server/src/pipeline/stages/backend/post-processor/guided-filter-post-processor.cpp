@@ -37,6 +37,16 @@
 //
 // guide (I): grayscale original image, float32 [0,1]
 // src   (p): coarse alpha mask,        float32 [0,1]
+//
+// Comparison with RVM's DeepGuidedFilterRefiner (no-resize Postprocess):
+//   - This function: standard GF at FULL resolution. a = cov/(var+ε), single-channel
+//     grayscale guide. Used as optional post-processing AFTER the guided filter
+//     combination (Postprocess) to refine alpha edges.
+//   - No-resize Postprocess: "Fast GF" style. A and b are pre-computed by a CNN
+//     at LOW resolution, upsampled, then applied at model resolution. Uses 4-channel
+//     guide [R,G,B,gray_mean]. This is the primary alpha production path.
+//   The two are complementary: Postprocess produces alpha via A·fine_x+b,
+//   then this function optionally refines its edges using the original image.
 // ---------------------------------------------------------------------------
 static cv::Mat guided_filter(const cv::Mat& guide,  // CV_32FC1
                              const cv::Mat& src,    // CV_32FC1

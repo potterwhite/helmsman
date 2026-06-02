@@ -309,11 +309,53 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 // ============================================================================
 // Postprocess — no-resize RVM model (A+b guided filter combination)
 //
-// No-resize model outputs: A(777, 4ch, 272×480) + b(779, 4ch, 272×480) + r1o~r4o
-// Guided filter formula:
-//   fine_x = [src, src_mean]  (4ch, model resolution)
-//   out = A_up * fine_x + b_up  (4ch, model resolution)
-//   pha = clip(out[:,3:], 0, 1)
+// Background:
+//   RVM's original DeepGuidedFilterRefiner (deep_guided_filter.py) refines
+//   coarse decoder output to full resolution using a learned guided filter.
+//   In the "no-resize" ONNX model, we removed the refiner's final bilinear
+//   upsampling + combination from the NPU graph. The NPU now outputs the
+//   intermediate tensors A and b at low resolution (272×480), and this
+//   function performs the final combination at model resolution on CPU.
+//
+// Guided filter formula (He et al., TPAMI 2013, "Fast" variant):
+//   The standard guided filter computes, for each local window w_k:
+//     q_i = a_k * I_i + b_k    for all i in w_k
+//   where a_k, b_k minimise: E = Σ[(a_k·I_i + b_k - p_i)² + ε·a_k²]
+//
+//   Analytical solution:
+//     a = cov(I, p) / (var(I) + ε)
+//     b = mean(p) - a · mean(I)
+//
+//   Fast Guided Filter (He et al.): compute (a, b) at low resolution,
+//   bilinearly upsample, then apply q = A_hr · I_hr + b_hr.
+//
+//   DeepGuidedFilterRefiner (RVM): replaces the analytical a = cov/(var+ε)
+//   with a learned CNN: A = Conv([cov_xy, var_x, hid]). The b formula is
+//   the same: b = mean_y - A · mean_x. The final combination is identical:
+//     out = A_hr · fine_x + b_hr
+//
+//   In our no-resize model, the ONNX graph was cut AFTER the CNN produced A
+//   and AFTER b was computed, but BEFORE the bilinear upsampling and the
+//   final A·fine_x+b combination. So the NPU outputs:
+//     A (777): learned coefficients, 4ch, low-res (272×480)
+//     b (779): bias, 4ch, low-res (272×480)
+//   And this function performs Steps 5-6 of deep_guided_filter.py:
+//     1. Upsample A, b to model resolution (bilinear)
+//     2. Construct fine_x = [R, G, B, mean(R,G,B)] (4ch)
+//     3. out = A_up · fine_x + b_up
+//     4. Split: fgr = out[:,:3], pha = out[:,3]
+//     5. fgr = clip(fgr + src, 0, 1)  [residual connection]
+//
+// Guided image channel construction:
+//   x = [R, G, B, mean(R,G,B)]  — 4 channels
+//   The 4th channel (grayscale mean) lets the linear model capture
+//   luminance-dependent edges that RGB alone cannot express.
+//
+// References:
+//   - He et al., "Guided Image Filtering", IEEE TPAMI 2013
+//   - https://github.com/wuhuikai/DeepGuidedFilter/
+//   - deep_guided_filter.py (lines 24-43)
+//   - fast_guided_filter.py (lines 50-59)
 // ============================================================================
 cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
                                     const cv::Mat& guide_bgr_override,
@@ -356,6 +398,10 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 		            kcurrent_module_name);
 
 	// --- 1. NCHW → HWC for A and b (4 channels) ---
+	// A and b are the outputs of DeepGuidedFilterRefiner's learned linear model.
+	// A: 4ch coefficients (one per guided channel: R, G, B, gray_mean)
+	// b: 4ch bias
+	// Both at low resolution (dH×dW = 272×480), NCHW layout from RKNN.
 	const size_t plane_size_d = static_cast<size_t>(dH) * static_cast<size_t>(dW);
 
 	auto nchw4_to_hwc4 = [&](const std::vector<float>& data) -> cv::Mat {
@@ -389,11 +435,20 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 	src_hwc.convertTo(src_hwc, CV_32FC3, 1.0 / 255.0);  // → [0,1], allocates new copy
 
 	// --- 3. Upsample A and b to model resolution (INTER_LINEAR) ---
+	// Corresponds to deep_guided_filter.py:38-39:
+	//   A = F.interpolate(A, (H, W), mode='bilinear', align_corners=False)
+	//   b = F.interpolate(b, (H, W), mode='bilinear', align_corners=False)
+	// This is the "Fast Guided Filter" trick: compute coefficients at low res,
+	// upsample, then apply at high res. Much cheaper than computing GF at full res.
 	cv::Mat A_up, b_up;
 	cv::resize(A_hwc, A_up, cv::Size(W, H), 0, 0, cv::INTER_LINEAR);
 	cv::resize(b_hwc, b_up, cv::Size(W, H), 0, 0, cv::INTER_LINEAR);
 
 	// --- 4. Compute src_mean (per-pixel average across 3 channels) ---
+	// Corresponds to deep_guided_filter.py:25:
+	//   fine_x = torch.cat([fine_src, fine_src.mean(1, keepdim=True)], dim=1)
+	// The 4th channel (grayscale mean) lets the linear model capture
+	// luminance-dependent edges that RGB alone cannot express.
 	cv::Mat src_mean;
 	{
 		std::vector<cv::Mat> ch(3);
@@ -402,6 +457,8 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 	}
 
 	// --- 5. fine_x = [src, src_mean] (4 channels) ---
+	// Corresponds to deep_guided_filter.py:25:
+	//   fine_x = torch.cat([fine_src, fine_src.mean(1, keepdim=True)], dim=1)
 	cv::Mat fine_x;
 	{
 		std::vector<cv::Mat> src_ch(3);
@@ -420,9 +477,15 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 	            kcurrent_module_name);
 
 	// --- 6. out = A_up * fine_x + b_up ---
+	// Corresponds to deep_guided_filter.py:41:
+	//   out = A * fine_x + b
+	// Element-wise multiply: each pixel's 4ch fine_x is scaled by the
+	// corresponding 4ch A coefficients, then shifted by b.
 	cv::Mat out = A_up.mul(fine_x) + b_up;  // CV_32FC4, H×W
 
 	// --- 7. Split: fgr_part = out[:,:3], pha = out[:,3:] ---
+	// Corresponds to deep_guided_filter.py:42:
+	//   fgr, pha = out.split([3, 1], dim=1)
 	cv::Mat fgr_part, pha_raw;
 	{
 		std::vector<cv::Mat> out_ch(4);
@@ -433,6 +496,10 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 	}
 
 	// --- 8. fgr = clip(fgr_part + src, 0, 1); pha = clip(pha, 0, 1) ---
+	// The fgr path has a residual connection: fgr = A_fgr·fine_x + b_fgr + src.
+	// This is NOT in the original deep_guided_filter.py — it's an RVM-specific
+	// modification (see Add_350 in the ONNX graph). The pha path has no residual.
+	// Both are clamped to [0, 1] for valid image range.
 	cv::Mat fgr_f32, pha_f32;
 	cv::min(cv::max(fgr_part + src_hwc, 0.0f), 1.0f, fgr_f32);
 	cv::min(cv::max(pha_raw, 0.0f), 1.0f, pha_f32);
