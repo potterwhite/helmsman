@@ -29,4 +29,5 @@ target_sources(${PROJECT_NAME}
         ${CMAKE_CURRENT_SOURCE_DIR}/rga_composite.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/rga_rotate.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/rga_flip.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/rga_crop.cpp
 )
