@@ -636,7 +636,10 @@ void MattingBackend::ReportAccumulatedTimers(bool timing_enabled,
 	acc_postprocess_.report(timing_enabled, logger, module, "postprocess");
 	acc_composite_.report(timing_enabled, logger, module, "composite");
 	acc_display_.report(timing_enabled, logger, module, "  display");
+
+	logger.Info("", module);    // blank line for separation
 	acc_total_.report(timing_enabled, logger, module, "backend(total)");
+	logger.Info("", module);    // blank line for separation
 }
 
 

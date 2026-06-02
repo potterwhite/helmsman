@@ -97,15 +97,17 @@ const helmsman::utils::timing::StageAccumulator& FrontendBase::total_acc() const
 	return acc_total_;
 }
 
-void FrontendBase::ReportAccumulatedTimers(bool timing_enabled,
-                                            helmsman::utils::Logger& logger,
-                                            std::string_view module) const {
+void FrontendBase::ReportAccumulatedTimers(bool timing_enabled, helmsman::utils::Logger& logger,
+                                           std::string_view module) const {
 	read_input_acc().report(timing_enabled, logger, module, "read_input_source");
 	decode_acc().report(timing_enabled, logger, module, "decode_frame");
 	color_convert_acc().report(timing_enabled, logger, module, "convert_to_bgr");
 	preprocess_acc().report(timing_enabled, logger, module, "preprocess");
 	resize_acc().report(timing_enabled, logger, module, "  resize");
+
+	logger.Info("", module);    // blank line for separation
 	acc_total_.report(timing_enabled, logger, module, "frontend(total)");
+    logger.Info("", module);    // blank line for separation
 }
 
 // ---------------------------------------------------------------------------

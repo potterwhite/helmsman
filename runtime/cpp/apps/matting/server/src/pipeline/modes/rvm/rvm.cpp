@@ -212,6 +212,9 @@ void RVMMode::_ReportAllAccumulatedTimers(void) {
 
 	GetLogger().Info("────────── Overall ──────────", kRvmModuleName);
 	acc_lv03_01_mainloop.report(true, GetLogger(), kRvmModuleName, "mainloop (per frame)");
+
+	GetLogger().Info("═══════════ End of Accumulated Timing Stats ═══════════", kRvmModuleName);
+	GetLogger().Info("", kRvmModuleName);
 }
 
 void RVMMode::_DoCleaningThings(const std::chrono::steady_clock::time_point& pipeline_start,
@@ -340,7 +343,10 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 			pp_t.start();
 			bool is_no_resize = false;
 			for (const auto& td : outputs) {
-				if (td.name == "777") { is_no_resize = true; break; }
+				if (td.name == "777") {
+					is_no_resize = true;
+					break;
+				}
 			}
 			if (is_no_resize) {
 				alpha_8u = backend_->Postprocess(outputs, result->frame, result->tensor);
@@ -381,11 +387,9 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		                     "ms; preprocess: " + fm(result->preprocess_ms) + "ms)",
 		                 kRvmModuleName);
 		GetLogger().Info("  inference(infer: " + fm(infer_ms) + "ms)", kRvmModuleName);
-		GetLogger().Info(
-		    "  backend(postprocess: " + fm(postprocess_ms) +
-		        "ms; composite: " + fm(composite_ms) +
-		        "ms; display: " + fm(display_ms) + "ms)",
-		    kRvmModuleName);
+		GetLogger().Info("  backend(postprocess: " + fm(postprocess_ms) + "ms; composite: " +
+		                     fm(composite_ms) + "ms; display: " + fm(display_ms) + "ms)",
+		                 kRvmModuleName);
 		GetLogger().Info("  total: " + fm(frame_total) + "ms", kRvmModuleName);
 
 		// // --- old per-frame stats (commented out) ---
