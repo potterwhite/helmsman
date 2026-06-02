@@ -50,8 +50,8 @@ class MattingBackend {
 	void SetPostProcessor(std::shared_ptr<BasePostProcessor> processor);
 
 	// Timing accessors (for RVMMode accumulated stats reporting)
-	const sa& postprocess_acc() const { return acc_postprocess_; }
-	const sa& composite_acc() const { return acc_composite_; }
+	const helmsman::utils::timing::StageAccumulator& postprocess_acc() const { return acc_postprocess_; }
+	const helmsman::utils::timing::StageAccumulator& composite_acc() const { return acc_composite_; }
 
 	// --- Video compositing setup ---
 
