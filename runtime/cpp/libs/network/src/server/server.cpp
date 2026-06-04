@@ -21,8 +21,7 @@
 #include "Network/server/server.h"
 #include "Utils/logger/logger.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace network_socket {
 
 ServerBase::ServerBase() {}
@@ -32,16 +31,15 @@ ServerBase::~ServerBase() {
 	std::ostringstream ss;
 	ss << "[ServerBase PID:" << getpid()
 	   << "] ServerBase destructor called. Attempting to unlink socket path.";
-	arcforge::embedded::utils::Logger::GetInstance().Info(ss.str(), kcurrent_lib_name);
+	helmsman::utils::Logger::GetInstance().Info(ss.str(), kcurrent_lib_name);
 
 	unlinkSocketPath();
 
 	ss.clear();
 	ss << "[ServerBase PID:" << getpid()
 	   << "] ServerBase destructor finished. Base destructor will handle fd closure.";
-	arcforge::embedded::utils::Logger::GetInstance().Info(ss.str(), kcurrent_lib_name);
+	helmsman::utils::Logger::GetInstance().Info(ss.str(), kcurrent_lib_name);
 }
 
 }  // namespace network_socket
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

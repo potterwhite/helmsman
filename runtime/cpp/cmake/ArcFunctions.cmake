@@ -44,14 +44,60 @@ function(arc_init_project_metadata)
     set(GLOBAL_AUTHOR_EMAIL "themanuknowwhom@outlook.com" PARENT_SCOPE)
 
     # 3. Build Timestamp
-    # "UTC" ensures reproducibility across timezones
-    string(TIMESTAMP _CURRENT_TIMESTAMP "%Y-%m-%d %H:%M:%S UTC")
+    # Use UTC for reproducibility across timezones
+    string(TIMESTAMP _BUILD_TIME_UTC "%Y-%m-%d %H:%M:%S" UTC)
+    string(TIMESTAMP _BUILD_TIME_LOCAL "%Y-%m-%d %H:%M:%S")
+    string(TIMESTAMP _BUILD_TIME_OFFSET "%z")
+    set(_CURRENT_TIMESTAMP "${_BUILD_TIME_UTC} UTC (local: ${_BUILD_TIME_LOCAL} ${_BUILD_TIME_OFFSET})")
 
     # Export the local variable to parent scope
     set(GLOBAL_BUILD_TIMESTAMP "${_CURRENT_TIMESTAMP}" PARENT_SCOPE)
     set(GLOBAL_EXTENDED_BUILD_TIMESTAMP_STRING "${_CURRENT_TIMESTAMP}" PARENT_SCOPE)
 
-    message(STATUS "[Configuration] Metadata initialized: ${PROJECT_NAMESPACE} v${PROJECT_VERSION} (@${_CURRENT_TIMESTAMP})")
+    # 4. Git Version Info
+    execute_process(
+        COMMAND git rev-parse --short=8 HEAD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE _GIT_HASH OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET RESULT_VARIABLE _RESULT)
+    if(NOT _RESULT EQUAL 0)
+        set(_GIT_HASH "unknown")
+    endif()
+
+    execute_process(
+        COMMAND git rev-parse --abbrev-ref HEAD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE _GIT_BRANCH OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET RESULT_VARIABLE _RESULT)
+    if(NOT _RESULT EQUAL 0)
+        set(_GIT_BRANCH "unknown")
+    endif()
+
+    execute_process(
+        COMMAND git describe --tags --always --dirty
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE _GIT_DESCRIBE OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET RESULT_VARIABLE _RESULT)
+    if(NOT _RESULT EQUAL 0)
+        set(_GIT_DESCRIBE "unknown")
+    endif()
+
+    execute_process(
+        COMMAND git diff --quiet
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        RESULT_VARIABLE _RESULT)
+    if(_RESULT EQUAL 0)
+        set(_GIT_DIRTY 0)
+    else()
+        set(_GIT_DIRTY 1)
+    endif()
+
+    set(GLOBAL_GIT_HASH      "${_GIT_HASH}"      PARENT_SCOPE)
+    set(GLOBAL_GIT_BRANCH    "${_GIT_BRANCH}"    PARENT_SCOPE)
+    set(GLOBAL_GIT_DESCRIBE  "${_GIT_DESCRIBE}"  PARENT_SCOPE)
+    set(GLOBAL_GIT_DIRTY     "${_GIT_DIRTY}"     PARENT_SCOPE)
+
+    message(STATUS "[Configuration] Metadata initialized: ${PROJECT_NAMESPACE} v${PROJECT_VERSION} (@${_CURRENT_TIMESTAMP}) commit=${_GIT_HASH} branch=${_GIT_BRANCH}")
 
 endfunction()
 
@@ -609,8 +655,11 @@ endfunction()
 #   arc_generate_system_info_header()
 # ------------------------------------------------------------------------------
 function(arc_generate_system_info_header)
-    # Get Timestamp
-    string(TIMESTAMP BUILD_TIMESTAMP "%Y-%m-%d %H:%M:%S")
+    # Get Timestamp (UTC for reproducibility)
+    string(TIMESTAMP _BUILD_TIME_UTC "%Y-%m-%d %H:%M:%S" UTC)
+    string(TIMESTAMP _BUILD_TIME_LOCAL "%Y-%m-%d %H:%M:%S")
+    string(TIMESTAMP _BUILD_TIME_OFFSET "%z")
+    set(BUILD_TIMESTAMP "${_BUILD_TIME_UTC} UTC (local: ${_BUILD_TIME_LOCAL} ${_BUILD_TIME_OFFSET})")
 
     # Define paths
     set(TEMPLATE_FILE "${CMAKE_SOURCE_DIR}/cmake/templates/system-info.h.in")

@@ -21,8 +21,7 @@
 #include "base-config.h"
 // #include "sherpa-onnx/c-api/cxx-api.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace network_socket {
 
 // --- Implementation of SherpaConfig's Private Constructor ---
@@ -188,5 +187,4 @@ SherpaConfig SherpaConfig::Builder::build() {
 }
 
 }  // namespace network_socket
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

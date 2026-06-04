@@ -24,6 +24,5 @@
 
 add_subdirectory(common)
 add_subdirectory(onnx)
-add_subdirectory(rknn)
 
 

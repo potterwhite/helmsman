@@ -6,9 +6,8 @@
 >
 > **维护规则：** 任何修改本文件中所列文件的 AI Agent，必须在同一 commit/会话中更新本文档的对应章节。
 >
-> 最后更新：2026-03-31（export_onnx_pureBN.py + onnx 1.14.1 升级）
+> 最后更新：2026-05-25（新增 RKNNKit 库；RKNN 查询函数封装；清理 Runtime 中死代码）
 >
-> **English →** [../../en/1-for-ai/codebase_map.md](../../en/1-for-ai/codebase_map.md)
 
 ---
 
@@ -40,21 +39,19 @@ helmsman.git/
 │   ├── CMakePresets.json       ← 12 个构建预设（native/rk3588s/rv1126bp × debug/release × static/shared）
 │   ├── .env (gitignored) 🔒    ← SDK 根路径；交叉编译前必须存在
 │   ├── apps/
-│   │   ├── matting/client/     ← ★ 主程序：Helmsman_Matting_Client 二进制
-│   │   └── asr/                ← 次程序：ASR 服务端/客户端（Sherpa-ONNX）
+│   │   └── matting/server/     ← ★ 主程序：Helmsman_Matting_Server 二进制
 │   ├── libs/
 │   │   ├── cvkit/              ← OpenCV 封装（加载、颜色转换、缩放、二进制转储）
 │   │   ├── utils/              ← Logger、FileUtils、MathUtils、OtherUtils
 │   │   ├── runtime/            ← ONNX Runtime 会话封装
-│   │   ├── network/            ← TCP socket 客户端/服务端
-│   │   └── asr_engine/         ← Sherpa-ONNX 识别器 + VAD
+│   │   ├── rknnkit/            ← RKNN SDK 封装（查询、to_string；Rockchip 平台专用）
+│   │   └── network/            ← TCP socket 客户端/服务端
 │   ├── cmake/
 │   │   ├── ArcFunctions.cmake  ← 自定义 CMake 宏（arc_init_*、arc_extract_version_*）
 │   │   └── toolchains/         ← 交叉编译工具链：rk3588s.cmake、rv1126bp.cmake
 │   └── third_party/            ← 各依赖的 FetchContent CMake 脚本
 │       ├── librknnrt/          ← Rockchip NPU 运行时（配置时下载）
 │       ├── onnxruntime/        ← ONNX Runtime（配置时下载）
-│       └── sherpa-onnx/        ← ASR 运行时（配置时下载）
 │
 ├── third-party/
 │   ├── sdk/MODNet.git/ 🔒      ← Git 子模块：ZHKKKe/MODNet。禁止直接修改。
@@ -200,7 +197,7 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 |---|---|
 | `CMakeLists.txt` 🔒 | 项目根；通过 `arc_extract_version_from_changelog()` 提取版本；包含 third_party → libs → apps |
 | `CMakePresets.json` | 12 个构建预设，含依赖 URL 和 SHA 哈希 |
-| `conanfile.txt` | Conan 包清单（用于 native 构建） |
+| `conanfile.txt` | Conan 包清单（用于 native 构建）；opencv with_ffmpeg=True + ffmpeg 精准关闭 xcb/xlib/vaapi/vdpau/pulse/alsa |
 | `.env` (gitignored) 🔒 | `ARC_RK3588S_SDK_ROOT` 和 `ARC_RV1126BP_SDK_ROOT`；交叉编译前必须存在 |
 
 ### `cmake/ArcFunctions.cmake`
@@ -231,7 +228,7 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 
 | 文件 | 关键类/函数 |
 |---|---|
-| `include/CVKit/base/base.h` | `arcforge::cvkit::Base`: `loadImage()`, `bgrToRgb()`, `ensure3Channel()`, `hwcToNchw()`, `dumpBinary()` |
+| `include/CVKit/base/base.h` | `helmsman::cvkit::Base`: `loadImage()`, `bgrToRgb()`, `ensure3Channel()`, `hwcToNchw()`, `dumpBinary()` |
 | `src/base/base.cpp` | 实现 |
 | `src/base/impl/base-impl.{h,cpp}` | Pimpl 模式 |
 
@@ -245,15 +242,35 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 | `include/Utils/logger/worker/filesink.h` | `FileSink` — 文件 sink |
 | `include/Utils/math/math-utils.h` | `MathUtils::GetInstance()`, `getScaleFactor()` → `ScaleFactor` 结构体 |
 | `include/Utils/file/file-utils.h` | `FileUtils::GetInstance()`, `dumpBinary()` |
+| `include/Utils/timing/timer.h` ★ | **header-only** 计时工具（无外部依赖）：`ScopedTimer`（RAII，析构时打日志）、`ManualTimer`（手动 start/stop，返回 ms）、`StageAccumulator`（线程安全，collect+report min/avg/max） |
 
-### `libs/runtime/` — ONNX Runtime 封装
+### `libs/runtime/` — ONNX Runtime 封装（仅 ONNX）
 **CMake 目标**：`Helmsman::Lib::Runtime`
 
 | 文件 | 关键类/函数 |
 |---|---|
-| `include/Runtime/onnx/onnx.h` | `arcforge::runtime::RuntimeONNX::GetInstance()` |
+| `include/Runtime/onnx/onnx.h` | `helmsman::runtime::RuntimeONNX::GetInstance()` |
 | `src/onnx/onnx.cpp` | ONNX Runtime 会话管理 |
 | `src/onnx/impl/impl.{h,cpp}` | Pimpl：创建会话、运行推理、`GetInputNameAllocated()` |
+
+### `libs/rknnkit/` — RKNN SDK 封装（Rockchip 平台专用）
+**CMake 目标**：`Helmsman::RKNNKit`
+**平台守卫**：非 Rockchip 平台自动跳过
+
+| 文件 | 关键类/函数 |
+|---|---|
+| `include/RKNNKit/rknn-query.h` ★ | `RKNNQuery` — 无状态工具类（deleted ctor + private dtor + static 方法），封装 17 个 `rknn_query` 调用 |
+| `include/RKNNKit/utils.h` | `helmsman::rknnkit::to_string()` — RKNN 结构体转字符串（`rknn_tensor_attr`, `rknn_input_output_num`, `rknn_core_mask` 等） |
+| `src/rknn-query.cpp` | 所有查询实现，日志前缀 `[RKNN Nth]` |
+
+**RKNNQuery 方法分组**：
+
+| 分组 | 调用时机 | 方法 |
+|---|---|---|
+| Group 1 (1st–4th) | `Load()` Phase I/II | `SdkVersion1st()`, `IoNum2nd()`, `InputAttrs3rd()`, `OutputAttrs4th()` |
+| Group 2 (5th–6th) | `DoInfer()` 每帧 | `PerfRun5th()`, `PerfDetail6th()` |
+| Group 3 (7th–8th) | `Load()` post-bind | `LogMemSize7th()`, `LogCustomString8th()` |
+| Group 4 (9th–18th) | `Load()` post-bind 诊断 | `LogNativeInputAttrs9th()`, `LogNativeOutputAttrs10th()`, `LogNhwcInputAttrs11th()`, `LogNhwcOutputAttrs12th()`, `LogInputDynamicRange14th()`, `LogCurrentInputAttrs15th()`, `LogCurrentOutputAttrs16th()`, `LogCurrentNativeInputAttrs17th()`, `LogCurrentNativeOutputAttrs18th()` |
 
 ### `libs/network/` — TCP Socket 库
 **CMake 目标**：`Helmsman::Lib::Network`
@@ -264,65 +281,90 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 | `include/Network/server/server.h` | `Network::Server` — TCP 服务端 |
 | `include/Network/base/exception.h` | 网络异常 |
 
-### `libs/asr_engine/` — 语音识别引擎
-**CMake 目标**：`Helmsman::Lib::ASREngine`
-
-| 文件 | 关键类 |
-|---|---|
-| `include/ASREngine/recognizer/recognizer.h` | `ASREngine::Recognizer`（Sherpa-ONNX） |
-| `include/ASREngine/recognizer/recognizer-config.h` | `RecognizerConfig` 结构体 |
-| `include/ASREngine/vad/vad.h` | `ASREngine::VAD` — 语音活动检测 |
-| `include/ASREngine/wav-reader/wav-reader.h` | WAV 文件读取器 |
-
 ---
 
-## `apps/matting/client/` ★ — 主应用程序
+## `apps/matting/server/` ★ — 主应用程序
 
-**二进制**：`Helmsman_Matting_Client`
-**用法**：`Helmsman_Matting_Client <image> <model> <output_dir> [background]`
+**二进制**：`Helmsman_Matting_Server`
+**用法**：`Helmsman_Matting_Server <image_or_video> <model> <output_dir> [background] [--rvm]`
 **安装路径**：`runtime/cpp/install/<platform>/release/bin/`
+
+**CLI 标志**：
+- `--rvm` — 使用 RVM 模式（递归状态 + 视频逐帧循环）
+- `--modnet` — 使用 MODNet 模式（默认，单帧 + 10× benchmark）
+- `--timing=off` — 关闭全流程计时统计（默认开启）
+- `--timing=on` — 显式开启计时统计（默认行为，一般不需要写）
+- 自动检测：输入为 .mp4/.avi/.mkv/.mov/.webm 时自动切换 RVM 模式
 
 ### 抠图流水线（C++ 数据流）
 
 ```
-[输入：图片路径 + RKNN/ONNX 模型路径]
+[输入：MP4 视频路径 / 图片路径 + RKNN/ONNX 模型路径]
         |
         ▼
+┌─────────────────────────────┐
+│  FrontendBase（抽象基类）    │  → frontend-core/frontend-base.h
+│                             │  ★ 工厂方法: FrontendBase::Create()
+│  RockchipFrontend           │  → frontend-core/impl/rockchip-frontend.h
+│  ├─ FfmpegInputSource       │  FFmpeg demux
+│  ├─ MppFrameDecoder         │  MPP 硬件解码
+│  └─ RgaNv12ToBgr            │  RGA 颜色转换 (NV12→BGR)
+│                             │
+│  NoHwFrontend               │  → frontend-core/impl/no-hw-frontend.h
+│  └─ cv::VideoCapture        │  OpenCV 软件解码（回退）
+│                             │
+│  ReadFrame() → cv::Mat BGR  │  子类实现
+│  preprocess() → TensorData  │  基类共享（Preprocessor）
+└────────┬────────────────────┘
+         │ cv::Mat (BGR)
+         ▼
 ┌─────────────────┐
-│  ImageFrontend  │  → pipeline/frontend/frontend.cpp
-│  ::preprocess() │
-│                 │  1. cv::imread (BGR)
-│                 │  2. BGR → RGB
-│                 │  3. 确保 3 通道
-│                 │  4. convertTo CV_32FC3（保持 0–255 范围，不归一化）
-│                 │  5. Letterbox 缩放至 model_W × model_H
-│                 │     - 保持宽高比缩放
-│                 │     - cv::copyMakeBorder（黑色填充）
-│                 │  6. 将 HWC float32 内存复制到 tensor_data.data
-│                 │  7. 填充 TensorData 元数据（orig_w/h, pad_*）
+│  Preprocessor   │  → pipeline/stages/frontend/stages/04-preprocess/preprocessor.cpp
+│  preprocessCore():│
+│  1. BGR → RGB    │
+│  2. 确保 3 通道  │
+│  3. convertTo CV_32FC3（保持 0–255 范围，不归一化）
+│  4. 缩放至 model_W × model_H
+│  5. 将 HWC float32 内存复制到 tensor_data.data
+│  6. 填充 TensorData 元数据（orig_w/h, pad_*）
 └────────┬────────┘
-         │ TensorData {data, shape[NHWC], orig_w, orig_h, pad_top/bottom/left/right}
+         │ vector<TensorData>:
+         │   MODNet: [src]
+         │   RVM:    [src, r1i, r2i, r3i, r4i] (由 RecurrentStateManager 注入)
          ▼
 ┌─────────────────────────────┐
 │   InferenceEngine（抽象）   │  → pipeline/inference-engine/base/inference-engine.h
 │   .load(model_path)         │
-│   .infer(TensorData)        │
+│   .infer(vector<in>,        │  ★ N-input / M-output 泛化接口
+│          vector<out>)       │    MODNet: 1→1,  RVM: 5→6
 │                             │
-│  RKNN 路径（ENABLE_RKNN_BACKEND）:
+│  RKNN 路径（INFERENCE_BACKEND=rknn-*）:
 │  ├─ InferenceEngineRKNNZeroCP  ← 生产环境主选
-│  │   - rknn_create_mem（NPU 可见缓冲区）
-│  │   - memcpy 输入到 input_mem_->virt_addr
+│  │   - 多组 rknn_create_mem（N 输入 + M 输出缓冲区）
+│  │   - 遍历 inputs 逐个 memcpy 到 input_mems_[i]->virt_addr
 │  │   - rknn_run()
+│  │   - 元数据查询通过 RKNNQuery（libs/rknnkit/）
 │  └─ InferenceEngineRKNN       ← 非零拷贝（备选）
 │
 │  ONNX 路径（native/x86 默认）:
 │  └─ InferenceEngineONNX       ← ONNX Runtime 1.16.3
 └────────┬────────────────────┘
-         │ TensorData {data, shape[NCHW], 相同元数据}
+         │ vector<TensorData>:
+         │   MODNet: [pha]
+         │   RVM:    [fgr, pha, r1o, r2o, r3o, r4o]
+         ▼
+┌─────────────────────────────┐
+│  RecurrentStateManager      │  → pipeline/core/recurrent-state-manager.h
+│  (仅 RVM 路径)               │
+│  .update(outputs)           │  保存 r1o~r4o → 下一帧的 r1i~r4i
+│  .inject(inputs)            │  将 r1i~r4i 追加到 inputs
+└────────┬────────────────────┘
+         │ vector<TensorData> outputs
          ▼
 ┌─────────────────┐
-│  MattingBackend │  → pipeline/backend/backend.cpp
+│  BackEnd        │  → pipeline/backend/backend.cpp
 │  ::postprocess()│
+│   (vector<TD>)  │  ★ 按名称选取 pha tensor
 │                 │  1. NCHW → HWC 转换（遍历 C,H,W）
 │                 │  2. 截断到 [0,1]
 │                 │  3. 裁剪 letterbox 填充（使用 pad_* 元数据）
@@ -334,32 +376,52 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 
 **关键不变量**：前端数据范围为 **0–255 float32 HWC 格式**。RKNN 驱动通过校准数据在内部处理量化。
 
+### 公共类型
+
+| 文件 | 用途 |
+|---|---|
+| `include/common/common-define.h` | `kcurrent_module_name = "main-server"` |
+| `include/common/data_structure.h` 🔒 | `TensorData` 结构体（name, data, shape, orig_w/h, pad_*） |
+
+### Frontend 子系统（pipeline/stages/frontend/）
+
+| 文件 | 用途 |
+|---|---|
+| `include/pipeline/stages/frontend/frontend-core/frontend-base.h` | `FrontendBase` 抽象基类：`ProcessOneFrame()`, `preprocess()`, `Stop()`, 工厂方法 `Create()` |
+| `src/.../frontend-core/impl/rockchip-frontend.h` | `RockchipFrontend`：FFmpeg + MPP + RGA 硬件解码路径 |
+| `src/.../frontend-core/impl/no-hw-frontend.h` | `NoHwFrontend`：cv::VideoCapture 软件解码回退 |
+| `src/.../stages/01-input-source/base-input-source.h` | `BaseInputSource` 抽象接口：`open()`, `ReadRaw()`, `width()`, `height()` |
+| `src/.../stages/02-decoder/base-frame-decoder.h` | `BaseFrameDecoder` 抽象 + `HardwareFrame` 结构体 |
+| `src/.../stages/03-color-convert/base-color-converter.h` | `BaseColorConverter` 抽象 |
+| `include/pipeline/stages/frontend/stages/04-preprocess/preprocessor.h` | `Preprocessor`：BGR→RGB→float32→resize→HWC 张量 |
+
 ### 流水线文件
 
 | 文件 | 用途 |
 |---|---|
-| `src/main-client.cpp` | 入口点；配置 logger、信号处理，调用 `Pipeline::init()` + `run()` |
-| `include/common-define.h` | `kcurrent_module_name = "main-client"` |
-| `include/pipeline/pipeline.h` | `Pipeline` 单例：`init()`, `run()` |
-| `src/pipeline/pipeline.cpp` 🔒 | 编排：加载模型 → 预处理 → 推理（×10 基准）→ 后处理 |
-| `include/pipeline/core/data_structure.h` 🔒 | `TensorData` 结构体（data, shape, orig_w/h, pad_*） |
-| `include/pipeline/frontend/frontend.h` | `ImageFrontend`: `preprocess(image_path, model_w, model_h)` |
-| `src/pipeline/frontend/frontend.cpp` 🔒 | BGR→RGB→float32→letterbox→HWC 张量（0–255 范围） |
-| `include/pipeline/inference-engine/base/inference-engine.h` 🔒 | `InferenceEngine` 抽象基类：`load()`, `infer()`, `setOutputBinPath()`, `getInputHeight()`, `getInputWidth()` |
-| `include/pipeline/inference-engine/rknn/rknn-zero-copy.h` | `InferenceEngineRKNNZeroCP` |
-| `src/pipeline/inference-engine/rknn/rknn-zero-copy.cpp` | 通过 `rknn_create_mem` 分配 NPU 缓冲区，绑定，memcpy，`rknn_run`，读取输出 |
-| `include/pipeline/inference-engine/rknn/rknn-non-zero-copy.h` | `InferenceEngineRKNN`（备选） |
+| `src/main-server.cpp` | 入口点；配置 logger、SIGINT 信号处理，解析 CLI（含 `--core-mask`），调用 `Pipeline::Init()` + `Run()` |
+| `include/pipeline/pipeline.h` | `Pipeline` 单例：`Init()` 创建+加载+注入，`Run()` 纯执行 |
+| `src/pipeline/pipeline.cpp` 🔒 | Init(): FrontEnd::Create + engine->Load + BackEnd 配置 + 注入到 modes |
+| `include/pipeline/modes/rvm/rvm.h` | `RVMMode`：setter 注入 + `Run()` 无参数 |
+| `include/pipeline/modes/modnet/modnet.h` | `MODNetMode`：setter 注入 + `Run()` 无参数 |
+| `include/pipeline/infra/recurrent-state-manager.h` ★ | `RecurrentStateManager`：RVM 递归状态持久化 |
+| `include/pipeline/stages/inference-engine/base/inference-engine.h` 🔒 | `InferenceEngine` 抽象基类：`Load()`, `Infer()` — N→M 泛化接口 |
+| `include/pipeline/inference-engine/rknn/rknn-zero-copy.h` | `InferenceEngineRKNNZeroCP` — 多组 zero-copy buffer；`SetCoreMask(int)` |
+| `src/pipeline/inference-engine/rknn/rknn-zero-copy.cpp` | N 输入 × M 输出 zero-copy：通过 `RKNNQuery` 查询元数据，遍历 input_mems_/output_mems_，自适应 INT8/FP16/FP32；`COLLECT_PERF_MASK` + 每帧 `PerfRun5th`/`PerfDetail6th` 查询 |
+| `include/pipeline/inference-engine/rknn/rknn-non-zero-copy.h` | `InferenceEngineRKNN`（备选）|
+| `src/pipeline/inference-engine/rknn/rknn-non-zero-copy.cpp` | N→M non-zero-copy：通过 `RKNNQuery` 查询元数据，rknn_inputs_set 多组 + rknn_outputs_get 多组 |
 | `include/pipeline/inference-engine/onnx/onnx.h` | `InferenceEngineONNX` |
-| `src/pipeline/inference-engine/onnx/onnx.cpp` | `OrtSession::Run`，通过 `GetInputNameAllocated()` 进行张量 I/O |
-| `include/pipeline/backend/backend.h` | `MattingBackend`: `postprocess(TensorData)` → `cv::Mat` |
+| `src/pipeline/inference-engine/onnx/onnx.cpp` | N→M ORT Run：inputs[0] NHWC→NCHW+归一化，inputs[1..N] 直通 |
+| `include/pipeline/backend/backend.h` | `BackEnd`: `Postprocess(vector<TensorData>)` → `cv::Mat` — 按名选 pha |
 | `src/pipeline/backend/backend.cpp` 🔒 | NCHW→HWC，截断，裁剪 letterbox，缩放至原始尺寸，保存 PNG/JPG |
 
 ### `TensorData` 契约 🔒
 
 ```cpp
 typedef struct {
-    std::vector<float> data;      // 展平的 float 数组
-    std::vector<int64_t> shape;   // {1,H,W,C}（NHWC）用于输入；{1,C,H,W}（NCHW）用于输出
+    std::string            name;  // tensor 名称 ("src", "r1i", "pha", "r1o" 等)
+    std::vector<float>     data;  // 展平的 float 数组
+    std::vector<int64_t>   shape; // {1,H,W,C}（NHWC）用于输入；{1,C,H,W}（NCHW）用于输出
     int orig_width;   // letterbox 前的原始图像宽度
     int orig_height;  // letterbox 前的原始图像高度
     int pad_top;      // 顶部黑色填充像素数
@@ -388,13 +450,13 @@ typedef struct {
 
 ```cpp
 // 日志（全局使用）
-auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+auto& logger = helmsman::utils::Logger::GetInstance();
 logger.Info("message", kcurrent_module_name);
 logger.Warning("message", kcurrent_module_name);
 logger.Debug("message", kcurrent_module_name);  // 仅在 Debug 构建中显示
 
 // kcurrent_module_name 在每个 app 的 include/common-define.h 中定义
-constexpr std::string_view kcurrent_module_name = "main-client";
+constexpr std::string_view kcurrent_module_name = "main-server";
 ```
 
 ---
@@ -476,14 +538,16 @@ INPUT_SIZE   = 512
 ## 依赖图（C++ CMake）
 
 ```
-Helmsman_Matting_Client
+Helmsman_Matting_Server
 ├── Helmsman::Lib::CVKit        （OpenCV 封装）
 │   └── OpenCV
 ├── Helmsman::Lib::Utils        （Logger, Math, File）
 ├── Helmsman::Lib::Runtime      （ONNX Runtime 封装）
 │   └── ThirdParty::ONNXRuntime （FetchContent 1.16.3）
-├── [仅 ENABLE_RKNN_BACKEND]
-│   └── ThirdParty::LibRKNNRT   （FetchContent 2.3.2, aarch64 only）
+├── [仅 INFERENCE_BACKEND=rknn-*]
+│   ├── Helmsman::RKNNKit       （RKNN SDK 封装：查询、to_string）
+│   │   └── ThirdParty::LibRKNNRT （FetchContent 2.3.2, aarch64 only）
+│   └── ThirdParty::LibRKNNRT
 └── arc_base_settings           （C++17, 警告, PIC）
 
 Helmsman_ASR_Server
@@ -502,5 +566,6 @@ Helmsman_ASR_Server
 3. **单例 Logger**：`Logger::GetInstance()`、`RuntimeONNX::GetInstance()`、`MathUtils::GetInstance()` — 每个进程一个实例。
 4. **所有 C++ 依赖使用 FetchContent**：`runtime/cpp/` 中无子模块或源码内置。所有内容在 CMake 配置时通过固定 URL 和 SHA 哈希下载。
 5. **MODNet 符号链接注入**：自定义 Python 脚本位于 `third-party/scripts/modnet/`，由 `func_3_0_setup_modnet_softlinks()` 符号链接到只读子模块中。
-6. **编译期后端选择**：RKNN 与 ONNX 由 `ENABLE_RKNN_BACKEND` CMake 定义决定——无运行时分支。
+6. **编译期后端选择**：RKNN 与 ONNX 由 `INFERENCE_BACKEND` CMake 变量决定（`onnx` / `rknn-zerocopy` / `rknn-non-zerocopy`）——无运行时分支。
 7. **RKNN 反融合**：将 InstanceNorm 替换为算术原语 `Var(x) = E[x²] − (E[x])²`，防止 RKNN 编译器重构 `InstanceNormalization` 导致 CPU 回退。
+8. **InputSource 抽象**：视频/图片/IPC 输入通过 `InputSource` 接口统一，`std::unique_ptr` 所有权转移（禁用 shared_ptr/raw pointer），为 Phase-6 V4L2/IPC 预留扩展点。

@@ -8,6 +8,10 @@ torch==2.0.1
 torchvision==0.15.2
 onnx==1.14.1
 onnxruntime==1.15.1
+# onnx-simplifier: graph optimization for ONNX models (folds Shape/Slice/Concat chains,
+# eliminates redundant nodes). Used by RVM Phase-1 Block 1.1 onnxsim step.
+# Compatible with onnx>=1.11; environment-agnostic (no GPU/CPU dependency).
+onnx-simplifier==0.4.35
 # opencv-python: If error occurs, cv-headless will be installed replaced
 opencv-python==4.5.1.48
 # Pin protobuf to a compatible version to avoid API breaking changes in 4.x

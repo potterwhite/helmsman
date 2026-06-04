@@ -24,7 +24,7 @@
 
 #include "Utils/pch.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace utils {
 
 struct ScaleFactor {
@@ -55,4 +55,4 @@ class MathUtils {
 };
 
 }  // namespace utils
-}  // namespace arcforge
+}  // namespace helmsman

@@ -18,21 +18,23 @@
 // Component Information (Unique for each lib)
 #define TARGET_NAME         "@ARG_TARGET_NAME@"
 
-// /* ***************************************************
-//  * System Information Header
-//  * This file contains system information variables defined by CMake.
-//  * ***************************************************/
+// Git Version Information
+#define GIT_COMMIT      "@GLOBAL_GIT_HASH@"
+#define GIT_BRANCH      "@GLOBAL_GIT_BRANCH@"
+#define GIT_DESCRIBE    "@GLOBAL_GIT_DESCRIBE@"
+#define GIT_DIRTY       @GLOBAL_GIT_DIRTY@
 
-// // system-info.h.in
-// #pragma once
-
-// // CMake will replace @VAR_NAME@ with actual variable values during the configuration step.
-// #define VERSION_MAJOR @GLOBAL_VERSION_MAJOR @
-// #define VERSION_MINOR @GLOBAL_VERSION_MINOR @
-// #define VERSION_PATCH @GLOBAL_VERSION_PATCH @
-
-// #define VERSION_STRING "@GLOBAL_EXTENDED_VERSION_STRING@"
-
-// #define AUTHOR_NAME "@GLOBAL_AUTHOR_NAME@"
-// #define AUTHOR_EMAIL "@GLOBAL_AUTHOR_EMAIL@"
-// #define BUILD_TIMESTAMP "@GLOBAL_EXTENDED_BUILD_TIMESTAMP_STRING@"
+// ---- Auto-print registry (X-macro) ----
+// To add a new field: just append X("label", MACRO_NAME) below.
+// The --info CLI command prints all fields automatically.
+#define SYSTEM_INFO_FIELDS \
+    X("project",   PROJECT_NAMESPACE) \
+    X("version",   VERSION_STRING) \
+    X("author",    AUTHOR_NAME) \
+    X("email",     AUTHOR_EMAIL) \
+    X("build",     BUILD_TIMESTAMP) \
+    X("target",    TARGET_NAME) \
+    X("commit",    GIT_COMMIT) \
+    X("branch",    GIT_BRANCH) \
+    X("describe",  GIT_DESCRIBE) \
+    X("dirty",     GIT_DIRTY)

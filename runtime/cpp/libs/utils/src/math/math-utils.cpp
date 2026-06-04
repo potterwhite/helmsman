@@ -22,7 +22,7 @@
 #include <iostream>
 #include <sstream>
 
-namespace arcforge {
+namespace helmsman {
 namespace utils {
 
 MathUtils& MathUtils::GetInstance() {
@@ -63,4 +63,4 @@ ScaleFactor MathUtils::getScaleFactor(int im_h, int im_w, int ref_size) {
 }
 
 }  // namespace utils
-}  // namespace arcforge
+}  // namespace helmsman

@@ -20,12 +20,10 @@
 
 #include "Utils/common/common-types.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace utils {
 
 extern const std::string_view kcurrent_lib_name = PROJECT_NAME;
 
 }  // namespace utils
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

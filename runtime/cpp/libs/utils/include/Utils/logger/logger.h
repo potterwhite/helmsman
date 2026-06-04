@@ -25,8 +25,7 @@
 #include "Utils/logger/worker/logsink.h"
 #include "Utils/pch.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace utils {
 
 enum class LoggerLevel {
@@ -85,5 +84,4 @@ class Logger {
 };
 
 }  // namespace utils
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

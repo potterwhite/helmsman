@@ -23,20 +23,20 @@
 #pragma once
 #include <string>
 
-namespace arcforge {
+namespace helmsman {
 namespace cvkit {
 
 /**
  * @brief Obtain the library's compile-time version string.
  * @return A string in the format "major.minor.patch".
  */
-std::string get_arcforge_cvkit_library_version();
+std::string get_helmsman_cvkit_library_version();
 
-std::string get_arcforge_cvkit_library_author();
+std::string get_helmsman_cvkit_library_author();
 
-std::string get_arcforge_cvkit_library_author_email();
+std::string get_helmsman_cvkit_library_author_email();
 
-std::string get_arcforge_cvkit_library_build_timestamp();
+std::string get_helmsman_cvkit_library_build_timestamp();
 
 }  // namespace cvkit
-}  // namespace arcforge
+}  // namespace helmsman

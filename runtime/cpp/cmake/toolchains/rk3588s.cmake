@@ -89,6 +89,12 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY BOTH)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE BOTH)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH)
 
+# pkg-config: override default search path to sysroot so cross-compiled .pc files are found
+# Uses PKG_CONFIG_LIBDIR (not PKG_CONFIG_PATH) to REPLACE default paths, not append
+set(ENV{PKG_CONFIG_LIBDIR} "${CMAKE_SYSROOT}/usr/lib/pkgconfig")
+# Prepend sysroot to -I/-L flags returned by .pc files (which use prefix=/usr)
+set(ENV{PKG_CONFIG_SYSROOT_DIR} "${CMAKE_SYSROOT}")
+
 # -------------------------------------
 # V. RPATH Settings (Optional but recommended)
 # Allow executables on the target board to find .so files in the same directory.

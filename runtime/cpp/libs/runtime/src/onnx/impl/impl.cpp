@@ -22,22 +22,22 @@
 #include "impl.h"
 #include "Utils/logger/logger.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace runtime {
 
-auto& logger = arcforge::embedded::utils::Logger::GetInstance();
+auto& logger = helmsman::utils::Logger::GetInstance();
 
 // #define DEBUG
 /*===================================================
  * constructors and operators
  *===================================================*/
 Impl::Impl() {
-	arcforge::embedded::utils::Logger::GetInstance().Info("Impl object constructed.",
+	helmsman::utils::Logger::GetInstance().Info("Impl object constructed.",
 	                                                      kcurrent_lib_name);
 }
 
 Impl::~Impl() {
-	arcforge::embedded::utils::Logger::GetInstance().Info("Impl cleaned up.", kcurrent_lib_name);
+	helmsman::utils::Logger::GetInstance().Info("Impl cleaned up.", kcurrent_lib_name);
 }
 
 void Impl::show_input(const Ort::Session& session) {
@@ -110,4 +110,4 @@ Ort::SessionOptions Impl::init_session_option(void) {
 }
 
 }  // namespace runtime
-}  // namespace arcforge
+}  // namespace helmsman

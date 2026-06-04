@@ -44,7 +44,7 @@ project(${PROJECT_NAME}
 #    Uses the 'arc_add_test' macro to automate:
 #      1. Creating executable 'test_Network'
 #      2. Linking GTest & GMock
-#      3. Linking the target module (ArcForge::Network)
+#      3. Linking the target module (Helmsman::Network)
 #      4. Injecting internal 'src' include paths
 # ---------------------------------
 

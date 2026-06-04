@@ -23,8 +23,7 @@
 // IMPORTANT: Import from CMakeLists.txt externally
 #include "system-info.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace utils {
 
 
@@ -49,5 +48,4 @@ std::string get_utils_library_build_timestamp() {
 }
 
 }  // namespace utils
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

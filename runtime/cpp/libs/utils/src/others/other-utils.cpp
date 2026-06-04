@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 
-namespace arcforge {
+namespace helmsman {
 namespace utils {
 
 OtherUtils& OtherUtils::GetInstance() {
@@ -79,4 +79,4 @@ std::string OtherUtils::format_vector_preview(const std::vector<float>& vec, siz
 }
 
 }  // namespace utils
-}  // namespace arcforge
+}  // namespace helmsman

@@ -50,7 +50,7 @@ set(INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_library(${PROJECT_NAME})                  # Let ${BUILD_SHARED_LIBS} determine static or shared
 
 if(NOT DEFINED PROJECT_NAMESPACE)
-    set(PROJECT_NAMESPACE "ArcForge")
+    set(PROJECT_NAMESPACE "Helmsman")
 endif()
 add_library(${PROJECT_NAMESPACE}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
@@ -87,18 +87,23 @@ target_link_libraries(${PROJECT_NAME}
         ${PROJECT_NAMESPACE}::ThirdParty::ONNXRuntime
 )
 
-# Only link if RKNNRT enabled
-if(TARGET ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
-    target_link_libraries(${PROJECT_NAME}
-        PUBLIC
-            ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT
-    )
-
-    target_compile_definitions(${PROJECT_NAME}
-        PUBLIC
-            ENABLE_RKNN_BACKEND
-    )
+# ---------------------------------------------------------------------------
+# Inference backend selection via INFERENCE_BACKEND cmake variable.
+#
+# Valid values (set in CMakePresets.json via backend-* mixin):
+#   onnx               → ONNX Runtime only (x86 dev / CI)
+#   rknn-zerocopy      → RKNN zero-copy    (production on RK/RV devices)
+#   rknn-non-zerocopy  → RKNN non-zero-copy (on-device debug / profiling)
+#
+# Default: if INFERENCE_BACKEND is not set, fall back to onnx.
+# RKNN support is provided by the RKNNKit library (libs/rknnkit/).
+# ---------------------------------------------------------------------------
+if(NOT DEFINED INFERENCE_BACKEND OR INFERENCE_BACKEND STREQUAL "")
+    set(INFERENCE_BACKEND "onnx")
+    message(STATUS "[Runtime] INFERENCE_BACKEND not set; defaulting to onnx")
 endif()
+
+message(STATUS "[Runtime] INFERENCE_BACKEND = ${INFERENCE_BACKEND}")
 
 # ---------------------------------
 # VIII. installation rules

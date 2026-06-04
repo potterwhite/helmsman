@@ -22,8 +22,7 @@
 
 #include "Utils/logger/logger.h"  // For LoggerLevel enum
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace utils {
 
 static std::string format_timestamp_for_file(const std::chrono::system_clock::time_point& tp) {
@@ -37,8 +36,8 @@ static std::string format_timestamp_for_file(const std::chrono::system_clock::ti
 }
 
 FileSink::FileSink(const std::string& filename) {
-	// std::cout << "[FileSink Constructor] sizeof(arcforge::embedded::utils::FileSink) = "
-	//           << sizeof(arcforge::embedded::utils::FileSink) << std::endl;
+	// std::cout << "[FileSink Constructor] sizeof(helmsman::utils::FileSink) = "
+	//           << sizeof(helmsman::utils::FileSink) << std::endl;
 
 	file_stream_.open(filename, std::ios::app | std::ios::out);
 }
@@ -87,5 +86,4 @@ void FileSink::log(const LogEntry& entry) {
 }
 
 }  // namespace utils
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman
