@@ -21,8 +21,6 @@
 #include "pipeline/stages/inference-engine/inference-engine-factory.h"
 #include "pipeline/stages/inference-engine/rknn/rknn-zero-copy.h"
 
-std::unique_ptr<InferenceEngine> createInferenceEngine(const NPUConfig& npu_config) {
-    auto engine = std::make_unique<InferenceEngineRKNNZeroCP>();
-    engine->SetNPUConfig(npu_config);
-    return engine;
+std::unique_ptr<InferenceEngine> createInferenceEngine() {
+    return std::make_unique<InferenceEngineRKNNZeroCP>();
 }

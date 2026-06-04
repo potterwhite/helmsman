@@ -189,9 +189,9 @@ void InferenceEngineRKNN::DoInfer(
 	}
 
 	// Debug dump for primary output
-	if (dump_enabled_ && !output_bin_path_.empty()) {
+	if (config().dump_enabled && !config().output_bin_path.empty()) {
 		file_utils_.dumpBinary(outputs[0].data,
-		    output_bin_path_ + "cpp_08_inference-Output-RKNN.bin");
+		    config().output_bin_path + "cpp_08_inference-Output-RKNN.bin");
 	}
 
 	// ----------------------------------------------------------------
@@ -199,7 +199,7 @@ void InferenceEngineRKNN::DoInfer(
 	// ----------------------------------------------------------------
 	rknn_outputs_release(ctx_, n_out, rknn_outputs.data());
 
-	if (dump_enabled_)
+	if (config().dump_enabled)
 		logger.Info("infer() complete: " + std::to_string(n_in) + " in / " +
 		            std::to_string(n_out) + " out", kcurrent_module_name);
 }

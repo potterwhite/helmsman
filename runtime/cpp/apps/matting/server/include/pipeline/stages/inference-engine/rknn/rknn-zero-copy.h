@@ -45,8 +45,6 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 
 	// ------------------------------------------------------------------
 	// getter & setter
-	void SetNPUConfig(const NPUConfig& config);
-
 	// Get model input dimensions from the FIRST input tensor (image/src).
 	// RKNN reports NHWC layout: dims[0]=batch, dims[1]=height, dims[2]=width, dims[3]=channels
 	int GetInputHeight() const override;
@@ -92,8 +90,6 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 	// Per-tensor zero-copy memory (one per input/output)
 	std::vector<rknn_tensor_mem*> input_mems_;
 	std::vector<rknn_tensor_mem*> output_mems_;
-
-	NPUConfig npu_config_;
 
 	// Sub-step timing accumulators (reported via DoReportSubStepTimers)
 	using sa = helmsman::utils::timing::StageAccumulator;

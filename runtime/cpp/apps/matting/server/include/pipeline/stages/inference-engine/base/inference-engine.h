@@ -74,20 +74,14 @@ class InferenceEngine {
 	// Subclasses with sub-step instrumentation override this.
 	virtual std::vector<std::pair<std::string, double>> GetLastSubTimings() const;
 
+	// --- Config ---
+	void SetAppConfig(const AppConfig& config);
+
 	// --- Query (unchanged) ---
 	virtual int GetInputHeight() const;
 	virtual int GetInputWidth()  const;
 	virtual std::vector<std::vector<int64_t>> GetRecurrentStateShapes() const;
 	virtual bool NeedsDownsampleRatio() const;
-
-	// Optional: path for debug binary dumps.
-	virtual void SetOutputBinPath(const std::string& path);
-
-	// Enable/disable debug binary dumps.
-	void SetDumpEnabled(bool enabled);
-
-	// Enable/disable diagnostic logging (internal state inspection).
-	void SetDiagEnabled(bool enabled);
 
    protected:
 	// NVI hook: subclasses implement pure stateless inference (N inputs → M outputs).
@@ -113,11 +107,11 @@ class InferenceEngine {
 	                                    helmsman::utils::Logger& logger,
 	                                    std::string_view module) const;
 
-	std::string output_bin_path_;
-	bool dump_enabled_ = false;
-	bool diag_enabled_ = false;
+	// Access config (set via SetAppConfig before Load/Infer).
+	const AppConfig& config() const { return *config_; }
 
    private:
+	const AppConfig* config_ = nullptr;
 	RecurrentStateManager state_mgr_;
 	helmsman::utils::timing::StageAccumulator infer_acc_{"infer"};
 	float dsr_ = 0.25f;

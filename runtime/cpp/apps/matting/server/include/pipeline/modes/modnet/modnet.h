@@ -31,7 +31,6 @@ public:
     void SetEngine(InferenceEngine* engine);
     void SetBackend(MattingBackend* backend);
     void SetConfig(const AppConfig& config);
-    void SetDumpEnabled(bool enabled);
 
     int Run();
 

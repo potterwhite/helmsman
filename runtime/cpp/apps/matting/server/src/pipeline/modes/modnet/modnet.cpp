@@ -31,7 +31,6 @@ inline constexpr std::string_view kModnetModuleName = "MODNetMode";
 void MODNetMode::SetEngine(InferenceEngine* engine) { engine_ = engine; }
 void MODNetMode::SetBackend(MattingBackend* backend) { backend_ = backend; }
 void MODNetMode::SetConfig(const AppConfig& config) { config_ = config; }
-void MODNetMode::SetDumpEnabled(bool enabled) { preprocessor_.SetDumpEnabled(enabled); }
 
 int MODNetMode::Run() {
 	auto& logger = helmsman::utils::Logger::GetInstance();
@@ -43,6 +42,7 @@ int MODNetMode::Run() {
 	TensorData src;
 	{
 		ScopedTimer t("runMODNet: preprocess", config_.timing_enabled, logger, kModnetModuleName);
+		preprocessor_.SetDumpEnabled(config_.dump_enabled);
 		preprocessor_.SetOutputBinPath(config_.output_bin_path);
 		cv::Mat img = cv::imread(config_.input_path, cv::IMREAD_COLOR);
 		src = preprocessor_.preprocess(img, model_input_width, model_input_height);

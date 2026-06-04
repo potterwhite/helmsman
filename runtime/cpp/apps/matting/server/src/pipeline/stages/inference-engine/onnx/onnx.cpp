@@ -207,12 +207,12 @@ void InferenceEngineONNX::DoInfer(
 	}
 
 	// Debug dump for primary output (index 0)
-	if (dump_enabled_ && !output_bin_path_.empty()) {
+	if (config().dump_enabled && !config().output_bin_path.empty()) {
 		file_utils.dumpBinary(outputs[0].data,
-		    output_bin_path_ + "cpp_08_inference-Output.bin");
+		    config().output_bin_path + "cpp_08_inference-Output.bin");
 	}
 
-	if (dump_enabled_)
+	if (config().dump_enabled)
 		logger.Info("infer() complete: " + std::to_string(n_in) + " in / " +
 		            std::to_string(n_out) + " out", kcurrent_module_name);
 }

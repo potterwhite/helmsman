@@ -28,7 +28,7 @@ void Pipeline::SetTimingEnabled(bool enabled) { config_.timing_enabled = enabled
 bool Pipeline::IsTimingEnabled() const { return config_.timing_enabled; }
 
 std::unique_ptr<InferenceEngine> Pipeline::MakeEngine() {
-	return createInferenceEngine(config_.npu_config);
+	return createInferenceEngine();
 }
 
 Pipeline& Pipeline::GetInstance() {
@@ -87,24 +87,18 @@ void Pipeline::Init(const AppConfig& config) {
 
 	// 2. InferenceEngine + model load
 	engine_ = MakeEngine();
-	engine_->SetOutputBinPath(config_.output_bin_path);
-	engine_->SetDumpEnabled(config_.dump_enabled);
-	engine_->SetDiagEnabled(config_.diag_enabled);
+	engine_->SetAppConfig(config_);
 	{
 		ScopedTimer t("Pipeline::Init() model load", config_.timing_enabled, logger,
 		              kcurrent_module_name);
 		engine_->Load(config_.model_path);
 	}
 
-	// 3. Backend base configuration
-	backend_.SetOutputPath(config_.output_bin_path);
-	backend_.SetBackgroundPath(config_.background_path);
-	backend_.SetDumpEnabled(config_.dump_enabled);
-	backend_.SetDiagEnabled(config_.diag_enabled);
+	// 3. Backend configuration
+	backend_.SetAppConfig(config_);
 
 	// 4. Inject dependencies into modes
 	rvm_mode_.SetConfig(config_);
-
 	rvm_mode_.SetFrontend(frontend_.get());
 	rvm_mode_.SetEngine(engine_.get());
 	rvm_mode_.SetBackend(&backend_);
@@ -112,7 +106,6 @@ void Pipeline::Init(const AppConfig& config) {
 	modnet_mode_.SetEngine(engine_.get());
 	modnet_mode_.SetBackend(&backend_);
 	modnet_mode_.SetConfig(config_);
-	modnet_mode_.SetDumpEnabled(config_.dump_enabled);
 }
 
 int Pipeline::Run() {

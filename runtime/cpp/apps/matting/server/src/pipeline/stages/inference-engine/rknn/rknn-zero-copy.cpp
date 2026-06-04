@@ -59,10 +59,6 @@ InferenceEngineRKNNZeroCP::~InferenceEngineRKNNZeroCP() {
 // ---------------------------------------------------------------------------
 // Accessors
 // ---------------------------------------------------------------------------
-void InferenceEngineRKNNZeroCP::SetNPUConfig(const NPUConfig& config) {
-	npu_config_ = config;
-}
-
 int InferenceEngineRKNNZeroCP::GetInputHeight() const {
 	return input_attrs_.empty() ? 0 : static_cast<int>(input_attrs_[0].dims[1]);
 }
@@ -98,7 +94,7 @@ std::vector<std::vector<int64_t>> InferenceEngineRKNNZeroCP::GetRecurrentStateSh
 		shapes.push_back(std::move(shape));
 	}
 
-	if (diag_enabled_) {
+	if (config().diag_enabled) {
 		for (size_t i = 0; i < shapes.size(); ++i) {
 			std::string dims;
 			for (size_t d = 0; d < shapes[i].size(); ++d) {
@@ -138,7 +134,7 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// ----------------------------------------------------------------
 	// Phase I - RKNN Context Initialization (file path mode)
 	// ----------------------------------------------------------------
-	// npu_config_.perf_enabled is set via --profile CLI flag (SetNPUConfig()).
+	// config().npu_config.perf_enabled is set via --profile CLI flag (SetNPUConfig()).
 	// When enabled, pass RKNN_FLAG_COLLECT_PERF_MASK to rknn_init() so that
 	// per-layer NPU profiling data is available via RKNN_QUERY_PERF_DETAIL.
 	// Some SDK versions reject this flag in file-path mode — retry without it.
@@ -147,7 +143,7 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// selective non-cacheable r-state buffers and A1 swap; result was 184ms →
 	// 316ms infer regression (pkb §5.4). Reverted — runtime auto cache flush
 	// stays on; all buffers stay cacheable.
-	uint32_t init_flags = npu_config_.perf_enabled ? RKNN_FLAG_COLLECT_PERF_MASK : 0;
+	uint32_t init_flags = config().npu_config.perf_enabled ? RKNN_FLAG_COLLECT_PERF_MASK : 0;
 	int ret = rknn_init(&ctx_, const_cast<void*>(static_cast<const void*>(model_path.c_str())), 0,
 	                    init_flags, nullptr);
 
@@ -156,7 +152,7 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 		                   "), retrying without it.",
 		               kcurrent_module_name);
 		init_flags = 0;
-		npu_config_.perf_enabled = false;
+		config().npu_config.perf_enabled = false;
 		ret = rknn_init(&ctx_, const_cast<void*>(static_cast<const void*>(model_path.c_str())), 0,
 		                init_flags, nullptr);
 	}
@@ -164,7 +160,7 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 		throw std::runtime_error("rknn_init failed! (ret=" + std::to_string(ret) + ")");
 	}
 	logger.Info("RKNN model loaded and context initialized. (COLLECT_PERF_MASK " +
-	                std::string(npu_config_.perf_enabled ? "enabled" : "disabled") + ")",
+	                std::string(config().npu_config.perf_enabled ? "enabled" : "disabled") + ")",
 	            kcurrent_module_name);
 
 	// ----------------------------------------------------------------
@@ -173,8 +169,8 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 
 	RKNNQuery::SdkVersion1st(ctx_);
 	io_num_ = RKNNQuery::IoNum2nd(ctx_);
-	input_attrs_ = RKNNQuery::InputAttrs3rd(ctx_, io_num_.n_input, npu_config_.perf_enabled);
-	output_attrs_ = RKNNQuery::OutputAttrs4th(ctx_, io_num_.n_output, npu_config_.perf_enabled);
+	input_attrs_ = RKNNQuery::InputAttrs3rd(ctx_, io_num_.n_input, config().npu_config.perf_enabled);
+	output_attrs_ = RKNNQuery::OutputAttrs4th(ctx_, io_num_.n_output, config().npu_config.perf_enabled);
 
 	// ----------------------------------------------------------------
 	// Phase III - Allocate zero-copy buffers for all inputs and outputs
@@ -202,12 +198,12 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// Phase V - Set NPU core mask
 	// ----------------------------------------------------------------
 	rknn_core_mask mask;
-	switch (npu_config_.policy) {
+	switch (config().npu_config.policy) {
 		case NPUCorePolicy::kAuto:
 			mask = RKNN_NPU_CORE_AUTO;
 			break;
 		case NPUCorePolicy::kSingle:
-			mask = static_cast<rknn_core_mask>(1 << npu_config_.core_index);
+			mask = static_cast<rknn_core_mask>(1 << config().npu_config.core_index);
 			break;
 		case NPUCorePolicy::kAll:
 		default:
@@ -230,7 +226,7 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// ----------------------------------------------------------------
 	// Diagnostic queries — via RKNNKit (all require Phase III buffers)
 	// ----------------------------------------------------------------
-	if (npu_config_.perf_enabled) {
+	if (config().npu_config.perf_enabled) {
 		RKNNQuery::LogMemSize7th(ctx_);
 		RKNNQuery::LogCustomString8th(ctx_);
 		RKNNQuery::LogNativeInputAttrs9th(ctx_, io_num_.n_input);
@@ -329,7 +325,7 @@ void InferenceEngineRKNNZeroCP::ExecuteNpu2nd() {
 	RKNNQuery::PerfRun5th(ctx_);
 
 	// Per-frame: per-layer op timing (only when COLLECT_PERF_MASK was accepted)
-	if (npu_config_.perf_enabled) {
+	if (config().npu_config.perf_enabled) {
 		RKNNQuery::PerfDetail6th(ctx_);
 	}
 
@@ -454,11 +450,11 @@ void InferenceEngineRKNNZeroCP::DoInfer(const std::vector<TensorData>& inputs,
 	ReadOutputBuffers3rd(inputs, outputs);
 
 	// Debug dump for pha output (name-based lookup)
-	if (dump_enabled_ && !output_bin_path_.empty()) {
+	if (config().dump_enabled && !config().output_bin_path.empty()) {
 		for (const auto& td : outputs) {
 			if (td.name == "pha") {
 				helmsman::utils::FileUtils::GetInstance().dumpBinary(
-				    td.data, output_bin_path_ + "cpp_08_inference-Output.bin");
+				    td.data, config().output_bin_path + "cpp_08_inference-Output.bin");
 				break;
 			}
 		}

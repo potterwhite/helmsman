@@ -141,16 +141,8 @@ bool InferenceEngine::NeedsDownsampleRatio() const {
 	return false;
 }
 
-void InferenceEngine::SetOutputBinPath(const std::string& path) {
-	output_bin_path_ = path;
-}
-
-void InferenceEngine::SetDumpEnabled(bool enabled) {
-	dump_enabled_ = enabled;
-}
-
-void InferenceEngine::SetDiagEnabled(bool enabled) {
-	diag_enabled_ = enabled;
+void InferenceEngine::SetAppConfig(const AppConfig& config) {
+	config_ = &config;
 }
 
 bool InferenceEngine::SwapRecurrentStateBuffers(std::size_t /*n_states*/,
