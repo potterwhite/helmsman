@@ -362,7 +362,7 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 	const int H = static_cast<int>(src_tensor.shape[1]);
 	const int W = static_cast<int>(src_tensor.shape[2]);
 
-	if (config_->dump_enabled)
+	if (config_->diag_enabled)
 		logger.Info("Backend(no-resize): A=" + std::to_string(dH) + "x" + std::to_string(dW) +
 		                " src=" + std::to_string(H) + "x" + std::to_string(W),
 		            kcurrent_module_name);
