@@ -258,6 +258,9 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 //   - FP32:  direct memcpy
 // ============================================================================
 void InferenceEngineRKNNZeroCP::WriteInputBuffers1st(const std::vector<TensorData>& inputs) {
+	helmsman::utils::timing::ManualTimer t;
+	t.start();
+
 	if (inputs.size() != static_cast<std::size_t>(io_num_.n_input)) {
 		throw std::runtime_error("Input count mismatch: model expects " +
 		                         std::to_string(io_num_.n_input) + " inputs, got " +
@@ -302,6 +305,8 @@ void InferenceEngineRKNNZeroCP::WriteInputBuffers1st(const std::vector<TensorDat
 			std::memcpy(dst, td.data.data(), td.data.size() * sizeof(float));
 		}
 	}
+
+	acc_write_input_.record(t.stop());
 }
 
 // ============================================================================
@@ -311,6 +316,9 @@ void InferenceEngineRKNNZeroCP::WriteInputBuffers1st(const std::vector<TensorDat
 // performance metrics (PERF_RUN, PERF_DETAIL).
 // ============================================================================
 void InferenceEngineRKNNZeroCP::ExecuteNpu2nd() {
+	helmsman::utils::timing::ManualTimer t;
+	t.start();
+
 	int ret = rknn_run(ctx_, nullptr);
 	if (ret < 0) {
 		throw std::runtime_error("rknn_run failed!");
@@ -323,6 +331,8 @@ void InferenceEngineRKNNZeroCP::ExecuteNpu2nd() {
 	if (npu_config_.perf_enabled) {
 		RKNNQuery::PerfDetail6th(ctx_);
 	}
+
+	acc_execute_npu_.record(t.stop());
 }
 
 // ============================================================================
@@ -335,6 +345,9 @@ void InferenceEngineRKNNZeroCP::ExecuteNpu2nd() {
 // ============================================================================
 void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(const std::vector<TensorData>& inputs,
                                                      std::vector<TensorData>& outputs) {
+	helmsman::utils::timing::ManualTimer t;
+	t.start();
+
 	outputs.clear();
 	outputs.reserve(io_num_.n_output);
 
@@ -414,6 +427,8 @@ void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(const std::vector<TensorDat
 		if (!logged_names)
 			logged_names = true;
 	}
+
+	acc_read_output_.record(t.stop());
 }
 
 // ============================================================================
@@ -445,6 +460,18 @@ void InferenceEngineRKNNZeroCP::DoInfer(const std::vector<TensorData>& inputs,
 			}
 		}
 	}
+}
+
+// ============================================================================
+// DoReportSubStepTimers — report sub-step timing accumulators
+// ============================================================================
+void InferenceEngineRKNNZeroCP::DoReportSubStepTimers(
+    bool timing_enabled, helmsman::utils::Logger& logger,
+    std::string_view module) const {
+	acc_write_input_.report(timing_enabled, logger, module, "  write_input_buffers");
+	acc_execute_npu_.report(timing_enabled, logger, module, "  execute_npu");
+	acc_read_output_.report(timing_enabled, logger, module, "  read_output_buffers");
+	logger.Info("", module);  // blank line after sub-steps
 }
 
 // ============================================================================

@@ -101,6 +101,12 @@ class InferenceEngine {
 	                                       std::size_t input_offset,
 	                                       std::size_t output_offset);
 
+	// NVI hook: subclasses override to report sub-step timing accumulators.
+	// Default: no-op. Called by ReportAccumulatedTimers().
+	virtual void DoReportSubStepTimers(bool timing_enabled,
+	                                    helmsman::utils::Logger& logger,
+	                                    std::string_view module) const;
+
 	std::string output_bin_path_;
 	bool dump_enabled_ = false;
 	bool diag_enabled_ = false;

@@ -104,9 +104,18 @@ double InferenceEngine::Infer(const std::vector<TensorData>& inputs,
 // ---------------------------------------------------------------------------
 void InferenceEngine::ReportAccumulatedTimers(bool timing_enabled, helmsman::utils::Logger& logger,
                                               std::string_view module) const {
-
+	DoReportSubStepTimers(timing_enabled, logger, module);  // subclass hook (default: no-op)
 	infer_acc_.report(timing_enabled, logger, module, "infer");
 	logger.Info("", module);  // blank line for separation
+}
+
+// ---------------------------------------------------------------------------
+// DoReportSubStepTimers — default no-op (subclasses override)
+// ---------------------------------------------------------------------------
+void InferenceEngine::DoReportSubStepTimers(bool /*timing_enabled*/,
+                                             helmsman::utils::Logger& /*logger*/,
+                                             std::string_view /*module*/) const {
+	// No-op: base class has no sub-step accumulators.
 }
 
 // ---------------------------------------------------------------------------
