@@ -313,6 +313,18 @@ void InferenceEngineRKNNZeroCP::WriteInputBuffers1st(const std::vector<TensorDat
 			acc_write_rstate_.record(tensor_ms);
 	}
 
+	// s5_8_22_15 Exp2: measure per-tensor cache flush overhead via rknn_mem_sync
+	helmsman::utils::timing::ManualTimer t_flush;
+	for (uint32_t i = 0; i < io_num_.n_input; ++i) {
+		t_flush.start();
+		helmsman::rknnkit::RKNNMemory::Sync(ctx_, input_mems_[i], RKNN_MEMORY_SYNC_TO_DEVICE);
+		double flush_ms = t_flush.stop();
+		if (i == 0)
+			acc_flush_src_.record(flush_ms);
+		else
+			acc_flush_rstate_.record(flush_ms);
+	}
+
 	last_write_input_ms_ = t.stop();
 	acc_write_input_.record(last_write_input_ms_);
 }
@@ -481,6 +493,8 @@ void InferenceEngineRKNNZeroCP::DoReportSubStepTimers(
 	acc_write_input_.report(timing_enabled, logger, module);
 	acc_write_src_.report(timing_enabled, logger, module);
 	acc_write_rstate_.report(timing_enabled, logger, module);
+	acc_flush_src_.report(timing_enabled, logger, module);
+	acc_flush_rstate_.report(timing_enabled, logger, module);
 	acc_execute_npu_.report(timing_enabled, logger, module);
 	acc_read_output_.report(timing_enabled, logger, module);
 	logger.Info("", module);  // blank line after sub-steps
