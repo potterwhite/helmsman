@@ -20,16 +20,9 @@
 
 #include "pipeline/pipeline.h"
 #include "common/common-define.h"
-#include "pipeline/stages/inference-engine/inference-engine-factory.h"
+#include "pipeline/stages/inference-engine/base/inference-engine.h"
 
 using helmsman::utils::timing::ScopedTimer;
-
-void Pipeline::SetTimingEnabled(bool enabled) { config_.timing_enabled = enabled; }
-bool Pipeline::IsTimingEnabled() const { return config_.timing_enabled; }
-
-std::unique_ptr<InferenceEngine> Pipeline::MakeEngine() {
-	return createInferenceEngine();
-}
 
 Pipeline& Pipeline::GetInstance() {
 	static Pipeline instance;
@@ -85,25 +78,24 @@ void Pipeline::Init(const AppConfig& config) {
 	}
 
 	// 2. InferenceEngine + model load
-	engine_ = MakeEngine();
-	engine_->SetAppConfig(config_);
+	engine_ = InferenceEngine::Create(config_);
 	{
 		ScopedTimer t("Pipeline::Init() model load", config_.timing_enabled, logger,
 		              kcurrent_module_name);
 		engine_->Load(config_.model_path);
 	}
 
-	// 3. Backend configuration
-	backend_.SetAppConfig(config_);
+	// 3. Backend
+	backend_ = Backend::Create(config_);
 
 	// 4. Inject dependencies into modes
 	rvm_mode_.SetAppConfig(config_);
 	rvm_mode_.SetFrontend(frontend_.get());
 	rvm_mode_.SetEngine(engine_.get());
-	rvm_mode_.SetBackend(&backend_);
+	rvm_mode_.SetBackend(backend_.get());
 
 	modnet_mode_.SetEngine(engine_.get());
-	modnet_mode_.SetBackend(&backend_);
+	modnet_mode_.SetBackend(backend_.get());
 	modnet_mode_.SetAppConfig(config_);
 }
 

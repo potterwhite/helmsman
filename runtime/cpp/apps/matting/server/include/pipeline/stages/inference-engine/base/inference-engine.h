@@ -23,6 +23,7 @@
 #pragma once
 #include <cstddef>
 #include <functional>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -48,6 +49,17 @@
 class InferenceEngine {
    public:
 	virtual ~InferenceEngine() = default;
+
+	// Non-copyable, non-movable (owned by unique_ptr in Pipeline).
+	InferenceEngine(const InferenceEngine&) = delete;
+	InferenceEngine& operator=(const InferenceEngine&) = delete;
+	InferenceEngine(InferenceEngine&&) = delete;
+	InferenceEngine& operator=(InferenceEngine&&) = delete;
+
+	// Static factory: creates the platform-specific InferenceEngine subclass.
+	// CMake selects which factory-*.cpp to compile based on INFERENCE_BACKEND.
+	// Valid values: "onnx" | "rknn-zerocopy" | "rknn-non-zerocopy"
+	static std::unique_ptr<InferenceEngine> Create(const AppConfig& config);
 
 	virtual void Load(const std::string& model_path) = 0;
 
@@ -75,9 +87,6 @@ class InferenceEngine {
 	// Subclasses with sub-step instrumentation override this.
 	virtual std::vector<std::pair<std::string, double>> GetLastSubTimings() const;
 
-	// --- Config ---
-	void SetAppConfig(const AppConfig& config);
-
 	// --- Query (unchanged) ---
 	virtual int GetInputHeight() const;
 	virtual int GetInputWidth()  const;
@@ -85,6 +94,8 @@ class InferenceEngine {
 	virtual bool NeedsDownsampleRatio() const;
 
    protected:
+	explicit InferenceEngine(const AppConfig& config) : config_(config) {}
+
 	// NVI hook: subclasses implement pure stateless inference (N inputs → M outputs).
 	// Google Style: DoX() is the virtual body of public X().
 	virtual void DoInfer(const std::vector<TensorData>& inputs,
@@ -108,11 +119,11 @@ class InferenceEngine {
 	                                    helmsman::utils::Logger& logger,
 	                                    std::string_view module) const;
 
-	// Access config (set via SetAppConfig before Load/Infer).
-	const AppConfig& config() const { return *config_; }
+	// Access config (bound at construction).
+	const AppConfig& config() const { return config_; }
 
    private:
-	const AppConfig* config_ = nullptr;
+	const AppConfig& config_;
 	RecurrentStateManager state_mgr_;
 	helmsman::utils::timing::StageAccumulator infer_acc_{"infer"};
 	float dsr_ = 0.25f;

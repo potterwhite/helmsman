@@ -32,7 +32,8 @@ using helmsman::rknnkit::RKNNQuery;
 // InferenceEngineRKNN — N-input / M-output Non-Zero-Copy Mode
 // ============================================================================
 
-InferenceEngineRKNN::InferenceEngineRKNN() {
+InferenceEngineRKNN::InferenceEngineRKNN(const AppConfig& config)
+    : InferenceEngine(config) {
 	helmsman::utils::Logger::GetInstance().Info(
 	    "InferenceEngineRKNN object constructed. (Non-Zero-Copy Mode)", kcurrent_module_name);
 }

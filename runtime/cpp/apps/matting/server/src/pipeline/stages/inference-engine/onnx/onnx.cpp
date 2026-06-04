@@ -45,8 +45,8 @@
 // 	return instance;
 // }
 
-InferenceEngineONNX::InferenceEngineONNX()
-    : env_(ORT_LOGGING_LEVEL_WARNING, "onnx-inference-engine") {
+InferenceEngineONNX::InferenceEngineONNX(const AppConfig& config)
+    : InferenceEngine(config), env_(ORT_LOGGING_LEVEL_WARNING, "onnx-inference-engine") {
 
 	helmsman::utils::Logger::GetInstance().Info(
 	    "InferenceEngineONNX object constructed. (CPU Mode)", kcurrent_module_name);

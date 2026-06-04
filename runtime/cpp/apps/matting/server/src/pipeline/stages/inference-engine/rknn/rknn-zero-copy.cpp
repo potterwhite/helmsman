@@ -44,7 +44,8 @@ using helmsman::rknnkit::RKNNQuery;
 //   - MODNet (1-in/1-out) is the trivial special case of this general path
 // ============================================================================
 
-InferenceEngineRKNNZeroCP::InferenceEngineRKNNZeroCP() {
+InferenceEngineRKNNZeroCP::InferenceEngineRKNNZeroCP(const AppConfig& config)
+    : InferenceEngine(config) {
 	helmsman::utils::Logger::GetInstance().Info(
 	    "InferenceEngineRKNNZeroCP constructed. (Zero-Copy Mode)", kcurrent_module_name);
 }
@@ -134,7 +135,7 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// ----------------------------------------------------------------
 	// Phase I - RKNN Context Initialization (file path mode)
 	// ----------------------------------------------------------------
-	// config().npu_config.perf_enabled is set via --profile CLI flag (SetNPUConfig()).
+	// config().npu_config.perf_enabled is set via --profile CLI flag.
 	// When enabled, pass RKNN_FLAG_COLLECT_PERF_MASK to rknn_init() so that
 	// per-layer NPU profiling data is available via RKNN_QUERY_PERF_DETAIL.
 	// Some SDK versions reject this flag in file-path mode — retry without it.
@@ -143,7 +144,8 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 	// selective non-cacheable r-state buffers and A1 swap; result was 184ms →
 	// 316ms infer regression (pkb §5.4). Reverted — runtime auto cache flush
 	// stays on; all buffers stay cacheable.
-	uint32_t init_flags = config().npu_config.perf_enabled ? RKNN_FLAG_COLLECT_PERF_MASK : 0;
+	bool final_perf_enabled = config().npu_config.perf_enabled;
+	uint32_t init_flags = final_perf_enabled ? RKNN_FLAG_COLLECT_PERF_MASK : 0;
 	int ret = rknn_init(&ctx_, const_cast<void*>(static_cast<const void*>(model_path.c_str())), 0,
 	                    init_flags, nullptr);
 
@@ -152,7 +154,7 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 		                   "), retrying without it.",
 		               kcurrent_module_name);
 		init_flags = 0;
-		config().npu_config.perf_enabled = false;
+		final_perf_enabled = false;
 		ret = rknn_init(&ctx_, const_cast<void*>(static_cast<const void*>(model_path.c_str())), 0,
 		                init_flags, nullptr);
 	}
@@ -160,7 +162,7 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 		throw std::runtime_error("rknn_init failed! (ret=" + std::to_string(ret) + ")");
 	}
 	logger.Info("RKNN model loaded and context initialized. (COLLECT_PERF_MASK " +
-	                std::string(config().npu_config.perf_enabled ? "enabled" : "disabled") + ")",
+	                std::string(final_perf_enabled ? "enabled" : "disabled") + ")",
 	            kcurrent_module_name);
 
 	// ----------------------------------------------------------------
@@ -169,8 +171,8 @@ void InferenceEngineRKNNZeroCP::Load(const std::string& model_path) {
 
 	RKNNQuery::SdkVersion1st(ctx_);
 	io_num_ = RKNNQuery::IoNum2nd(ctx_);
-	input_attrs_ = RKNNQuery::InputAttrs3rd(ctx_, io_num_.n_input, config().npu_config.perf_enabled);
-	output_attrs_ = RKNNQuery::OutputAttrs4th(ctx_, io_num_.n_output, config().npu_config.perf_enabled);
+	input_attrs_ = RKNNQuery::InputAttrs3rd(ctx_, io_num_.n_input, final_perf_enabled);
+	output_attrs_ = RKNNQuery::OutputAttrs4th(ctx_, io_num_.n_output, final_perf_enabled);
 
 	// ----------------------------------------------------------------
 	// Phase III - Allocate zero-copy buffers for all inputs and outputs
@@ -337,9 +339,9 @@ void InferenceEngineRKNNZeroCP::ExecuteNpu2nd() {
 // Step 3 — Output Data Transfer (NPU → CPU)
 //
 // Read raw NPU output buffers and convert from model precision
-// (INT8/FP16) back to float32 for the downstream MattingBackend.
+// (INT8/FP16) back to float32 for the downstream Backend.
 // After this step, ownership of `outputs` transfers to the caller
-// (InferenceEngine::Infer → MattingBackend::Postprocess).
+// (InferenceEngine::Infer → Backend::Postprocess).
 // ============================================================================
 void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(const std::vector<TensorData>& inputs,
                                                      std::vector<TensorData>& outputs) {

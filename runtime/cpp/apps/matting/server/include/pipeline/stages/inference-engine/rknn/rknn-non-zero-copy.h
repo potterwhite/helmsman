@@ -24,6 +24,7 @@
 
 #include "rknn_api.h"
 
+#include <memory>
 #include "Utils/file/file-utils.h"
 #include "Utils/logger/logger.h"
 #include "common/types.h"
@@ -42,8 +43,9 @@
 
 class InferenceEngineRKNN : public InferenceEngine {
 public:
-    InferenceEngineRKNN();
     ~InferenceEngineRKNN() override;
+
+    explicit InferenceEngineRKNN(const AppConfig& config);
 
     void Load(const std::string& model_path) override;
 

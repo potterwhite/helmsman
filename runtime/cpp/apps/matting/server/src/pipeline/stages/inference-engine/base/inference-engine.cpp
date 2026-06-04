@@ -77,7 +77,7 @@ double InferenceEngine::Infer(const std::vector<TensorData>& inputs,
 	//
 	// DoInfer() handles: input conversion → NPU/ORT run → output conversion.
 	// After this call, `outputs` contains float32 tensors ready for
-	// the MattingBackend (Postprocess = resize + composite + write).
+	// the Backend (Postprocess = resize + composite + write).
 	// ================================================================
 	DoInfer(mutable_inputs, outputs);
 
@@ -89,7 +89,7 @@ double InferenceEngine::Infer(const std::vector<TensorData>& inputs,
 	}
 	// --- END INFERENCE ENGINE SCOPE ---
 	// Caller (RVMMode/MODNetMode) will pass `outputs` to
-	// MattingBackend::Postprocess() for resize + composite + write.
+	// Backend::Postprocess() for resize + composite + write.
 
 	// stop timer and record
 	t.stop();
@@ -139,10 +139,6 @@ std::vector<std::vector<int64_t>> InferenceEngine::GetRecurrentStateShapes() con
 
 bool InferenceEngine::NeedsDownsampleRatio() const {
 	return false;
-}
-
-void InferenceEngine::SetAppConfig(const AppConfig& config) {
-	config_ = &config;
 }
 
 bool InferenceEngine::SwapRecurrentStateBuffers(std::size_t /*n_states*/,

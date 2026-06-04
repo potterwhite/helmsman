@@ -23,6 +23,7 @@
 #pragma once
 
 #include <rknn_api.h>                                                // rknn_xxx APIs
+#include <memory>                                                    // for std::unique_ptr
 #include <string>                                                    // for std::string
 #include <vector>                                                    // for std::vector
 #include "pipeline/stages/inference-engine/base/inference-engine.h"  // InferenceEngine
@@ -40,8 +41,9 @@
 
 class InferenceEngineRKNNZeroCP : public InferenceEngine {
    public:
-	InferenceEngineRKNNZeroCP();
 	~InferenceEngineRKNNZeroCP();
+
+	explicit InferenceEngineRKNNZeroCP(const AppConfig& config);
 
 	// ------------------------------------------------------------------
 	// getter & setter

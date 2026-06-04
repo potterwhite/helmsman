@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <memory>
 #include "Runtime/onnx/onnx.h"
 #include "Utils/file/file-utils.h"
 #include "Utils/logger/logger.h"
@@ -34,8 +35,9 @@
 class InferenceEngineONNX : public InferenceEngine {
 
    public:
-	InferenceEngineONNX();
 	~InferenceEngineONNX();
+
+	explicit InferenceEngineONNX(const AppConfig& config);
 
 	void Load(const std::string& model_path) override;
 
