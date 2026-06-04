@@ -33,12 +33,21 @@
 #include "pipeline/stages/backend/post-processor/base-post-processor.h"
 #include "common/types.h"
 
-class MattingBackend {
+class Backend {
    public:
-	MattingBackend();
-	~MattingBackend();
+	~Backend();
 
-	void SetAppConfig(const AppConfig& config);
+	// Non-copyable, non-movable (owned by unique_ptr in Pipeline).
+	Backend(const Backend&) = delete;
+	Backend& operator=(const Backend&) = delete;
+	Backend(Backend&&) = delete;
+	Backend& operator=(Backend&&) = delete;
+
+	// Factory: creates a Backend bound to the given config.
+	static std::unique_ptr<Backend> Create(const AppConfig& config);
+
+	explicit Backend(const AppConfig& config);
+
 	void SetForegroundImagePath(const std::string& path);
 
 	/**
@@ -115,7 +124,7 @@ class MattingBackend {
 	                   int model_w, int model_h, int output_w, int output_h);
 
    private:
-	const AppConfig* config_ = nullptr;
+	const AppConfig& config_;
 	std::string foreground_image_path_;
 
 	std::shared_ptr<BasePostProcessor> post_processor_;  // nullptr = no post-processing

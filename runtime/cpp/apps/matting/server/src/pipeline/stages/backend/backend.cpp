@@ -32,33 +32,34 @@ using helmsman::rgakit::RgaResize;
 // #include <algorithm>
 // #include <cmath>
 
-MattingBackend::MattingBackend() {
-	helmsman::utils::Logger::GetInstance().Info("MattingBackend object constructed.",
+Backend::Backend(const AppConfig& config)
+    : config_(config) {
+	helmsman::utils::Logger::GetInstance().Info("Backend object constructed.",
 	                                                      kcurrent_module_name);
 }
 
-MattingBackend::~MattingBackend() {
-	helmsman::utils::Logger::GetInstance().Info("MattingBackend cleaned up.",
+Backend::~Backend() {
+	helmsman::utils::Logger::GetInstance().Info("Backend cleaned up.",
 	                                                      kcurrent_module_name);
 }
 
-void MattingBackend::SetAppConfig(const AppConfig& config) {
-	config_ = &config;
+std::unique_ptr<Backend> Backend::Create(const AppConfig& config) {
+	return std::make_unique<Backend>(config);
 }
 
-void MattingBackend::SetForegroundImagePath(const std::string& path) {
+void Backend::SetForegroundImagePath(const std::string& path) {
 	foreground_image_path_ = path;
 }
 
-void MattingBackend::SetPostProcessor(std::shared_ptr<BasePostProcessor> processor) {
+void Backend::SetPostProcessor(std::shared_ptr<BasePostProcessor> processor) {
 	post_processor_ = std::move(processor);
 }
 
-cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs) {
+cv::Mat Backend::Postprocess(const std::vector<TensorData>& outputs) {
 	return Postprocess(outputs, cv::Mat{});
 }
 
-cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
+cv::Mat Backend::Postprocess(const std::vector<TensorData>& outputs,
                                     const cv::Mat& guide_bgr_override) {
 	helmsman::utils::timing::ManualTimer t;
 	t.start();
@@ -93,7 +94,7 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 
 	const TensorData& output = *pha_ptr;
 
-	if (config_->dump_enabled)
+	if (config_.dump_enabled)
 		logger.Info("Backend: selected pha tensor '" + output.name + "' from " +
 		            std::to_string(outputs.size()) + " outputs", kcurrent_module_name);
 
@@ -110,15 +111,15 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 		throw std::runtime_error("Batch size must be 1");
 	}
 
-	if (config_->dump_enabled)
+	if (config_.dump_enabled)
 		logger.Info("Backend processing: N=" + std::to_string(N) + " C=" + std::to_string(C) +
 		                " H=" + std::to_string(H) + " W=" + std::to_string(W),
 		            kcurrent_module_name);
 
 	// -------------------------
 	// dump raw output for debug
-	if (config_->dump_enabled) {
-		file_utils.dumpBinary(output.data, config_->output_bin_path + "/cpp_09_backend_input.bin");
+	if (config_.dump_enabled) {
+		file_utils.dumpBinary(output.data, config_.output_bin_path + "/cpp_09_backend_input.bin");
 	}
 
 	// -----------------------------------
@@ -183,16 +184,16 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 	// --- Diagnostics §10: per-frame pha mean log + frame 50-70 PNG dump ---
 	{
 		cv::Scalar mean_val = cv::mean(restored_mat);
-		if (config_->dump_enabled)
+		if (config_.dump_enabled)
 			logger.Info("PHA_MEAN frame=" + std::to_string(current_frame) +
 			            " mean=" + std::to_string(mean_val[0]), kcurrent_module_name);
 
-		if (current_frame >= 50 && current_frame <= 70 && !config_->output_bin_path.empty()) {
+		if (current_frame >= 50 && current_frame <= 70 && !config_.output_bin_path.empty()) {
 			cv::Mat pha_debug_u8;
 			restored_mat.convertTo(pha_debug_u8, CV_8UC1, 255.0);
 			char fname[64];
 			snprintf(fname, sizeof(fname), "/debug_pha_rknn_frame%04d.png", current_frame);
-			cv::imwrite(config_->output_bin_path + fname, pha_debug_u8);
+			cv::imwrite(config_.output_bin_path + fname, pha_debug_u8);
 		}
 	}
 	if (post_processor_) {
@@ -212,10 +213,10 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 		}
 	}
 
-	if (config_->dump_enabled) {
+	if (config_.dump_enabled) {
 		const size_t total = static_cast<size_t>(H) * static_cast<size_t>(W) * static_cast<size_t>(C);
 		file_utils.dumpBinary(std::vector<float>((float*)clamped.data, (float*)clamped.data + total),
-		                      config_->output_bin_path + "/cpp_10_clamped.bin");
+		                      config_.output_bin_path + "/cpp_10_clamped.bin");
 	}
 
 	// -------------------------
@@ -224,15 +225,15 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 	// clamped.convertTo(output_8u, (C_int == 1 ? CV_8UC1 : CV_8UC3), 255.0);
 	restored_mat.convertTo(output_8u, (C_int == 1 ? CV_8UC1 : CV_8UC3), 255.0);
 
-	if (config_->dump_enabled) {
-		cv::imwrite(config_->output_bin_path + "/cpp_11_result.png", output_8u);
+	if (config_.dump_enabled) {
+		cv::imwrite(config_.output_bin_path + "/cpp_11_result.png", output_8u);
 	}
 
 	// -------------------------
 	// 4. Composite foreground over background (cpp_12_composed.jpg)
 	//    Only executed when BOTH foreground and background paths are provided.
 	//    For video mode, compositing is handled by Pipeline::_compositeAndWrite().
-	if (!config_->background_path.empty() && !foreground_image_path_.empty()) {
+	if (!config_.background_path.empty() && !foreground_image_path_.empty()) {
 		// --- Load original foreground (BGR) ---
 		cv::Mat fg_bgr = cv::imread(foreground_image_path_, cv::IMREAD_COLOR);
 		if (fg_bgr.empty()) {
@@ -241,9 +242,9 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 			               kcurrent_module_name);
 		} else {
 			// --- Load background (BGR) and resize to match foreground ---
-			cv::Mat bg_bgr_raw = cv::imread(config_->background_path, cv::IMREAD_COLOR);
+			cv::Mat bg_bgr_raw = cv::imread(config_.background_path, cv::IMREAD_COLOR);
 			if (bg_bgr_raw.empty()) {
-				logger.Warning("Cannot load background image: " + config_->background_path +
+				logger.Warning("Cannot load background image: " + config_.background_path +
 				                   ", skipping composition.",
 				               kcurrent_module_name);
 			} else {
@@ -288,7 +289,7 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 				cv::Mat composed_8u;
 				composed_f32.convertTo(composed_8u, CV_8UC3, 255.0);
 
-				cv::imwrite(config_->output_bin_path + "/cpp_12_composed.jpg", composed_8u);
+				cv::imwrite(config_.output_bin_path + "/cpp_12_composed.jpg", composed_8u);
 				logger.Info("Background composition saved: cpp_12_composed.jpg",
 				            kcurrent_module_name);
 			}
@@ -324,7 +325,7 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 //   - He et al., "Guided Image Filtering", IEEE TPAMI 2013
 //   - deep_guided_filter.py (lines 24-43)
 // ============================================================================
-cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
+cv::Mat Backend::Postprocess(const std::vector<TensorData>& outputs,
                                     const cv::Mat& guide_bgr_override,
                                     const TensorData& src_tensor) {
 	helmsman::utils::timing::ManualTimer t;
@@ -362,7 +363,7 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 	const int H = static_cast<int>(src_tensor.shape[1]);
 	const int W = static_cast<int>(src_tensor.shape[2]);
 
-	if (config_->diag_enabled)
+	if (config_.diag_enabled)
 		logger.Info("Backend(no-resize): A=" + std::to_string(dH) + "x" + std::to_string(dW) +
 		                " src=" + std::to_string(H) + "x" + std::to_string(W),
 		            kcurrent_module_name);
@@ -388,7 +389,7 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 	cv::Mat A_hwc = nchw4_to_hwc4(td_A->data);  // CV_32FC4, dH×dW
 	cv::Mat b_hwc = nchw4_to_hwc4(td_b->data);  // CV_32FC4, dH×dW
 
-	if (config_->diag_enabled)
+	if (config_.diag_enabled)
 		logger.Info("Backend(no-resize) data: A.data=" + std::to_string(td_A->data.size()) +
 		            " b.data=" + std::to_string(td_b->data.size()) +
 		            " src.data=" + std::to_string(src_tensor.data.size()) +
@@ -482,14 +483,14 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 	// --- 8. Diagnostics ---
 	{
 		cv::Scalar mean_val = cv::mean(output_8u);
-		if (config_->dump_enabled)
+		if (config_.dump_enabled)
 			logger.Info("PHA_MEAN frame=" + std::to_string(current_frame) +
 			            " mean=" + std::to_string(mean_val[0] / 255.0), kcurrent_module_name);
 
-		if (current_frame >= 50 && current_frame <= 70 && !config_->output_bin_path.empty()) {
+		if (current_frame >= 50 && current_frame <= 70 && !config_.output_bin_path.empty()) {
 			char fname[64];
 			snprintf(fname, sizeof(fname), "/debug_pha_rknn_frame%04d.png", current_frame);
-			cv::imwrite(config_->output_bin_path + fname, output_8u);
+			cv::imwrite(config_.output_bin_path + fname, output_8u);
 		}
 	}
 
@@ -515,21 +516,21 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 		}
 	}
 
-	if (config_->dump_enabled) {
-		cv::imwrite(config_->output_bin_path + "/cpp_11_result.png", output_8u);
+	if (config_.dump_enabled) {
+		cv::imwrite(config_.output_bin_path + "/cpp_11_result.png", output_8u);
 	}
 
 	// --- 14. Background composition (same as original Postprocess) ---
-	if (!config_->background_path.empty() && !foreground_image_path_.empty()) {
+	if (!config_.background_path.empty() && !foreground_image_path_.empty()) {
 		cv::Mat fg_bgr = cv::imread(foreground_image_path_, cv::IMREAD_COLOR);
 		if (fg_bgr.empty()) {
 			logger.Warning("Cannot load foreground image: " + foreground_image_path_ +
 			                   ", skipping composition.",
 			               kcurrent_module_name);
 		} else {
-			cv::Mat bg_bgr_raw = cv::imread(config_->background_path, cv::IMREAD_COLOR);
+			cv::Mat bg_bgr_raw = cv::imread(config_.background_path, cv::IMREAD_COLOR);
 			if (bg_bgr_raw.empty()) {
-				logger.Warning("Cannot load background image: " + config_->background_path +
+				logger.Warning("Cannot load background image: " + config_.background_path +
 				                   ", skipping composition.",
 				               kcurrent_module_name);
 			} else {
@@ -569,7 +570,7 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 				cv::Mat composed_8u;
 				composed_f32.convertTo(composed_8u, CV_8UC3, 255.0);
 
-				cv::imwrite(config_->output_bin_path + "/cpp_12_composed.jpg", composed_8u);
+				cv::imwrite(config_.output_bin_path + "/cpp_12_composed.jpg", composed_8u);
 				logger.Info("Background composition saved: cpp_12_composed.jpg",
 				            kcurrent_module_name);
 			}
@@ -580,14 +581,14 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 	return output_8u;
 }
 
-void MattingBackend::SetBackgroundModelImage(const cv::Mat& bg) {
+void Backend::SetBackgroundModelImage(const cv::Mat& bg) {
 	bg_model_u8_ = bg;
 }
 
 // ---------------------------------------------------------------------------
 // ReportAccumulatedTimers — report all timing stats for this stage
 // ---------------------------------------------------------------------------
-void MattingBackend::ReportAccumulatedTimers(bool timing_enabled,
+void Backend::ReportAccumulatedTimers(bool timing_enabled,
                                               helmsman::utils::Logger& logger,
                                               std::string_view module) const {
 	acc_postprocess_.report(timing_enabled, logger, module);
@@ -600,7 +601,7 @@ void MattingBackend::ReportAccumulatedTimers(bool timing_enabled,
 }
 
 
-cv::Mat MattingBackend::Composite(const cv::Mat& frame, const cv::Mat& alpha_8u,
+cv::Mat Backend::Composite(const cv::Mat& frame, const cv::Mat& alpha_8u,
                                    int model_w, int model_h, int output_w, int output_h) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 	helmsman::utils::timing::ManualTimer t;

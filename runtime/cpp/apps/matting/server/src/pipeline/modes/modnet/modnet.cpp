@@ -29,7 +29,7 @@ using helmsman::utils::timing::ScopedTimer;
 inline constexpr std::string_view kModnetModuleName = "MODNetMode";
 
 void MODNetMode::SetEngine(InferenceEngine* engine) { engine_ = engine; }
-void MODNetMode::SetBackend(MattingBackend* backend) { backend_ = backend; }
+void MODNetMode::SetBackend(Backend* backend) { backend_ = backend; }
 void MODNetMode::SetAppConfig(const AppConfig& config) { config_ = config; }
 
 int MODNetMode::Run() {

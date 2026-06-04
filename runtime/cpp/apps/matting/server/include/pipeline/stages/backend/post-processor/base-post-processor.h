@@ -33,7 +33,7 @@
  *
  * It returns a refined CV_32FC1 alpha mask, also in [0, 1].
  *
- * Attach/detach processors via MattingBackend::SetPostProcessor().
+ * Attach/detach processors via Backend::SetPostProcessor().
  * If no processor is attached the raw alpha is used as-is.
  */
 class BasePostProcessor {
