@@ -105,12 +105,6 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 	sa acc_write_src_{"    1a-write_src"};
 	sa acc_write_rstate_{"    1b-write_rstate"};
 
-	// Cache flush timing (s5_8_22_15 Exp2: measure rknn_mem_sync overhead)
-	// acc_flush_src_  = rknn_mem_sync for image tensor
-	// acc_flush_rstate_ = rknn_mem_sync for recurrent states
-	sa acc_flush_src_{"    1c-flush_src"};
-	sa acc_flush_rstate_{"    1d-flush_rstate"};
-
 	// Latest per-frame sub-step timings (returned by GetLastSubTimings)
 	double last_write_input_ms_ = 0;
 	double last_execute_npu_ms_ = 0;

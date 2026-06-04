@@ -22,6 +22,7 @@
 #include <cmath>
 #include <cstring>
 #include <fstream>
+#include "Utils/simd/fp16-convert.h"
 #include "RKNNKit/rknn-memory.h"
 #include "RKNNKit/rknn-query.h"
 #include "RKNNKit/utils.h"
@@ -298,9 +299,7 @@ void InferenceEngineRKNNZeroCP::WriteInputBuffers1st(const std::vector<TensorDat
 			}
 		} else if (is_fp16) {
 			__fp16* dst = reinterpret_cast<__fp16*>(input_mems_[i]->virt_addr);
-			for (size_t j = 0; j < td.data.size(); ++j) {
-				dst[j] = static_cast<__fp16>(td.data[j]);
-			}
+			helmsman::utils::simd::fp32_to_fp16(td.data.data(), dst, td.data.size());
 		} else {
 			float* dst = reinterpret_cast<float*>(input_mems_[i]->virt_addr);
 			std::memcpy(dst, td.data.data(), td.data.size() * sizeof(float));
@@ -311,18 +310,6 @@ void InferenceEngineRKNNZeroCP::WriteInputBuffers1st(const std::vector<TensorDat
 			acc_write_src_.record(tensor_ms);
 		else
 			acc_write_rstate_.record(tensor_ms);
-	}
-
-	// s5_8_22_15 Exp2: measure per-tensor cache flush overhead via rknn_mem_sync
-	helmsman::utils::timing::ManualTimer t_flush;
-	for (uint32_t i = 0; i < io_num_.n_input; ++i) {
-		t_flush.start();
-		helmsman::rknnkit::RKNNMemory::Sync(ctx_, input_mems_[i], RKNN_MEMORY_SYNC_TO_DEVICE);
-		double flush_ms = t_flush.stop();
-		if (i == 0)
-			acc_flush_src_.record(flush_ms);
-		else
-			acc_flush_rstate_.record(flush_ms);
 	}
 
 	last_write_input_ms_ = t.stop();
@@ -418,9 +405,7 @@ void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(const std::vector<TensorDat
 			}
 		} else if (is_fp16_out) {
 			__fp16* src = reinterpret_cast<__fp16*>(output_mems_[i]->virt_addr);
-			for (size_t j = 0; j < element_count; ++j) {
-				out_data[j] = static_cast<float>(src[j]);
-			}
+			helmsman::utils::simd::fp16_to_fp32(src, out_data.data(), element_count);
 		} else {
 			float* src = reinterpret_cast<float*>(output_mems_[i]->virt_addr);
 			std::memcpy(out_data.data(), src, element_count * sizeof(float));
@@ -493,8 +478,6 @@ void InferenceEngineRKNNZeroCP::DoReportSubStepTimers(
 	acc_write_input_.report(timing_enabled, logger, module);
 	acc_write_src_.report(timing_enabled, logger, module);
 	acc_write_rstate_.report(timing_enabled, logger, module);
-	acc_flush_src_.report(timing_enabled, logger, module);
-	acc_flush_rstate_.report(timing_enabled, logger, module);
 	acc_execute_npu_.report(timing_enabled, logger, module);
 	acc_read_output_.report(timing_enabled, logger, module);
 	logger.Info("", module);  // blank line after sub-steps
