@@ -61,7 +61,7 @@ void RVMMode::SetFrontend(FrontendBase* frontend) {
 void RVMMode::SetBackend(MattingBackend* backend) {
 	backend_ = backend;
 }
-void RVMMode::SetConfig(const AppConfig& config) {
+void RVMMode::SetAppConfig(const AppConfig& config) {
 	config_ = config;
 }
 
@@ -390,16 +390,19 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 			std::string infer_line = "  inference(";
 			auto sub = engine->GetLastSubTimings();
 			for (std::size_t i = 0; i < sub.size(); ++i) {
-				if (i > 0) infer_line += "; ";
+				if (i > 0)
+					infer_line += "; ";
 				infer_line += sub[i].first + ": " + fm(sub[i].second) + "ms";
 			}
-			if (!sub.empty()) infer_line += "; ";
+			if (!sub.empty())
+				infer_line += "; ";
 			infer_line += "total: " + fm(infer_ms) + "ms)";
 			GetLogger().Info(infer_line, kRvmModuleName);
 		}
 		GetLogger().Info("  backend(postprocess: " + fm(postprocess_ms) + "ms; composite: " +
 		                     fm(composite_ms) + "ms; display: " + fm(display_ms) + "ms)",
 		                 kRvmModuleName);
+		GetLogger().Info("", kRvmModuleName);
 		GetLogger().Info("  total: " + fm(frame_total) + "ms", kRvmModuleName);
 
 		// // --- old per-frame stats (commented out) ---

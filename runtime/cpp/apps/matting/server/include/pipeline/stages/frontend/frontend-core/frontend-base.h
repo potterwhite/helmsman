@@ -116,9 +116,7 @@ public:
     // If use_hardware is true, uses the hardware decode path (platform-dependent).
     // If multithread_enabled is true, enables the prefetch worker thread.
     // Throws std::runtime_error on failure.
-    static std::unique_ptr<FrontendBase> Create(const std::string& input_path,
-                                                bool use_hardware,
-                                                bool multithread_enabled = false);
+    static std::unique_ptr<FrontendBase> Create(const AppConfig& config);
 
 protected:
     // Subclass constructor: sets hardware flag and multithread mode.

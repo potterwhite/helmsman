@@ -30,7 +30,7 @@ class MODNetMode {
 public:
     void SetEngine(InferenceEngine* engine);
     void SetBackend(MattingBackend* backend);
-    void SetConfig(const AppConfig& config);
+    void SetAppConfig(const AppConfig& config);
 
     int Run();
 

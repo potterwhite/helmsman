@@ -30,11 +30,9 @@
 
 #include <stdexcept>
 
-std::unique_ptr<FrontendBase> FrontendBase::Create(const std::string& input_path,
-                                                    bool use_hardware,
-                                                    bool multithread_enabled) {
-    if (use_hardware) {
+std::unique_ptr<FrontendBase> FrontendBase::Create(const AppConfig& config) {
+    if (config.use_hardware_decoder) {
         throw std::runtime_error("Hardware decoder not supported on this build");
     }
-    return std::make_unique<NoHwFrontend>(input_path, multithread_enabled);
+    return std::make_unique<NoHwFrontend>(config.input_path, config.use_multithread);
 }

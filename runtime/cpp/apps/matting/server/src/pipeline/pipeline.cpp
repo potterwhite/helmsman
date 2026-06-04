@@ -65,8 +65,7 @@ void Pipeline::Init(const AppConfig& config) {
 	// 1. Frontend (video only)
 	if (config_.is_video) {
 		try {
-			frontend_ = FrontendBase::Create(config_.input_path, config_.use_hardware_decoder,
-			                                 config_.use_multithread);
+			frontend_ = FrontendBase::Create(config_);
 		} catch (const std::exception& e) {
 			logger.Error(std::string("Failed to create Frontend: ") + e.what(),
 			             kcurrent_module_name);
@@ -98,14 +97,14 @@ void Pipeline::Init(const AppConfig& config) {
 	backend_.SetAppConfig(config_);
 
 	// 4. Inject dependencies into modes
-	rvm_mode_.SetConfig(config_);
+	rvm_mode_.SetAppConfig(config_);
 	rvm_mode_.SetFrontend(frontend_.get());
 	rvm_mode_.SetEngine(engine_.get());
 	rvm_mode_.SetBackend(&backend_);
 
 	modnet_mode_.SetEngine(engine_.get());
 	modnet_mode_.SetBackend(&backend_);
-	modnet_mode_.SetConfig(config_);
+	modnet_mode_.SetAppConfig(config_);
 }
 
 int Pipeline::Run() {

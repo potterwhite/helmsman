@@ -47,7 +47,7 @@ class RVMMode {
 	void SetEngine(InferenceEngine* engine);
 	void SetFrontend(FrontendBase* frontend);
 	void SetBackend(MattingBackend* backend);
-	void SetConfig(const AppConfig& config);
+	void SetAppConfig(const AppConfig& config);
 
 	int Run();
 

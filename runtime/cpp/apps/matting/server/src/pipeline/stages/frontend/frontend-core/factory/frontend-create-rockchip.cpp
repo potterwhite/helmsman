@@ -29,11 +29,9 @@
 #include "pipeline/stages/frontend/frontend-core/impl/no-hw-frontend.h"
 #include "pipeline/stages/frontend/frontend-core/impl/rockchip-frontend.h"
 
-std::unique_ptr<FrontendBase> FrontendBase::Create(const std::string& input_path,
-                                                    bool use_hardware,
-                                                    bool multithread_enabled) {
-    if (use_hardware) {
-        return std::make_unique<RockchipFrontend>(input_path, multithread_enabled);
+std::unique_ptr<FrontendBase> FrontendBase::Create(const AppConfig& config) {
+    if (config.use_hardware_decoder) {
+        return std::make_unique<RockchipFrontend>(config.input_path, config.use_multithread);
     }
-    return std::make_unique<NoHwFrontend>(input_path, multithread_enabled);
+    return std::make_unique<NoHwFrontend>(config.input_path, config.use_multithread);
 }
