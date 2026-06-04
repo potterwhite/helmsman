@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "pipeline/stages/inference-engine/base/inference-engine.h"
+#include "pipeline/stages/inference-engine/engine-core/inference-engine.h"
 #include "Utils/timing/timer.h"
 
 using helmsman::utils::timing::ManualTimer;

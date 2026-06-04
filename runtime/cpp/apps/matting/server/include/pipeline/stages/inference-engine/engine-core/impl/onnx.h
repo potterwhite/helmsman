@@ -22,45 +22,36 @@
 
 #pragma once
 
-#include "rknn_api.h"
-
 #include <memory>
+#include "Runtime/onnx/onnx.h"
 #include "Utils/file/file-utils.h"
 #include "Utils/logger/logger.h"
+#include "Utils/logger/worker/consolesink.h"
+#include "Utils/logger/worker/filesink.h"
+#include "Utils/math/math-utils.h"
 #include "common/types.h"
-#include "pipeline/stages/inference-engine/base/inference-engine.h"
+#include "pipeline/stages/inference-engine/engine-core/inference-engine.h"
 
-#include <vector>
-#include <string>
+class InferenceEngineONNX : public InferenceEngine {
 
-// ---------------------------------------------------------------------------
-// InferenceEngineRKNN — Non-Zero-Copy RKNN inference (multi-tensor)
-//
-// Supports arbitrary N-input / M-output models:
-//   - MODNet: N=1, M=1
-//   - RVM:    N=5, M=6
-// ---------------------------------------------------------------------------
+   public:
+	~InferenceEngineONNX();
 
-class InferenceEngineRKNN : public InferenceEngine {
-public:
-    ~InferenceEngineRKNN() override;
+	explicit InferenceEngineONNX(const AppConfig& config);
 
-    explicit InferenceEngineRKNN(const AppConfig& config);
+	void Load(const std::string& model_path) override;
 
-    void Load(const std::string& model_path) override;
+	bool NeedsDownsampleRatio() const override;
 
-protected:
-    void DoInfer(const std::vector<TensorData>& inputs,
-                   std::vector<TensorData>& outputs) override;
+   protected:
+	void DoInfer(const std::vector<TensorData>& inputs,
+	               std::vector<TensorData>& outputs) override;
 
-private:
-    void release();
+   private:
+	Ort::Env env_;
+	std::unique_ptr<Ort::Session> session_;
 
-private:
-    rknn_context ctx_ = 0;
-    rknn_input_output_num io_num_{};
-
-    // Per-tensor attributes
-    std::vector<rknn_tensor_attr> input_attrs_;
-    std::vector<rknn_tensor_attr> output_attrs_;
+	// Cached names for all inputs and outputs (populated in load()).
+	std::vector<std::string> input_names_;
+	std::vector<std::string> output_names_;
 };

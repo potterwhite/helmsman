@@ -28,12 +28,12 @@
 #pragma once
 
 #include <memory>
-#include "pipeline/stages/frontend/frontend-core/frontend-base.h"
+#include "pipeline/stages/frontend/frontend-core/frontend.h"
 #include "pipeline/stages/frontend/stages/01-input-source/base-input-source.h"
 #include "pipeline/stages/frontend/stages/02-decoder/base-frame-decoder.h"
 #include "pipeline/stages/frontend/stages/03-color-convert/base-color-converter.h"
 
-class RockchipFrontend : public FrontendBase {
+class RockchipFrontend : public FrontEnd {
 public:
     // Constructs the hardware decode pipeline: FFmpeg demux -> MPP decode -> RGA color convert.
     // Throws std::runtime_error on failure.

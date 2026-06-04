@@ -19,13 +19,13 @@
 // SOFTWARE.
 
 // =============================================================================
-// frontend-base.h — Frontend base class (Template Method pattern)
+// frontend.h — Frontend base class (Template Method pattern)
 //
 // Owns the multithread infrastructure: preprocessing, prefetch worker thread,
 // and double-buffer orchestration. Subclasses override stage methods to
 // supply decoded frames via the platform-specific decode path.
 //
-// Use FrontendBase::Create() to instantiate the correct subclass at runtime.
+// Use FrontEnd::Create() to instantiate the correct subclass at runtime.
 //
 // =============================================================================
 
@@ -74,15 +74,15 @@ struct FrameResult {
  * and double-buffer orchestration. The algorithm skeleton in ProcessOneFrame()
  * is fixed; subclasses override stage methods to supply decoded frames.
  */
-class FrontendBase {
+class FrontEnd {
 public:
-    virtual ~FrontendBase();
+    virtual ~FrontEnd();
 
     // Non-copyable, non-movable (owned by unique_ptr in Pipeline).
-    FrontendBase(const FrontendBase&) = delete;
-    FrontendBase& operator=(const FrontendBase&) = delete;
-    FrontendBase(FrontendBase&&) = delete;
-    FrontendBase& operator=(FrontendBase&&) = delete;
+    FrontEnd(const FrontEnd&) = delete;
+    FrontEnd& operator=(const FrontEnd&) = delete;
+    FrontEnd(FrontEnd&&) = delete;
+    FrontEnd& operator=(FrontEnd&&) = delete;
 
     // Unified frame processing interface (Template Method).
     // Dispatches to _ProcessSync or _ProcessMultithread based on multithread_enabled_.
@@ -112,16 +112,16 @@ public:
     int height() const;
     double fps() const;
 
-    // Static factory: creates the platform-specific FrontendBase subclass.
+    // Static factory: creates the platform-specific FrontEnd subclass.
     // If use_hardware is true, uses the hardware decode path (platform-dependent).
     // If multithread_enabled is true, enables the prefetch worker thread.
     // Throws std::runtime_error on failure.
-    static std::unique_ptr<FrontendBase> Create(const AppConfig& config);
+    static std::unique_ptr<FrontEnd> Create(const AppConfig& config);
 
 protected:
     // Subclass constructor: sets hardware flag and multithread mode.
     // Source properties default to 0. Subclasses call SetSourceProperties() after opening the source.
-    explicit FrontendBase(bool use_hardware, bool multithread_enabled);
+    explicit FrontEnd(bool use_hardware, bool multithread_enabled);
 
     // Set source dimensions and fps. Called by subclasses after opening the source.
     void SetSourceProperties(int width, int height, double fps);

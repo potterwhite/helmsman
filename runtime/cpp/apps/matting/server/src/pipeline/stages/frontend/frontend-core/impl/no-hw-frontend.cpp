@@ -28,7 +28,7 @@
 #include <stdexcept>
 
 NoHwFrontend::NoHwFrontend(const std::string& video_path, bool multithread_enabled)
-    : FrontendBase(false, multithread_enabled) {
+    : FrontEnd(false, multithread_enabled) {
     _OpenSource(video_path);
 }
 

@@ -30,8 +30,8 @@
 #include "Utils/timing/timer.h"
 #include "common/types.h"
 #include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/frontend/frontend-core/frontend-base.h"
-#include "pipeline/stages/inference-engine/base/inference-engine.h"
+#include "pipeline/stages/frontend/frontend-core/frontend.h"
+#include "pipeline/stages/inference-engine/engine-core/inference-engine.h"
 
 /**
  * Holds the resolved model input dimensions returned by RVMMode::InitModelState().
@@ -45,8 +45,8 @@ struct RvmModelState {
 class RVMMode {
    public:
 	void SetEngine(InferenceEngine* engine);
-	void SetFrontend(FrontendBase* frontend);
-	void SetBackend(MattingBackend* backend);
+	void SetFrontend(FrontEnd* frontend);
+	void SetBackend(Backend* backend);
 	void SetAppConfig(const AppConfig& config);
 
 	int Run();
@@ -96,8 +96,8 @@ class RVMMode {
    private:
 	// Member variables
 	InferenceEngine* engine_ = nullptr;  // Non-owning; owned by Pipeline
-	FrontendBase* frontend_ = nullptr;   // Non-owning; owned by Pipeline
-	MattingBackend* backend_ = nullptr;  // Non-owning; owned by Pipeline
+	FrontEnd* frontend_ = nullptr;   // Non-owning; owned by Pipeline
+	Backend* backend_ = nullptr;  // Non-owning; owned by Pipeline
 	AppConfig config_;                   // Copy of the app config, set via SetConfig()
 	// DMA zero-copy output: currently disabled.
 	// std::unique_ptr<helmsman::dmakit::DmaBuffer> dma_output_buf_;
@@ -119,26 +119,26 @@ class RVMMode {
 	//
 	//   [main thread]                                                      [worker thread]
 	//   acc_lv03_01_mainloop  (whole iteration)
-	//     ├── FrontendBase::total_acc_                           ◄── frontend sub-timers
+	//     ├── FrontEnd::total_acc_                           ◄── frontend sub-timers
 	//     ├── InferenceEngine::infer_acc_                                (NPU inference)
-	//     └── MattingBackend::total_acc_  ◄── postprocess + composite + display
+	//     └── Backend::total_acc_  ◄── postprocess + composite + display
 	//
 	//
 	//   [FPS]   line every 30 frames                                         — moving fps
 	//   [PerFrame] line every frame                                          — infer + comp
 	//
 	// Identity (approx, ignoring tiny logging overhead):
-	//   acc_lv03_01_mainloop ≈ FrontendBase::total_acc_ + InferenceEngine::infer_acc_ + MattingBackend::total_acc_
-	//   FrontendBase::total_acc_ ≈ read + decode + color_convert + preprocess
-	//   MattingBackend::total_acc_ ≈ postprocess + composite + display
+	//   acc_lv03_01_mainloop ≈ FrontEnd::total_acc_ + InferenceEngine::infer_acc_ + Backend::total_acc_
+	//   FrontEnd::total_acc_ ≈ read + decode + color_convert + preprocess
+	//   Backend::total_acc_ ≈ postprocess + composite + display
 	// ------------------------------------------------------------------------- */
 	using sa = helmsman::utils::timing::StageAccumulator;
 
 	sa acc_lv03_01_mainloop{"mainloop (per frame)"};
 	// Sub-stage accumulators moved to their respective stage classes:
-	//   frontend → FrontendBase::total_acc()
+	//   frontend → FrontEnd::total_acc()
 	//   inference → InferenceEngine::infer_acc()
-	//   postprocess/composite/display → MattingBackend
+	//   postprocess/composite/display → Backend
 
 	size_t frame_count_ = 0;
 	std::chrono::steady_clock::time_point fps_window_start_;

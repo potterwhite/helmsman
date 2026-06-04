@@ -20,7 +20,7 @@
 
 #include "pipeline/pipeline.h"
 #include "common/common-define.h"
-#include "pipeline/stages/inference-engine/base/inference-engine.h"
+#include "pipeline/stages/inference-engine/engine-core/inference-engine.h"
 
 using helmsman::utils::timing::ScopedTimer;
 
@@ -58,7 +58,7 @@ void Pipeline::Init(const AppConfig& config) {
 	// 1. Frontend (video only)
 	if (config_.is_video) {
 		try {
-			frontend_ = FrontendBase::Create(config_);
+			frontend_ = FrontEnd::Create(config_);
 		} catch (const std::exception& e) {
 			logger.Error(std::string("Failed to create Frontend: ") + e.what(),
 			             kcurrent_module_name);

@@ -55,10 +55,10 @@ inline const cv::Scalar kDefaultBgColor{155, 255, 120};
 void RVMMode::SetEngine(InferenceEngine* engine) {
 	engine_ = engine;
 }
-void RVMMode::SetFrontend(FrontendBase* frontend) {
+void RVMMode::SetFrontend(FrontEnd* frontend) {
 	frontend_ = frontend;
 }
-void RVMMode::SetBackend(MattingBackend* backend) {
+void RVMMode::SetBackend(Backend* backend) {
 	backend_ = backend;
 }
 void RVMMode::SetAppConfig(const AppConfig& config) {

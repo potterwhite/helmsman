@@ -34,7 +34,7 @@
 #include <stdexcept>
 
 RockchipFrontend::RockchipFrontend(const std::string& input_path, bool multithread_enabled)
-    : FrontendBase(true, multithread_enabled) {
+    : FrontEnd(true, multithread_enabled) {
     _OpenSource(input_path);
 }
 

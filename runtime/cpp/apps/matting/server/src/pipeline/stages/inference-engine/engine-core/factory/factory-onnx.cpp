@@ -18,13 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#pragma once
+#include "pipeline/stages/inference-engine/engine-core/inference-engine.h"
+#include "pipeline/stages/inference-engine/engine-core/impl/onnx.h"
 
-#include <memory>
-#include "pipeline/stages/inference-engine/base/inference-engine.h"
-
-// Creates the inference engine selected at build time.
-// CMake selects which factory-*.cpp to compile based on the INFERENCE_BACKEND
-// variable (set via CMakePresets.json backend-* mixin or auto-defaulted).
-// Valid values: "onnx" | "rknn-zerocopy" | "rknn-non-zerocopy"
-std::unique_ptr<InferenceEngine> createInferenceEngine(const AppConfig& config);
+std::unique_ptr<InferenceEngine> InferenceEngine::Create(const AppConfig& config) {
+    return std::make_unique<InferenceEngineONNX>(config);
+}

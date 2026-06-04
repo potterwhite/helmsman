@@ -18,9 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "pipeline/stages/inference-engine/base/inference-engine.h"
-#include "pipeline/stages/inference-engine/onnx/onnx.h"
+#include "pipeline/stages/inference-engine/engine-core/inference-engine.h"
+#include "pipeline/stages/inference-engine/engine-core/impl/rknn-non-zero-copy.h"
 
 std::unique_ptr<InferenceEngine> InferenceEngine::Create(const AppConfig& config) {
-    return std::make_unique<InferenceEngineONNX>(config);
+    return std::make_unique<InferenceEngineRKNN>(config);
 }

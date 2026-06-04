@@ -33,7 +33,7 @@ target_include_directories(${PROJECT_NAME}
 # --- Frontend core: base class + shared sources ---
 target_sources(${PROJECT_NAME}
     PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/frontend-core/frontend-base.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/frontend-core/frontend.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/frontend-core/impl/no-hw-frontend.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/stages/04-preprocess/preprocessor.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/stages/01-input-source/ffmpeg-input-source.cpp"
@@ -42,7 +42,7 @@ target_sources(${PROJECT_NAME}
 # --- Platform-specific: Rockchip hardware decode path ---
 # Factory selects RockchipFrontend or NoHwFrontend at compile time.
 # See frontend-core/factory/frontend-create-*.cpp for the two
-# FrontendBase::Create() implementations.
+# FrontEnd::Create() implementations.
 if("rockchip" IN_LIST CMAKE_PLATFORM)
     target_sources(${PROJECT_NAME}
         PRIVATE

@@ -22,19 +22,27 @@
 # apps/matting/server/src/pipeline/stages/inference-engine/CMakeLists.txt
 #
 
+# Internal stage headers live in src/ (not exported via include/).
+# Add src/ to the include search path so #include "pipeline/stages/..." resolves.
+get_filename_component(_server_src_dir "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
+target_include_directories(${PROJECT_NAME}
+    PRIVATE
+        "${_server_src_dir}"
+)
+
 # Factory: one .cpp per backend — CMake selects which to compile.
 # INFERENCE_BACKEND is set by CMakePresets.json (backend-* mixin) or auto-defaulted.
 target_sources(${PROJECT_NAME}
     PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/base/inference-engine.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/factory/factory-${INFERENCE_BACKEND}.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/onnx/onnx.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/engine-core/inference-engine.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/engine-core/factory/factory-${INFERENCE_BACKEND}.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/engine-core/impl/onnx.cpp"
 )
 
 if(TARGET ${PROJECT_NAMESPACE}::ThirdParty::LibRKNNRT)
     target_sources(${PROJECT_NAME}
         PRIVATE
-            "${CMAKE_CURRENT_SOURCE_DIR}/rknn/rknn-zero-copy.cpp"
-            "${CMAKE_CURRENT_SOURCE_DIR}/rknn/rknn-non-zero-copy.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/engine-core/impl/rknn-zero-copy.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/engine-core/impl/rknn-non-zero-copy.cpp"
     )
 endif()

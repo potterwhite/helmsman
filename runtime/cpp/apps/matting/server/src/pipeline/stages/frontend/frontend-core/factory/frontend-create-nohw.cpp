@@ -19,18 +19,18 @@
 // SOFTWARE.
 
 // =============================================================================
-// frontend-create-nohw.cpp — FrontendBase::Create() for non-hardware platforms
+// frontend-create-nohw.cpp — FrontEnd::Create() for non-hardware platforms
 //
 // Compiled when CMAKE_PLATFORM does NOT include "rockchip".
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/frontend-core/frontend-base.h"
+#include "pipeline/stages/frontend/frontend-core/frontend.h"
 #include "pipeline/stages/frontend/frontend-core/impl/no-hw-frontend.h"
 
 #include <stdexcept>
 
-std::unique_ptr<FrontendBase> FrontendBase::Create(const AppConfig& config) {
+std::unique_ptr<FrontEnd> FrontEnd::Create(const AppConfig& config) {
     if (config.use_hardware_decoder) {
         throw std::runtime_error("Hardware decoder not supported on this build");
     }

@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "pipeline/stages/inference-engine/base/inference-engine.h"
-#include "pipeline/stages/inference-engine/rknn/rknn-zero-copy.h"
+#include "pipeline/stages/inference-engine/engine-core/inference-engine.h"
+#include "pipeline/stages/inference-engine/engine-core/impl/rknn-zero-copy.h"
 
 std::unique_ptr<InferenceEngine> InferenceEngine::Create(const AppConfig& config) {
     return std::make_unique<InferenceEngineRKNNZeroCP>(config);

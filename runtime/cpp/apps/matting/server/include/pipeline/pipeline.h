@@ -26,37 +26,32 @@
 #include <string>
 #include "Utils/logger/logger.h"
 #include "common/types.h"
-#include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/inference-engine/base/inference-engine.h"
-#include "pipeline/stages/frontend/frontend-core/frontend-base.h"  // FrontendBase
 #include "pipeline/modes/modnet/modnet.h"
 #include "pipeline/modes/rvm/rvm.h"
+#include "pipeline/stages/backend/backend.h"
+#include "pipeline/stages/frontend/frontend-core/frontend.h"
+#include "pipeline/stages/inference-engine/engine-core/inference-engine.h"
 
 class Pipeline {
-public:
-    static Pipeline& GetInstance();
+   public:
+	static Pipeline& GetInstance();
 
-    void Init(const AppConfig& config);
+	void Init(const AppConfig& config);
 
-    int Run();
+	int Run();
 
-    void SetTimingEnabled(bool enabled);
-    bool IsTimingEnabled() const;
+   private:
+	Pipeline();
+	~Pipeline();
 
-private:
-    Pipeline();
-    ~Pipeline();
+	void VerifyParametersNecessary();
 
-    void VerifyParametersNecessary();
+   private:
+	AppConfig config_;
+	std::unique_ptr<FrontEnd> frontend_;
+	std::unique_ptr<InferenceEngine> engine_;
+	std::unique_ptr<Backend> backend_;
 
-    std::unique_ptr<InferenceEngine> MakeEngine();
-
-private:
-    AppConfig config_;
-    std::unique_ptr<FrontendBase> frontend_;
-    std::unique_ptr<InferenceEngine> engine_;
-    MattingBackend backend_;
-
-    MODNetMode modnet_mode_;
-    RVMMode rvm_mode_;
+	MODNetMode modnet_mode_;
+	RVMMode rvm_mode_;
 };

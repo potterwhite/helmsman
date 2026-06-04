@@ -22,21 +22,21 @@
 
 #include <string>
 #include "common/types.h"
-#include "pipeline/stages/inference-engine/base/inference-engine.h"
+#include "pipeline/stages/inference-engine/engine-core/inference-engine.h"
 #include "pipeline/stages/backend/backend.h"
 #include "pipeline/stages/frontend/stages/04-preprocess/preprocessor.h"
 
 class MODNetMode {
 public:
     void SetEngine(InferenceEngine* engine);
-    void SetBackend(MattingBackend* backend);
+    void SetBackend(Backend* backend);
     void SetAppConfig(const AppConfig& config);
 
     int Run();
 
 private:
     InferenceEngine* engine_ = nullptr;  // Non-owning; owned by Pipeline
-    MattingBackend* backend_ = nullptr;  // Non-owning; owned by Pipeline
+    Backend* backend_ = nullptr;  // Non-owning; owned by Pipeline
     AppConfig config_;
     Preprocessor preprocessor_;
 };

@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 // =============================================================================
-// frontend-base.cpp — FrontendBase implementation (Template Method pattern)
+// frontend.cpp — FrontEnd implementation (Template Method pattern)
 //
 // Owns the multithread infrastructure. Subclasses override stage methods
 // (ReadInputSource01, DecodeFrame02, ConvertToBgr03) to supply decoded frames
@@ -28,12 +28,12 @@
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/frontend-core/frontend-base.h"
+#include "pipeline/stages/frontend/frontend-core/frontend.h"
 
 // ---------------------------------------------------------------------------
 // Protected constructor
 // ---------------------------------------------------------------------------
-FrontendBase::FrontendBase(bool use_hardware, bool multithread_enabled)
+FrontEnd::FrontEnd(bool use_hardware, bool multithread_enabled)
     : use_hardware_(use_hardware), multithread_enabled_(multithread_enabled) {
 	if (multithread_enabled_) {
 		raw_ch_ = std::make_unique<SingleSlotChannel<cv::Mat>>();
@@ -44,14 +44,14 @@ FrontendBase::FrontendBase(bool use_hardware, bool multithread_enabled)
 // ---------------------------------------------------------------------------
 // Destructor
 // ---------------------------------------------------------------------------
-FrontendBase::~FrontendBase() {
+FrontEnd::~FrontEnd() {
 	Stop();
 }
 
 // ---------------------------------------------------------------------------
 // SetSourceProperties — called by subclasses after opening the source
 // ---------------------------------------------------------------------------
-void FrontendBase::SetSourceProperties(int width, int height, double fps) {
+void FrontEnd::SetSourceProperties(int width, int height, double fps) {
 	width_ = width;
 	height_ = height;
 	fps_ = fps;
@@ -60,44 +60,44 @@ void FrontendBase::SetSourceProperties(int width, int height, double fps) {
 // ---------------------------------------------------------------------------
 // Accessors
 // ---------------------------------------------------------------------------
-bool FrontendBase::IsHardwarePath() const {
+bool FrontEnd::IsHardwarePath() const {
 	return use_hardware_;
 }
-int FrontendBase::width() const {
+int FrontEnd::width() const {
 	return width_;
 }
-int FrontendBase::height() const {
+int FrontEnd::height() const {
 	return height_;
 }
-double FrontendBase::fps() const {
+double FrontEnd::fps() const {
 	return fps_;
 }
 
-const helmsman::utils::timing::StageAccumulator& FrontendBase::read_input_acc() const {
+const helmsman::utils::timing::StageAccumulator& FrontEnd::read_input_acc() const {
 	return acc_lv03_02_frontend_read_;
 }
 
-const helmsman::utils::timing::StageAccumulator& FrontendBase::decode_acc() const {
+const helmsman::utils::timing::StageAccumulator& FrontEnd::decode_acc() const {
 	return acc_lv03_03_frontend_decode_;
 }
 
-const helmsman::utils::timing::StageAccumulator& FrontendBase::color_convert_acc() const {
+const helmsman::utils::timing::StageAccumulator& FrontEnd::color_convert_acc() const {
 	return acc_lv03_04_frontend_color_convert_;
 }
 
-const helmsman::utils::timing::StageAccumulator& FrontendBase::preprocess_acc() const {
+const helmsman::utils::timing::StageAccumulator& FrontEnd::preprocess_acc() const {
 	return acc_lv03_05_frontend_preprocess_;
 }
 
-const helmsman::utils::timing::StageAccumulator& FrontendBase::resize_acc() const {
+const helmsman::utils::timing::StageAccumulator& FrontEnd::resize_acc() const {
 	return preprocessor_.resize_acc();
 }
 
-const helmsman::utils::timing::StageAccumulator& FrontendBase::total_acc() const {
+const helmsman::utils::timing::StageAccumulator& FrontEnd::total_acc() const {
 	return acc_total_;
 }
 
-void FrontendBase::ReportAccumulatedTimers(bool timing_enabled, helmsman::utils::Logger& logger,
+void FrontEnd::ReportAccumulatedTimers(bool timing_enabled, helmsman::utils::Logger& logger,
                                            std::string_view module) const {
 	read_input_acc().report(timing_enabled, logger, module);
 	decode_acc().report(timing_enabled, logger, module);
@@ -113,7 +113,7 @@ void FrontendBase::ReportAccumulatedTimers(bool timing_enabled, helmsman::utils:
 // ---------------------------------------------------------------------------
 // Stage 01: default no-op (subclasses override)
 // ---------------------------------------------------------------------------
-bool FrontendBase::_ReadInputSource01(RawPacket& /*pkt*/, ReadResult& /*result*/) {
+bool FrontEnd::_ReadInputSource01(RawPacket& /*pkt*/, ReadResult& /*result*/) {
 	return false;
 }
 
@@ -121,7 +121,7 @@ bool FrontendBase::_ReadInputSource01(RawPacket& /*pkt*/, ReadResult& /*result*/
 // Stage 02: default no-op (subclasses override).
 // Skips if result.frame already populated (NoHwFrontend Stage 01 is atomic).
 // ---------------------------------------------------------------------------
-bool FrontendBase::_DecodeFrame02(const RawPacket& /*pkt*/, ReadResult& result) {
+bool FrontEnd::_DecodeFrame02(const RawPacket& /*pkt*/, ReadResult& result) {
 	return !result.frame.empty();
 }
 
@@ -129,14 +129,14 @@ bool FrontendBase::_DecodeFrame02(const RawPacket& /*pkt*/, ReadResult& result) 
 // Stage 03: default no-op (subclasses override).
 // Skips if result.frame already populated (NoHwFrontend Stage 01 is atomic).
 // ---------------------------------------------------------------------------
-bool FrontendBase::_ConvertToBgr03(ReadResult& result) {
+bool FrontEnd::_ConvertToBgr03(ReadResult& result) {
 	return !result.frame.empty();
 }
 
 // ---------------------------------------------------------------------------
 // Stage 04: preprocess BGR frame into TensorData (non-virtual)
 // ---------------------------------------------------------------------------
-TensorData FrontendBase::_PreprocessForInference04(const cv::Mat& frame, int model_w, int model_h) {
+TensorData FrontEnd::_PreprocessForInference04(const cv::Mat& frame, int model_w, int model_h) {
 	helmsman::utils::timing::ManualTimer t;
 	t.start();
 	auto tensor = preprocessor_.preprocess(frame, model_w, model_h);
@@ -147,7 +147,7 @@ TensorData FrontendBase::_PreprocessForInference04(const cv::Mat& frame, int mod
 // ---------------------------------------------------------------------------
 // _MultithreadWorkerLoop — worker thread entry point (stage 04 only)
 // ---------------------------------------------------------------------------
-void FrontendBase::_MultithreadWorkerLoop(int model_w, int model_h) {
+void FrontEnd::_MultithreadWorkerLoop(int model_w, int model_h) {
 	while (true) {
 		auto frame_opt = raw_ch_->pop();
 		if (!frame_opt)
@@ -162,7 +162,7 @@ void FrontendBase::_MultithreadWorkerLoop(int model_w, int model_h) {
 // ---------------------------------------------------------------------------
 // _ProcessSync — single-thread mode: 4 stages on calling thread
 // ---------------------------------------------------------------------------
-std::optional<FrameResult> FrontendBase::_ProcessSync(int model_w, int model_h) {
+std::optional<FrameResult> FrontEnd::_ProcessSync(int model_w, int model_h) {
 	ReadResult read_result;
 	RawPacket pkt;
 	FrameResult result;
@@ -222,7 +222,7 @@ std::optional<FrameResult> FrontendBase::_ProcessSync(int model_w, int model_h) 
 // _ProcessMultithread — dual-buffer mode: stages 01-03 on main thread,
 //                       stage 04 on worker thread
 // ---------------------------------------------------------------------------
-std::optional<FrameResult> FrontendBase::_ProcessMultithread(int model_w, int model_h) {
+std::optional<FrameResult> FrontEnd::_ProcessMultithread(int model_w, int model_h) {
 	if (mt_eof_)
 		return std::nullopt;
 
@@ -277,7 +277,7 @@ std::optional<FrameResult> FrontendBase::_ProcessMultithread(int model_w, int mo
 
 		// Launch worker for stage 04
 		prefetch_worker_ =
-		    std::thread(&FrontendBase::_MultithreadWorkerLoop, this, model_w, model_h);
+		    std::thread(&FrontEnd::_MultithreadWorkerLoop, this, model_w, model_h);
 		raw_ch_->push(frame_1);
 
 		// Stage 04: pop tensor from worker
@@ -356,7 +356,7 @@ std::optional<FrameResult> FrontendBase::_ProcessMultithread(int model_w, int mo
 // ---------------------------------------------------------------------------
 // Stop — signal prefetch worker to stop
 // ---------------------------------------------------------------------------
-void FrontendBase::Stop() {
+void FrontEnd::Stop() {
 	if (raw_ch_)
 		raw_ch_->close();
 	if (prefetch_worker_.joinable())
@@ -366,7 +366,7 @@ void FrontendBase::Stop() {
 // ---------------------------------------------------------------------------
 // ProcessOneFrame — dispatcher: sync or multithread
 // ---------------------------------------------------------------------------
-std::optional<FrameResult> FrontendBase::ProcessOneFrame(int model_w, int model_h) {
+std::optional<FrameResult> FrontEnd::ProcessOneFrame(int model_w, int model_h) {
 	helmsman::utils::timing::ManualTimer t;
 	t.start();
 	auto result = multithread_enabled_ ? _ProcessMultithread(model_w, model_h)

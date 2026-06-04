@@ -19,17 +19,17 @@
 // SOFTWARE.
 
 // =============================================================================
-// frontend-create-rockchip.cpp — FrontendBase::Create() for Rockchip platform
+// frontend-create-rockchip.cpp — FrontEnd::Create() for Rockchip platform
 //
 // Compiled only when CMAKE_PLATFORM includes "rockchip".
 //
 // =============================================================================
 
-#include "pipeline/stages/frontend/frontend-core/frontend-base.h"
+#include "pipeline/stages/frontend/frontend-core/frontend.h"
 #include "pipeline/stages/frontend/frontend-core/impl/no-hw-frontend.h"
 #include "pipeline/stages/frontend/frontend-core/impl/rockchip-frontend.h"
 
-std::unique_ptr<FrontendBase> FrontendBase::Create(const AppConfig& config) {
+std::unique_ptr<FrontEnd> FrontEnd::Create(const AppConfig& config) {
     if (config.use_hardware_decoder) {
         return std::make_unique<RockchipFrontend>(config.input_path, config.use_multithread);
     }

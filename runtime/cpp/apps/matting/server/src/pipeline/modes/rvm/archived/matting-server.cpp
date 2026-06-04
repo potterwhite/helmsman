@@ -29,7 +29,7 @@
 #include <unistd.h>
 #include "RGAKit/rga_operation.h"
 #include "common/common-define.h"
-#include "pipeline/stages/inference-engine/inference-engine-factory.h"
+#include "pipeline/stages/inference-engine/engine-core/inference-engine.h"
 
 using helmsman::rgakit::ImageDescriptor;
 using helmsman::rgakit::RgaPixelFormat;

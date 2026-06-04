@@ -29,9 +29,9 @@
 
 #include <opencv2/videoio.hpp>
 #include <string>
-#include "pipeline/stages/frontend/frontend-core/frontend-base.h"
+#include "pipeline/stages/frontend/frontend-core/frontend.h"
 
-class NoHwFrontend : public FrontendBase {
+class NoHwFrontend : public FrontEnd {
 public:
     // Opens the video with cv::VideoCapture.
     // Throws std::runtime_error on failure.
