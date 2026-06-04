@@ -7,7 +7,7 @@
 
 ## 类名
 
-- PascalCase：`FrontendBase`、`RockchipFrontend`、`MattingBackend`
+- PascalCase：`FrontEnd`、`RockchipFrontend`、`BackEnd`
 
 ## 方法名
 

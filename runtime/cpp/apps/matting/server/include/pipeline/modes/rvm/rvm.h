@@ -46,7 +46,7 @@ class RVMMode {
    public:
 	void SetEngine(InferenceEngine* engine);
 	void SetFrontend(FrontEnd* frontend);
-	void SetBackend(Backend* backend);
+	void SetBackend(BackEnd* backend);
 	void SetAppConfig(const AppConfig& config);
 
 	int Run();
@@ -97,7 +97,7 @@ class RVMMode {
 	// Member variables
 	InferenceEngine* engine_ = nullptr;  // Non-owning; owned by Pipeline
 	FrontEnd* frontend_ = nullptr;   // Non-owning; owned by Pipeline
-	Backend* backend_ = nullptr;  // Non-owning; owned by Pipeline
+	BackEnd* backend_ = nullptr;  // Non-owning; owned by Pipeline
 	AppConfig config_;                   // Copy of the app config, set via SetConfig()
 	// DMA zero-copy output: currently disabled.
 	// std::unique_ptr<helmsman::dmakit::DmaBuffer> dma_output_buf_;
@@ -121,16 +121,16 @@ class RVMMode {
 	//   acc_lv03_01_mainloop  (whole iteration)
 	//     ├── FrontEnd::total_acc_                           ◄── frontend sub-timers
 	//     ├── InferenceEngine::infer_acc_                                (NPU inference)
-	//     └── Backend::total_acc_  ◄── postprocess + composite + display
+	//     └── BackEnd::total_acc_  ◄── postprocess + composite + display
 	//
 	//
 	//   [FPS]   line every 30 frames                                         — moving fps
 	//   [PerFrame] line every frame                                          — infer + comp
 	//
 	// Identity (approx, ignoring tiny logging overhead):
-	//   acc_lv03_01_mainloop ≈ FrontEnd::total_acc_ + InferenceEngine::infer_acc_ + Backend::total_acc_
+	//   acc_lv03_01_mainloop ≈ FrontEnd::total_acc_ + InferenceEngine::infer_acc_ + BackEnd::total_acc_
 	//   FrontEnd::total_acc_ ≈ read + decode + color_convert + preprocess
-	//   Backend::total_acc_ ≈ postprocess + composite + display
+	//   BackEnd::total_acc_ ≈ postprocess + composite + display
 	// ------------------------------------------------------------------------- */
 	using sa = helmsman::utils::timing::StageAccumulator;
 
@@ -138,7 +138,7 @@ class RVMMode {
 	// Sub-stage accumulators moved to their respective stage classes:
 	//   frontend → FrontEnd::total_acc()
 	//   inference → InferenceEngine::infer_acc()
-	//   postprocess/composite/display → Backend
+	//   postprocess/composite/display → BackEnd
 
 	size_t frame_count_ = 0;
 	std::chrono::steady_clock::time_point fps_window_start_;

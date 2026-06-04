@@ -81,7 +81,7 @@ class MattingServer {
 
 	std::unique_ptr<InferenceEngine> engine_;
 	Preprocessor frontend_;
-	MattingBackend backend_;
+	MattingBackEnd backend_;
 	RecurrentStateManager state_mgr_;
 
 	// Model dimensions (from engine)

@@ -6,7 +6,7 @@
 
 | 文档 | 内容 |
 |------|------|
-| [architecture.md](architecture.md) | 整体架构（Pipeline → Frontend/Engine/Backend → Mode） |
+| [architecture.md](architecture.md) | 整体架构（Pipeline → Frontend/Engine/BackEnd → Mode） |
 | [frontend.md](frontend.md) | Frontend 模块详解（子类、子阶段、数据流） |
 | [build-system.md](build-system.md) | CMake 构建系统（CMAKE_PLATFORM、工具链、条件编译） |
 | [data-flow.md](data-flow.md) | 端到端数据流（mp4 → demux → decode → preprocess → infer → composite → output） |

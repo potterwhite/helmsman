@@ -10,7 +10,7 @@ Pipeline (Singleton, composition root)
 ├── InferenceEngine (abstract, platform-specific)
 │   ├── InferenceEngineRKNNZeroCP  — RKNN zero-copy (Rockchip NPU)
 │   └── InferenceEngineONNX        — ONNX Runtime (CPU/GPU)
-├── MattingBackend (post-processing: alpha refinement, compositing)
+├── BackEnd (post-processing: alpha refinement, compositing)
 └── Modes
     ├── RVMMode     — 视频 matting（递归神经网络，多帧）
     └── MODNetMode  — 图像 matting（单帧）
@@ -44,9 +44,9 @@ Pipeline::Run()
 - 4 个阶段虚方法（`_ReadInputSource01`、`_DecodeFrame02`、`_ConvertToBgr03`、`_PreprocessForInference04`）提供细粒度覆盖点
 - `_ProcessSync` / `_ProcessMultithread` 显式调用全部 4 个 stage
 
-### 为什么 Backend 由 Pipeline 拥有？
-- Backend 配置（输出路径、背景路径）在 Init 时设置一次
-- Modes 通过指针访问，不拥有 Backend
+### 为什么 BackEnd 由 Pipeline 拥有？
+- BackEnd 配置（输出路径、背景路径）在 Init 时设置一次
+- Modes 通过指针访问，不拥有 BackEnd
 - 与 Frontend/Engine 的生命周期管理一致
 
 ### CLI 参数
@@ -56,7 +56,7 @@ Pipeline::Run()
 ## MattingServer（独立路径）
 
 `MattingServer` 是独立的 DMA fd API，不经过 Pipeline：
-- 自己拥有 Backend + Engine + Preprocessor
+- 自己拥有 BackEnd + Engine + Preprocessor
 - 输入：DMA buffer fd
 - 输出：DMA buffer fd
 - 用于实时视频管线（V4L2 camera → NPU → DRM display）

@@ -58,7 +58,7 @@ void RVMMode::SetEngine(InferenceEngine* engine) {
 void RVMMode::SetFrontend(FrontEnd* frontend) {
 	frontend_ = frontend;
 }
-void RVMMode::SetBackend(Backend* backend) {
+void RVMMode::SetBackend(BackEnd* backend) {
 	backend_ = backend;
 }
 void RVMMode::SetAppConfig(const AppConfig& config) {
@@ -207,7 +207,7 @@ void RVMMode::_ReportAllAccumulatedTimers(void) {
 	GetLogger().Info("────────── Inference ──────────", kRvmModuleName);
 	engine_->ReportAccumulatedTimers(true, GetLogger(), kRvmModuleName);
 
-	GetLogger().Info("────────── Backend ──────────", kRvmModuleName);
+	GetLogger().Info("────────── BackEnd ──────────", kRvmModuleName);
 	backend_->ReportAccumulatedTimers(true, GetLogger(), kRvmModuleName);
 
 	GetLogger().Info("────────── Overall ──────────", kRvmModuleName);

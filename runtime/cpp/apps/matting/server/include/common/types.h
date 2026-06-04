@@ -105,7 +105,7 @@ typedef struct {
 	std::vector<float>     data;
 	std::vector<int64_t>   shape;
 
-	// --- Letterbox metadata (filled by Preprocessor, consumed by Backend) ---
+	// --- Letterbox metadata (filled by Preprocessor, consumed by BackEnd) ---
 	int orig_width  = 0;
 	int orig_height = 0;
 	int pad_top     = 0;

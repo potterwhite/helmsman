@@ -339,9 +339,9 @@ void InferenceEngineRKNNZeroCP::ExecuteNpu2nd() {
 // Step 3 — Output Data Transfer (NPU → CPU)
 //
 // Read raw NPU output buffers and convert from model precision
-// (INT8/FP16) back to float32 for the downstream Backend.
+// (INT8/FP16) back to float32 for the downstream BackEnd.
 // After this step, ownership of `outputs` transfers to the caller
-// (InferenceEngine::Infer → Backend::Postprocess).
+// (InferenceEngine::Infer → BackEnd::Postprocess).
 // ============================================================================
 void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(const std::vector<TensorData>& inputs,
                                                      std::vector<TensorData>& outputs) {
@@ -354,7 +354,7 @@ void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(const std::vector<TensorDat
 	for (uint32_t i = 0; i < io_num_.n_output; ++i) {
 		const rknn_tensor_attr& attr = output_attrs_[i];
 
-		// §5.5: Backend only uses pha; fgr is never consumed.
+		// §5.5: BackEnd only uses pha; fgr is never consumed.
 		// Skip fgr D→H transfer to save ~8.36 MB per frame.
 		if (std::string(attr.name) == "fgr") {
 			static bool logged_skip = false;

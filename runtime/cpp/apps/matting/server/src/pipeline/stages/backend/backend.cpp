@@ -32,34 +32,34 @@ using helmsman::rgakit::RgaResize;
 // #include <algorithm>
 // #include <cmath>
 
-Backend::Backend(const AppConfig& config)
+BackEnd::BackEnd(const AppConfig& config)
     : config_(config) {
-	helmsman::utils::Logger::GetInstance().Info("Backend object constructed.",
+	helmsman::utils::Logger::GetInstance().Info("BackEnd object constructed.",
 	                                                      kcurrent_module_name);
 }
 
-Backend::~Backend() {
-	helmsman::utils::Logger::GetInstance().Info("Backend cleaned up.",
+BackEnd::~BackEnd() {
+	helmsman::utils::Logger::GetInstance().Info("BackEnd cleaned up.",
 	                                                      kcurrent_module_name);
 }
 
-std::unique_ptr<Backend> Backend::Create(const AppConfig& config) {
-	return std::make_unique<Backend>(config);
+std::unique_ptr<BackEnd> BackEnd::Create(const AppConfig& config) {
+	return std::make_unique<BackEnd>(config);
 }
 
-void Backend::SetForegroundImagePath(const std::string& path) {
+void BackEnd::SetForegroundImagePath(const std::string& path) {
 	foreground_image_path_ = path;
 }
 
-void Backend::SetPostProcessor(std::shared_ptr<BasePostProcessor> processor) {
+void BackEnd::SetPostProcessor(std::shared_ptr<BasePostProcessor> processor) {
 	post_processor_ = std::move(processor);
 }
 
-cv::Mat Backend::Postprocess(const std::vector<TensorData>& outputs) {
+cv::Mat BackEnd::Postprocess(const std::vector<TensorData>& outputs) {
 	return Postprocess(outputs, cv::Mat{});
 }
 
-cv::Mat Backend::Postprocess(const std::vector<TensorData>& outputs,
+cv::Mat BackEnd::Postprocess(const std::vector<TensorData>& outputs,
                                     const cv::Mat& guide_bgr_override) {
 	helmsman::utils::timing::ManualTimer t;
 	t.start();
@@ -70,7 +70,7 @@ cv::Mat Backend::Postprocess(const std::vector<TensorData>& outputs,
 	auto& file_utils = helmsman::utils::FileUtils::GetInstance();
 
 	if (outputs.empty()) {
-		throw std::runtime_error("Backend received empty outputs");
+		throw std::runtime_error("BackEnd received empty outputs");
 	}
 
 	// -------------------------
@@ -88,14 +88,14 @@ cv::Mat Backend::Postprocess(const std::vector<TensorData>& outputs,
 	}
 	if (!pha_ptr) {
 		throw std::runtime_error(
-		    "Backend: output tensor 'pha' not found in " +
+		    "BackEnd: output tensor 'pha' not found in " +
 		    std::to_string(outputs.size()) + " outputs");
 	}
 
 	const TensorData& output = *pha_ptr;
 
 	if (config_.dump_enabled)
-		logger.Info("Backend: selected pha tensor '" + output.name + "' from " +
+		logger.Info("BackEnd: selected pha tensor '" + output.name + "' from " +
 		            std::to_string(outputs.size()) + " outputs", kcurrent_module_name);
 
 	if (output.shape.size() != 4) {
@@ -112,7 +112,7 @@ cv::Mat Backend::Postprocess(const std::vector<TensorData>& outputs,
 	}
 
 	if (config_.dump_enabled)
-		logger.Info("Backend processing: N=" + std::to_string(N) + " C=" + std::to_string(C) +
+		logger.Info("BackEnd processing: N=" + std::to_string(N) + " C=" + std::to_string(C) +
 		                " H=" + std::to_string(H) + " W=" + std::to_string(W),
 		            kcurrent_module_name);
 
@@ -325,7 +325,7 @@ cv::Mat Backend::Postprocess(const std::vector<TensorData>& outputs,
 //   - He et al., "Guided Image Filtering", IEEE TPAMI 2013
 //   - deep_guided_filter.py (lines 24-43)
 // ============================================================================
-cv::Mat Backend::Postprocess(const std::vector<TensorData>& outputs,
+cv::Mat BackEnd::Postprocess(const std::vector<TensorData>& outputs,
                                     const cv::Mat& guide_bgr_override,
                                     const TensorData& src_tensor) {
 	helmsman::utils::timing::ManualTimer t;
@@ -344,7 +344,7 @@ cv::Mat Backend::Postprocess(const std::vector<TensorData>& outputs,
 	}
 	if (!td_A || !td_b) {
 		throw std::runtime_error(
-		    "Backend(no-resize): A('777') or b('779') not found in " +
+		    "BackEnd(no-resize): A('777') or b('779') not found in " +
 		    std::to_string(outputs.size()) + " outputs");
 	}
 
@@ -352,10 +352,10 @@ cv::Mat Backend::Postprocess(const std::vector<TensorData>& outputs,
 	// A/b: NCHW (RKNN output), src: NHWC (Preprocessor stores HWC layout)
 	if (td_A->shape.size() != 4 || td_b->shape.size() != 4 ||
 	    td_A->shape[1] != 4 || td_b->shape[1] != 4) {
-		throw std::runtime_error("Backend(no-resize): A and b must be NCHW with C=4");
+		throw std::runtime_error("BackEnd(no-resize): A and b must be NCHW with C=4");
 	}
 	if (src_tensor.shape.size() != 4 || src_tensor.shape[3] != 3) {
-		throw std::runtime_error("Backend(no-resize): src must be NHWC with C=3");
+		throw std::runtime_error("BackEnd(no-resize): src must be NHWC with C=3");
 	}
 
 	const int dH = static_cast<int>(td_A->shape[2]);
@@ -364,7 +364,7 @@ cv::Mat Backend::Postprocess(const std::vector<TensorData>& outputs,
 	const int W = static_cast<int>(src_tensor.shape[2]);
 
 	if (config_.diag_enabled)
-		logger.Info("Backend(no-resize): A=" + std::to_string(dH) + "x" + std::to_string(dW) +
+		logger.Info("BackEnd(no-resize): A=" + std::to_string(dH) + "x" + std::to_string(dW) +
 		                " src=" + std::to_string(H) + "x" + std::to_string(W),
 		            kcurrent_module_name);
 
@@ -390,7 +390,7 @@ cv::Mat Backend::Postprocess(const std::vector<TensorData>& outputs,
 	cv::Mat b_hwc = nchw4_to_hwc4(td_b->data);  // CV_32FC4, dH×dW
 
 	if (config_.diag_enabled)
-		logger.Info("Backend(no-resize) data: A.data=" + std::to_string(td_A->data.size()) +
+		logger.Info("BackEnd(no-resize) data: A.data=" + std::to_string(td_A->data.size()) +
 		            " b.data=" + std::to_string(td_b->data.size()) +
 		            " src.data=" + std::to_string(src_tensor.data.size()) +
 		            " A_hwc=" + std::to_string(A_hwc.cols) + "x" + std::to_string(A_hwc.rows) +
@@ -581,14 +581,14 @@ cv::Mat Backend::Postprocess(const std::vector<TensorData>& outputs,
 	return output_8u;
 }
 
-void Backend::SetBackgroundModelImage(const cv::Mat& bg) {
+void BackEnd::SetBackgroundModelImage(const cv::Mat& bg) {
 	bg_model_u8_ = bg;
 }
 
 // ---------------------------------------------------------------------------
 // ReportAccumulatedTimers — report all timing stats for this stage
 // ---------------------------------------------------------------------------
-void Backend::ReportAccumulatedTimers(bool timing_enabled,
+void BackEnd::ReportAccumulatedTimers(bool timing_enabled,
                                               helmsman::utils::Logger& logger,
                                               std::string_view module) const {
 	acc_postprocess_.report(timing_enabled, logger, module);
@@ -601,7 +601,7 @@ void Backend::ReportAccumulatedTimers(bool timing_enabled,
 }
 
 
-cv::Mat Backend::Composite(const cv::Mat& frame, const cv::Mat& alpha_8u,
+cv::Mat BackEnd::Composite(const cv::Mat& frame, const cv::Mat& alpha_8u,
                                    int model_w, int model_h, int output_w, int output_h) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 	helmsman::utils::timing::ManualTimer t;

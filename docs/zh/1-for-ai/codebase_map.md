@@ -362,7 +362,7 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
          │ vector<TensorData> outputs
          ▼
 ┌─────────────────┐
-│  MattingBackend │  → pipeline/backend/backend.cpp
+│  BackEnd        │  → pipeline/backend/backend.cpp
 │  ::postprocess()│
 │   (vector<TD>)  │  ★ 按名称选取 pha tensor
 │                 │  1. NCHW → HWC 转换（遍历 C,H,W）
@@ -401,7 +401,7 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 |---|---|
 | `src/main-server.cpp` | 入口点；配置 logger、SIGINT 信号处理，解析 CLI（含 `--core-mask`），调用 `Pipeline::Init()` + `Run()` |
 | `include/pipeline/pipeline.h` | `Pipeline` 单例：`Init()` 创建+加载+注入，`Run()` 纯执行 |
-| `src/pipeline/pipeline.cpp` 🔒 | Init(): FrontendBase::Create + engine->Load + Backend 配置 + 注入到 modes |
+| `src/pipeline/pipeline.cpp` 🔒 | Init(): FrontEnd::Create + engine->Load + BackEnd 配置 + 注入到 modes |
 | `include/pipeline/modes/rvm/rvm.h` | `RVMMode`：setter 注入 + `Run()` 无参数 |
 | `include/pipeline/modes/modnet/modnet.h` | `MODNetMode`：setter 注入 + `Run()` 无参数 |
 | `include/pipeline/infra/recurrent-state-manager.h` ★ | `RecurrentStateManager`：RVM 递归状态持久化 |
@@ -412,7 +412,7 @@ envs/requirements.txt                                     → MODNet.git/onnx/re
 | `src/pipeline/inference-engine/rknn/rknn-non-zero-copy.cpp` | N→M non-zero-copy：通过 `RKNNQuery` 查询元数据，rknn_inputs_set 多组 + rknn_outputs_get 多组 |
 | `include/pipeline/inference-engine/onnx/onnx.h` | `InferenceEngineONNX` |
 | `src/pipeline/inference-engine/onnx/onnx.cpp` | N→M ORT Run：inputs[0] NHWC→NCHW+归一化，inputs[1..N] 直通 |
-| `include/pipeline/backend/backend.h` | `MattingBackend`: `postprocess(vector<TensorData>)` → `cv::Mat` — 按名选 pha |
+| `include/pipeline/backend/backend.h` | `BackEnd`: `Postprocess(vector<TensorData>)` → `cv::Mat` — 按名选 pha |
 | `src/pipeline/backend/backend.cpp` 🔒 | NCHW→HWC，截断，裁剪 letterbox，缩放至原始尺寸，保存 PNG/JPG |
 
 ### `TensorData` 契约 🔒

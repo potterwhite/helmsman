@@ -33,20 +33,20 @@
 #include "pipeline/stages/backend/post-processor/base-post-processor.h"
 #include "common/types.h"
 
-class Backend {
+class BackEnd {
    public:
-	~Backend();
+	~BackEnd();
 
 	// Non-copyable, non-movable (owned by unique_ptr in Pipeline).
-	Backend(const Backend&) = delete;
-	Backend& operator=(const Backend&) = delete;
-	Backend(Backend&&) = delete;
-	Backend& operator=(Backend&&) = delete;
+	BackEnd(const BackEnd&) = delete;
+	BackEnd& operator=(const BackEnd&) = delete;
+	BackEnd(BackEnd&&) = delete;
+	BackEnd& operator=(BackEnd&&) = delete;
 
-	// Factory: creates a Backend bound to the given config.
-	static std::unique_ptr<Backend> Create(const AppConfig& config);
+	// Factory: creates a BackEnd bound to the given config.
+	static std::unique_ptr<BackEnd> Create(const AppConfig& config);
 
-	explicit Backend(const AppConfig& config);
+	explicit BackEnd(const AppConfig& config);
 
 	void SetForegroundImagePath(const std::string& path);
 

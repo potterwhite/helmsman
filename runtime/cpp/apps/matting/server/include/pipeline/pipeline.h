@@ -50,7 +50,7 @@ class Pipeline {
 	AppConfig config_;
 	std::unique_ptr<FrontEnd> frontend_;
 	std::unique_ptr<InferenceEngine> engine_;
-	std::unique_ptr<Backend> backend_;
+	std::unique_ptr<BackEnd> backend_;
 
 	MODNetMode modnet_mode_;
 	RVMMode rvm_mode_;

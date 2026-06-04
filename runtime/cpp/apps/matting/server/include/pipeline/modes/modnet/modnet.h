@@ -29,14 +29,14 @@
 class MODNetMode {
 public:
     void SetEngine(InferenceEngine* engine);
-    void SetBackend(Backend* backend);
+    void SetBackend(BackEnd* backend);
     void SetAppConfig(const AppConfig& config);
 
     int Run();
 
 private:
     InferenceEngine* engine_ = nullptr;  // Non-owning; owned by Pipeline
-    Backend* backend_ = nullptr;  // Non-owning; owned by Pipeline
+    BackEnd* backend_ = nullptr;  // Non-owning; owned by Pipeline
     AppConfig config_;
     Preprocessor preprocessor_;
 };

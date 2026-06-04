@@ -85,8 +85,8 @@ void Pipeline::Init(const AppConfig& config) {
 		engine_->Load(config_.model_path);
 	}
 
-	// 3. Backend
-	backend_ = Backend::Create(config_);
+	// 3. BackEnd
+	backend_ = BackEnd::Create(config_);
 
 	// 4. Inject dependencies into modes
 	rvm_mode_.SetAppConfig(config_);

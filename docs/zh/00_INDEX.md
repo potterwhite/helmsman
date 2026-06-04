@@ -11,7 +11,7 @@
 | 文档 | 用途 |
 |---|---|
 | [`1-for-ai/README.md`](1-for-ai/README.md) | AI 文档索引入口 |
-| [`1-for-ai/architecture.md`](1-for-ai/architecture.md) | 整体架构（Pipeline → Frontend/Engine/Backend → Mode） |
+| [`1-for-ai/architecture.md`](1-for-ai/architecture.md) | 整体架构（Pipeline → Frontend/Engine/BackEnd → Mode） |
 | [`1-for-ai/frontend.md`](1-for-ai/frontend.md) | Frontend 模块详解（子类、子阶段、数据流） |
 | [`1-for-ai/build-system.md`](1-for-ai/build-system.md) | CMake 构建系统（CMAKE_PLATFORM、条件编译） |
 | [`1-for-ai/data-flow.md`](1-for-ai/data-flow.md) | 端到端数据流（mp4 → demux → decode → infer → composite） |
