@@ -57,5 +57,5 @@ private:
     bool dump_enabled_ = false;
     helmsman::cvkit::Base cvkit_;
 
-    sa acc_resize_{"  resize"};
+    sa acc_resize_{"  1/1-resize"};
 };

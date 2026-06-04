@@ -130,9 +130,9 @@ class MattingBackend {
 
 	// Timing accumulators (top-level, reported by RVMMode)
 	using sa = helmsman::utils::timing::StageAccumulator;
-	sa acc_postprocess_{"postprocess"};
-	sa acc_composite_{"composite"};
-	sa acc_display_{"  display"};
+	sa acc_postprocess_{"1/3-postprocess"};
+	sa acc_composite_{"2/3-composite"};
+	sa acc_display_{"  3/3-display"};
 	sa acc_total_{"backend(total)"};
 
 	cv::Mat nchwToHwc(const TensorData& tensor);

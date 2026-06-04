@@ -94,7 +94,7 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 
 	// Sub-step timing accumulators (reported via DoReportSubStepTimers)
 	using sa = helmsman::utils::timing::StageAccumulator;
-	sa acc_write_input_{"  write_input_buffers"};
-	sa acc_execute_npu_{"  execute_npu"};
-	sa acc_read_output_{"  read_output_buffers"};
+	sa acc_write_input_{"  1/3-write_input_buffers"};
+	sa acc_execute_npu_{"  2/3-execute_npu"};
+	sa acc_read_output_{"  3/3-read_output_buffers"};
 };

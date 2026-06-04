@@ -188,9 +188,9 @@ private:
     StageTiming next_timing_;
 
     // Timing
-    helmsman::utils::timing::StageAccumulator acc_lv03_02_frontend_read_{"read_input_source"};
-    helmsman::utils::timing::StageAccumulator acc_lv03_03_frontend_decode_{"decode_frame"};
-    helmsman::utils::timing::StageAccumulator acc_lv03_04_frontend_color_convert_{"convert_to_bgr"};
-    helmsman::utils::timing::StageAccumulator acc_lv03_05_frontend_preprocess_{"preprocess"};
+    helmsman::utils::timing::StageAccumulator acc_lv03_02_frontend_read_{"1/4-read_input_source"};
+    helmsman::utils::timing::StageAccumulator acc_lv03_03_frontend_decode_{"2/4-decode_frame"};
+    helmsman::utils::timing::StageAccumulator acc_lv03_04_frontend_color_convert_{"3/4-convert_to_bgr"};
+    helmsman::utils::timing::StageAccumulator acc_lv03_05_frontend_preprocess_{"4/4-preprocess"};
     helmsman::utils::timing::StageAccumulator acc_total_{"frontend(total)"};
 };
