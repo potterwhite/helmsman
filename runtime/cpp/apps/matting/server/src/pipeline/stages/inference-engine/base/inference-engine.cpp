@@ -118,6 +118,10 @@ void InferenceEngine::DoReportSubStepTimers(bool /*timing_enabled*/,
 	// No-op: base class has no sub-step accumulators.
 }
 
+std::vector<std::pair<std::string, double>> InferenceEngine::GetLastSubTimings() const {
+	return {};
+}
+
 // ---------------------------------------------------------------------------
 // Virtual method default implementations
 // ---------------------------------------------------------------------------

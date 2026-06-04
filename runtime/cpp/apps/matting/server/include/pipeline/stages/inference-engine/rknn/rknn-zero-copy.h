@@ -61,6 +61,9 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 	// Returns shapes in the model's native layout (NHWC for RKNN).
 	std::vector<std::vector<int64_t>> GetRecurrentStateShapes() const override;
 
+	// Per-sub-step timings from the most recent Infer() call.
+	std::vector<std::pair<std::string, double>> GetLastSubTimings() const override;
+
    protected:
 	void DoInfer(const std::vector<TensorData>& inputs, std::vector<TensorData>& outputs) override;
 	bool SwapRecurrentStateBuffers(std::size_t n_states, std::size_t input_offset,
@@ -97,4 +100,9 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 	sa acc_write_input_{"  1/3-write_input_buffers"};
 	sa acc_execute_npu_{"  2/3-execute_npu"};
 	sa acc_read_output_{"  3/3-read_output_buffers"};
+
+	// Latest per-frame sub-step timings (returned by GetLastSubTimings)
+	double last_write_input_ms_ = 0;
+	double last_execute_npu_ms_ = 0;
+	double last_read_output_ms_ = 0;
 };

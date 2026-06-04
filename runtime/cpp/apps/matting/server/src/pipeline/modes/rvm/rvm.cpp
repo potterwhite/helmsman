@@ -386,7 +386,17 @@ void RVMMode::_RunMainLoop(InferenceEngine* engine, const RvmModelState& setup) 
 		                     "ms; convert_to_bgr: " + fm(result->color_convert_ms) +
 		                     "ms; preprocess: " + fm(result->preprocess_ms) + "ms)",
 		                 kRvmModuleName);
-		GetLogger().Info("  inference(infer: " + fm(infer_ms) + "ms)", kRvmModuleName);
+		{
+			std::string infer_line = "  inference(";
+			auto sub = engine->GetLastSubTimings();
+			for (std::size_t i = 0; i < sub.size(); ++i) {
+				if (i > 0) infer_line += "; ";
+				infer_line += sub[i].first + ": " + fm(sub[i].second) + "ms";
+			}
+			if (!sub.empty()) infer_line += "; ";
+			infer_line += "total: " + fm(infer_ms) + "ms)";
+			GetLogger().Info(infer_line, kRvmModuleName);
+		}
 		GetLogger().Info("  backend(postprocess: " + fm(postprocess_ms) + "ms; composite: " +
 		                     fm(composite_ms) + "ms; display: " + fm(display_ms) + "ms)",
 		                 kRvmModuleName);

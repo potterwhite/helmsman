@@ -23,6 +23,7 @@
 #pragma once
 #include <cstddef>
 #include <string>
+#include <utility>
 #include <vector>
 #include "Utils/timing/timer.h"
 #include "common/types.h"
@@ -67,6 +68,11 @@ class InferenceEngine {
 	const helmsman::utils::timing::StageAccumulator& infer_acc() const { return infer_acc_; }
 	void ReportAccumulatedTimers(bool timing_enabled, helmsman::utils::Logger& logger,
 	                              std::string_view module) const;
+
+	// Return per-sub-step timings from the most recent Infer() call.
+	// Each pair is {label, ms}. Default: empty (no sub-steps).
+	// Subclasses with sub-step instrumentation override this.
+	virtual std::vector<std::pair<std::string, double>> GetLastSubTimings() const;
 
 	// --- Query (unchanged) ---
 	virtual int GetInputHeight() const;

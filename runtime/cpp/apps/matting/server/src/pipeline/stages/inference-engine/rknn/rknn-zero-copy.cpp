@@ -306,7 +306,8 @@ void InferenceEngineRKNNZeroCP::WriteInputBuffers1st(const std::vector<TensorDat
 		}
 	}
 
-	acc_write_input_.record(t.stop());
+	last_write_input_ms_ = t.stop();
+	acc_write_input_.record(last_write_input_ms_);
 }
 
 // ============================================================================
@@ -332,7 +333,8 @@ void InferenceEngineRKNNZeroCP::ExecuteNpu2nd() {
 		RKNNQuery::PerfDetail6th(ctx_);
 	}
 
-	acc_execute_npu_.record(t.stop());
+	last_execute_npu_ms_ = t.stop();
+	acc_execute_npu_.record(last_execute_npu_ms_);
 }
 
 // ============================================================================
@@ -428,7 +430,8 @@ void InferenceEngineRKNNZeroCP::ReadOutputBuffers3rd(const std::vector<TensorDat
 			logged_names = true;
 	}
 
-	acc_read_output_.record(t.stop());
+	last_read_output_ms_ = t.stop();
+	acc_read_output_.record(last_read_output_ms_);
 }
 
 // ============================================================================
@@ -472,6 +475,17 @@ void InferenceEngineRKNNZeroCP::DoReportSubStepTimers(
 	acc_execute_npu_.report(timing_enabled, logger, module);
 	acc_read_output_.report(timing_enabled, logger, module);
 	logger.Info("", module);  // blank line after sub-steps
+}
+
+// ============================================================================
+// GetLastSubTimings — per-sub-step timings from the most recent Infer() call
+// ============================================================================
+std::vector<std::pair<std::string, double>> InferenceEngineRKNNZeroCP::GetLastSubTimings() const {
+	return {
+	    {"write_input_buffers", last_write_input_ms_},
+	    {"execute_npu", last_execute_npu_ms_},
+	    {"read_output_buffers", last_read_output_ms_},
+	};
 }
 
 // ============================================================================
