@@ -100,6 +100,7 @@ void Pipeline::Init(const AppConfig& config) {
 	backend_.SetOutputPath(config_.output_bin_path);
 	backend_.SetBackgroundPath(config_.background_path);
 	backend_.SetDumpEnabled(config_.dump_enabled);
+	backend_.SetDiagEnabled(config_.diag_enabled);
 
 	// 4. Inject dependencies into modes
 	rvm_mode_.SetConfig(config_);

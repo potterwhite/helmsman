@@ -58,6 +58,10 @@ void MattingBackend::SetDumpEnabled(bool enabled) {
 	dump_enabled_ = enabled;
 }
 
+void MattingBackend::SetDiagEnabled(bool enabled) {
+	diag_enabled_ = enabled;
+}
+
 void MattingBackend::SetPostProcessor(std::shared_ptr<BasePostProcessor> processor) {
 	post_processor_ = std::move(processor);
 }
@@ -396,14 +400,15 @@ cv::Mat MattingBackend::Postprocess(const std::vector<TensorData>& outputs,
 	cv::Mat A_hwc = nchw4_to_hwc4(td_A->data);  // CV_32FC4, dH×dW
 	cv::Mat b_hwc = nchw4_to_hwc4(td_b->data);  // CV_32FC4, dH×dW
 
-	logger.Info("Backend(no-resize) data: A.data=" + std::to_string(td_A->data.size()) +
-	            " b.data=" + std::to_string(td_b->data.size()) +
-	            " src.data=" + std::to_string(src_tensor.data.size()) +
-	            " A_hwc=" + std::to_string(A_hwc.cols) + "x" + std::to_string(A_hwc.rows) +
-	            "ch" + std::to_string(A_hwc.channels()) +
-	            " b_hwc=" + std::to_string(b_hwc.cols) + "x" + std::to_string(b_hwc.rows) +
-	            "ch" + std::to_string(b_hwc.channels()),
-	            kcurrent_module_name);
+	if (diag_enabled_)
+		logger.Info("Backend(no-resize) data: A.data=" + std::to_string(td_A->data.size()) +
+		            " b.data=" + std::to_string(td_b->data.size()) +
+		            " src.data=" + std::to_string(src_tensor.data.size()) +
+		            " A_hwc=" + std::to_string(A_hwc.cols) + "x" + std::to_string(A_hwc.rows) +
+		            "ch" + std::to_string(A_hwc.channels()) +
+		            " b_hwc=" + std::to_string(b_hwc.cols) + "x" + std::to_string(b_hwc.rows) +
+		            "ch" + std::to_string(b_hwc.channels()),
+		            kcurrent_module_name);
 
 	// =========================================================================
 	// Low-resolution guided filter combination (optimized path)

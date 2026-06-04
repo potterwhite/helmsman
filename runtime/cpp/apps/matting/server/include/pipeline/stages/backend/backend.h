@@ -42,6 +42,7 @@ class MattingBackend {
 	void SetBackgroundPath(const std::string& path);
 	void SetForegroundImagePath(const std::string& path);
 	void SetDumpEnabled(bool enabled);
+	void SetDiagEnabled(bool enabled);
 
 	/**
 	 * Attach an optional post-processor (e.g. GuidedFilterPostProcessor).
@@ -121,6 +122,7 @@ class MattingBackend {
 	std::string background_path_;
 	std::string foreground_image_path_;
 	bool dump_enabled_ = false;
+	bool diag_enabled_ = false;
 
 	std::shared_ptr<BasePostProcessor> post_processor_;  // nullptr = no post-processing
 	int process_count_ = 0;  // counts postprocess() calls; used for per-frame debug dump
@@ -132,7 +134,7 @@ class MattingBackend {
 	using sa = helmsman::utils::timing::StageAccumulator;
 	sa acc_postprocess_{"1/3-postprocess"};
 	sa acc_composite_{"2/3-composite"};
-	sa acc_display_{"  3/3-display"};
+	sa acc_display_{"3/3-display"};
 	sa acc_total_{"backend(total)"};
 
 	cv::Mat nchwToHwc(const TensorData& tensor);
