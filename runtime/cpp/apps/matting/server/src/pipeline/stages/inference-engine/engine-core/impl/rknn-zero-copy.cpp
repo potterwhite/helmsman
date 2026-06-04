@@ -265,12 +265,15 @@ void InferenceEngineRKNNZeroCP::WriteInputBuffers1st(const std::vector<TensorDat
 		                         std::to_string(inputs.size()));
 	}
 
+	helmsman::utils::timing::ManualTimer t_tensor;
 	for (uint32_t i = 0; i < io_num_.n_input; ++i) {
 		const TensorData& td = inputs[i];
 		const rknn_tensor_attr& attr = input_attrs_[i];
 
 		bool is_int8 = (attr.type == RKNN_TENSOR_INT8 || attr.type == RKNN_TENSOR_UINT8);
 		bool is_fp16 = (attr.type == RKNN_TENSOR_FLOAT16);
+
+		t_tensor.start();
 
 		if (is_int8) {
 			int8_t* dst = reinterpret_cast<int8_t*>(input_mems_[i]->virt_addr);
@@ -302,6 +305,12 @@ void InferenceEngineRKNNZeroCP::WriteInputBuffers1st(const std::vector<TensorDat
 			float* dst = reinterpret_cast<float*>(input_mems_[i]->virt_addr);
 			std::memcpy(dst, td.data.data(), td.data.size() * sizeof(float));
 		}
+
+		double tensor_ms = t_tensor.stop();
+		if (i == 0)
+			acc_write_src_.record(tensor_ms);
+		else
+			acc_write_rstate_.record(tensor_ms);
 	}
 
 	last_write_input_ms_ = t.stop();
@@ -470,6 +479,8 @@ void InferenceEngineRKNNZeroCP::DoReportSubStepTimers(
     bool timing_enabled, helmsman::utils::Logger& logger,
     std::string_view module) const {
 	acc_write_input_.report(timing_enabled, logger, module);
+	acc_write_src_.report(timing_enabled, logger, module);
+	acc_write_rstate_.report(timing_enabled, logger, module);
 	acc_execute_npu_.report(timing_enabled, logger, module);
 	acc_read_output_.report(timing_enabled, logger, module);
 	logger.Info("", module);  // blank line after sub-steps
