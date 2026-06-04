@@ -211,7 +211,7 @@ void RVMMode::_ReportAllAccumulatedTimers(void) {
 	backend_->ReportAccumulatedTimers(true, GetLogger(), kRvmModuleName);
 
 	GetLogger().Info("────────── Overall ──────────", kRvmModuleName);
-	acc_lv03_01_mainloop.report(true, GetLogger(), kRvmModuleName, "mainloop (per frame)");
+	acc_lv03_01_mainloop.report(true, GetLogger(), kRvmModuleName);
 
 	GetLogger().Info("═══════════ End of Accumulated Timing Stats ═══════════", kRvmModuleName);
 	GetLogger().Info("", kRvmModuleName);

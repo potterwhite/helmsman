@@ -597,12 +597,12 @@ void MattingBackend::SetBackgroundModelImage(const cv::Mat& bg) {
 void MattingBackend::ReportAccumulatedTimers(bool timing_enabled,
                                               helmsman::utils::Logger& logger,
                                               std::string_view module) const {
-	acc_postprocess_.report(timing_enabled, logger, module, "postprocess");
-	acc_composite_.report(timing_enabled, logger, module, "composite");
-	acc_display_.report(timing_enabled, logger, module, "  display");
+	acc_postprocess_.report(timing_enabled, logger, module);
+	acc_composite_.report(timing_enabled, logger, module);
+	acc_display_.report(timing_enabled, logger, module);
 
 	logger.Info("", module);    // blank line for separation
-	acc_total_.report(timing_enabled, logger, module, "backend(total)");
+	acc_total_.report(timing_enabled, logger, module);
 	logger.Info("", module);    // blank line for separation
 }
 

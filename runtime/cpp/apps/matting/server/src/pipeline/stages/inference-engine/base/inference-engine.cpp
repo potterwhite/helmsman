@@ -105,7 +105,7 @@ double InferenceEngine::Infer(const std::vector<TensorData>& inputs,
 void InferenceEngine::ReportAccumulatedTimers(bool timing_enabled, helmsman::utils::Logger& logger,
                                               std::string_view module) const {
 	DoReportSubStepTimers(timing_enabled, logger, module);  // subclass hook (default: no-op)
-	infer_acc_.report(timing_enabled, logger, module, "infer");
+	infer_acc_.report(timing_enabled, logger, module);
 	logger.Info("", module);  // blank line for separation
 }
 

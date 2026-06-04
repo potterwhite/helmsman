@@ -468,9 +468,9 @@ void InferenceEngineRKNNZeroCP::DoInfer(const std::vector<TensorData>& inputs,
 void InferenceEngineRKNNZeroCP::DoReportSubStepTimers(
     bool timing_enabled, helmsman::utils::Logger& logger,
     std::string_view module) const {
-	acc_write_input_.report(timing_enabled, logger, module, "  write_input_buffers");
-	acc_execute_npu_.report(timing_enabled, logger, module, "  execute_npu");
-	acc_read_output_.report(timing_enabled, logger, module, "  read_output_buffers");
+	acc_write_input_.report(timing_enabled, logger, module);
+	acc_execute_npu_.report(timing_enabled, logger, module);
+	acc_read_output_.report(timing_enabled, logger, module);
 	logger.Info("", module);  // blank line after sub-steps
 }
 

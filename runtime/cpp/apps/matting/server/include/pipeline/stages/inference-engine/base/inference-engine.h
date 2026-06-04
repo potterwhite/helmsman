@@ -113,6 +113,6 @@ class InferenceEngine {
 
    private:
 	RecurrentStateManager state_mgr_;
-	helmsman::utils::timing::StageAccumulator infer_acc_{"  Lv03-03::mainloop::inferenceengine::infer"};
+	helmsman::utils::timing::StageAccumulator infer_acc_{"infer"};
 	float dsr_ = 0.25f;
 };

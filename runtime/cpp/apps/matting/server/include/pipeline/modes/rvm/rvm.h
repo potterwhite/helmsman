@@ -134,7 +134,7 @@ class RVMMode {
 	// ------------------------------------------------------------------------- */
 	using sa = helmsman::utils::timing::StageAccumulator;
 
-	sa acc_lv03_01_mainloop{"Lv03-01::mainloop"};
+	sa acc_lv03_01_mainloop{"mainloop (per frame)"};
 	// Sub-stage accumulators moved to their respective stage classes:
 	//   frontend → FrontendBase::total_acc()
 	//   inference → InferenceEngine::infer_acc()

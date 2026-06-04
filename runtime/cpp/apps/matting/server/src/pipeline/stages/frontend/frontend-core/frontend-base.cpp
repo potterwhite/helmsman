@@ -99,14 +99,14 @@ const helmsman::utils::timing::StageAccumulator& FrontendBase::total_acc() const
 
 void FrontendBase::ReportAccumulatedTimers(bool timing_enabled, helmsman::utils::Logger& logger,
                                            std::string_view module) const {
-	read_input_acc().report(timing_enabled, logger, module, "read_input_source");
-	decode_acc().report(timing_enabled, logger, module, "decode_frame");
-	color_convert_acc().report(timing_enabled, logger, module, "convert_to_bgr");
-	preprocess_acc().report(timing_enabled, logger, module, "preprocess");
-	resize_acc().report(timing_enabled, logger, module, "  resize");
+	read_input_acc().report(timing_enabled, logger, module);
+	decode_acc().report(timing_enabled, logger, module);
+	color_convert_acc().report(timing_enabled, logger, module);
+	preprocess_acc().report(timing_enabled, logger, module);
+	resize_acc().report(timing_enabled, logger, module);
 
 	logger.Info("", module);    // blank line for separation
-	acc_total_.report(timing_enabled, logger, module, "frontend(total)");
+	acc_total_.report(timing_enabled, logger, module);
     logger.Info("", module);    // blank line for separation
 }
 
