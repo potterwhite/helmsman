@@ -26,8 +26,7 @@
 
 #include "Utils/pch.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace utils {
 
 class ConsoleSink : public LogSink {
@@ -39,5 +38,4 @@ class ConsoleSink : public LogSink {
 };
 
 }  // namespace utils
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

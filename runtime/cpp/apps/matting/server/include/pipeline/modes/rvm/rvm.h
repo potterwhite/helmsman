@@ -1,0 +1,153 @@
+// Copyright (c) 2026 PotterWhite
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+#pragma once
+
+#include <cstdint>
+#include <memory>
+#include <opencv2/videoio.hpp>
+#include <string>
+#include <vector>
+#include "DRMKit/drm_display.h"
+// #include "DmaKit/dma_buffer.h"  // DMA output: currently disabled
+#include "Utils/timing/timer.h"
+#include "common/types.h"
+#include "pipeline/stages/backend/backend.h"
+#include "pipeline/stages/frontend/frontend-core/frontend.h"
+#include "pipeline/stages/inference-engine/engine-core/inference-engine.h"
+
+/**
+ * Holds the resolved model input dimensions returned by RVMMode::InitModelState().
+ * Kept outside the class — no need to nest a plain data struct inside a class.
+ */
+struct RvmModelState {
+	int model_input_height;
+	int model_input_width;
+};
+
+class RVMMode {
+   public:
+	void SetEngine(InferenceEngine* engine);
+	void SetFrontend(FrontEnd* frontend);
+	void SetBackend(BackEnd* backend);
+	void SetAppConfig(const AppConfig& config);
+
+	int Run();
+
+   private:
+	/**
+     * Load the model and resolve model input dimensions.
+     * Returns the resolved model dimensions needed by the multithread worker.
+     */
+	RvmModelState InitModelState(InferenceEngine* engine);
+
+	bool _OpenVideoWriter(cv::VideoWriter& writer, const std::string& path, int width, int height,
+	                      double fps);
+
+	void InitBackgroundImage(int width, int height);
+
+	// Composite: blend alpha with background, write result to composed, return elapsed ms.
+	double _Composite(const cv::Mat& frame, const cv::Mat& alpha_8u, int model_w,
+	                  int model_h, int output_w, int output_h, cv::Mat& composed);
+
+	// Display: deliver composited frame to output sink, return elapsed ms.
+	double _Display(const cv::Mat& composed, int output_w, int output_h);
+
+	/**
+	 * Unified main loop. Uses Frontend::ProcessOneFrame() which handles
+	 * both sync and multithread modes internally.
+	 */
+	void _RunMainLoop(InferenceEngine* engine, const RvmModelState& setup);
+
+	/**
+	* Report all accumulated timers via logger. Called at the end of run() after the main loop exits.
+	*/
+	void _ReportAllAccumulatedTimers(void);
+
+	/**
+	 * Perform any necessary cleanup of resources (e.g. DRM buffer release) before exiting run().
+	 */
+	void _DoCleaningThings(const std::chrono::steady_clock::time_point& pipeline_start,
+	                       const std::string& output_video_path);
+
+	/**
+	 * Shared output path for both output modes (MP4 file or DRM display). Sets up the VideoWriter if needed.
+	 */
+	void InitOutputSink(const int src_width, const int src_height, const double src_fps,
+	                    const std::string& output_video_path, const OutputMode output_mode);
+
+   private:
+	// Member variables
+	InferenceEngine* engine_ = nullptr;  // Non-owning; owned by Pipeline
+	FrontEnd* frontend_ = nullptr;   // Non-owning; owned by Pipeline
+	BackEnd* backend_ = nullptr;  // Non-owning; owned by Pipeline
+	AppConfig config_;                   // Copy of the app config, set via SetConfig()
+	// DMA zero-copy output: currently disabled.
+	// std::unique_ptr<helmsman::dmakit::DmaBuffer> dma_output_buf_;
+
+	// DRM display (initialized when output_mode == kDrm)
+	helmsman::drmkit::DrmDisplay drm_display_;
+	std::vector<uint8_t> argb_buf_;  // reusable buffer for BGR→XRGB conversion
+
+	/* -------------------------------------------------------------------------
+	// Pipeline timing layout (s11 — full coverage)
+	//
+	// Whole-run timers (overlap with the above; cheap, kept for context)
+	//
+	//   ScopedTimer "Lv01::pipeline.run() total"                 (pipeline.cpp)   — outermost
+	//   ScopedTimer "Lv02::pipeline::RVMMode::run()"             (this fn)        — wraps loop
+	//   ScopedTimer "Lv03::pipeline::RVMMode::_RunMainLoop()"    (this fn)        — model load only
+	//
+	// Per-frame wall clock breakdown
+	//
+	//   [main thread]                                                      [worker thread]
+	//   acc_lv03_01_mainloop  (whole iteration)
+	//     ├── FrontEnd::total_acc_                           ◄── frontend sub-timers
+	//     ├── InferenceEngine::infer_acc_                                (NPU inference)
+	//     └── BackEnd::total_acc_  ◄── postprocess + composite + display
+	//
+	//
+	//   [FPS]   line every 30 frames                                         — moving fps
+	//   [PerFrame] line every frame                                          — infer + comp
+	//
+	// Identity (approx, ignoring tiny logging overhead):
+	//   acc_lv03_01_mainloop ≈ FrontEnd::total_acc_ + InferenceEngine::infer_acc_ + BackEnd::total_acc_
+	//   FrontEnd::total_acc_ ≈ read + decode + color_convert + preprocess
+	//   BackEnd::total_acc_ ≈ postprocess + composite + display
+	// ------------------------------------------------------------------------- */
+	using sa = helmsman::utils::timing::StageAccumulator;
+
+	sa acc_lv03_01_mainloop{"mainloop (per frame)"};
+	// Sub-stage accumulators moved to their respective stage classes:
+	//   frontend → FrontEnd::total_acc()
+	//   inference → InferenceEngine::infer_acc()
+	//   postprocess/composite/display → BackEnd
+
+	size_t frame_count_ = 0;
+	std::chrono::steady_clock::time_point fps_window_start_;
+
+	cv::VideoWriter video_writer_;
+
+	// DMA zero-copy output: currently disabled.
+	// const bool use_dma_output_ = false;
+
+	int drm_panel_w_ = 0;
+	int drm_panel_h_ = 0;
+};

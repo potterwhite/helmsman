@@ -27,7 +27,7 @@
 #include "Runtime/common/common-types.h"
 #include "Runtime/pch.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace runtime {
 
 // forward declaration of PIMPL implementation class
@@ -61,4 +61,4 @@ class RuntimeONNX {
 };
 
 }  // namespace runtime
-}  // namespace arcforge
+}  // namespace helmsman

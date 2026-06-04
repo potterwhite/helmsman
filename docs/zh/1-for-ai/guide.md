@@ -2,7 +2,6 @@
 
 > **目标读者**：AI 编码 Agent（Claude Code、Cursor 等）
 > **碰任何代码之前请先读本文档。**
-> **English →** [../../en/1-for-ai/guide.md](../../en/1-for-ai/guide.md)
 
 ---
 
@@ -208,8 +207,8 @@ python3 tools/MODNet/verify_golden_tensor.py
 python3 tools/MODNet/reconstruct_from_bin.py
 
 # C++ 二进制用法（安装后）
-# runtime/cpp/install/<platform>/release/bin/Helmsman_Matting_Client
-Helmsman_Matting_Client <image_path> <model_path> <output_dir> [background_path]
+# runtime/cpp/install/<platform>/release/bin/Helmsman_Matting_Server
+Helmsman_Matting_Server <image_path> <model_path> <output_dir> [background_path] [--rvm]
 ```
 
 ---

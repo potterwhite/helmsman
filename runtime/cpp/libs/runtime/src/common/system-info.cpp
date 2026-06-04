@@ -23,28 +23,28 @@
 // IMPORTANT: Import from CMakeLists.txt externally
 #include "system-info.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace runtime {
 
-std::string get_arcforge_runtime_library_version() {
+std::string get_helmsman_runtime_library_version() {
 
 	return VERSION_STRING;
 }
 
-std::string get_arcforge_runtime_library_author() {
+std::string get_helmsman_runtime_library_author() {
 
 	return AUTHOR_NAME;
 }
 
-std::string get_arcforge_runtime_library_author_email() {
+std::string get_helmsman_runtime_library_author_email() {
 
 	return AUTHOR_EMAIL;
 }
 
-std::string get_arcforge_runtime_library_build_timestamp() {
+std::string get_helmsman_runtime_library_build_timestamp() {
 
 	return BUILD_TIMESTAMP;
 }
 
 }  // namespace runtime
-}  // namespace arcforge
+}  // namespace helmsman

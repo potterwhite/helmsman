@@ -21,8 +21,7 @@
 #include "Utils/logger/worker/consolesink.h"
 #include "Utils/logger/logger.h"  // For LoggerLevel enum
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace utils {
 
 static std::string format_timestamp(const std::chrono::system_clock::time_point& tp) {
@@ -76,5 +75,4 @@ void ConsoleSink::log(const LogEntry& entry) {
 }
 
 }  // namespace utils
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

@@ -63,7 +63,7 @@ log_benchmark "=========================================="
 log_benchmark "Testing INT8 v1 (WITH normalization)"
 log_benchmark "=========================================="
 
-sshpass -p "${REMOTE_PASSWORD}" ssh "${REMOTE_HOST}" "cd ${REMOTE_TEST_DIR} && Helmsman_Matting_Client ${TEST_IMAGE} ${INT8_V1_MODEL} ${TEST_OUTPUT_DIR}" 2>&1 | tee /tmp/int8_v1_inference.log
+sshpass -p "${REMOTE_PASSWORD}" ssh "${REMOTE_HOST}" "cd ${REMOTE_TEST_DIR} && Helmsman_Matting_Server ${TEST_IMAGE} ${INT8_V1_MODEL} ${TEST_OUTPUT_DIR}" 2>&1 | tee /tmp/int8_v1_inference.log
 
 V1_EXIT_CODE=${PIPESTATUS[0]}
 
@@ -85,7 +85,7 @@ log_benchmark "=========================================="
 log_benchmark "Testing INT8 v2 (WITHOUT normalization)"
 log_benchmark "=========================================="
 
-sshpass -p "${REMOTE_PASSWORD}" ssh "${REMOTE_HOST}" "cd ${REMOTE_TEST_DIR} && Helmsman_Matting_Client ${TEST_IMAGE} ${INT8_V2_MODEL} ${TEST_OUTPUT_DIR}" 2>&1 | tee /tmp/int8_v2_inference.log
+sshpass -p "${REMOTE_PASSWORD}" ssh "${REMOTE_HOST}" "cd ${REMOTE_TEST_DIR} && Helmsman_Matting_Server ${TEST_IMAGE} ${INT8_V2_MODEL} ${TEST_OUTPUT_DIR}" 2>&1 | tee /tmp/int8_v2_inference.log
 
 V2_EXIT_CODE=${PIPESTATUS[0]}
 

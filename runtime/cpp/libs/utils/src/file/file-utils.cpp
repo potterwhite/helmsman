@@ -22,7 +22,7 @@
 #include <iostream>
 #include <sstream>
 
-namespace arcforge {
+namespace helmsman {
 namespace utils {
 
 FileUtils& FileUtils::GetInstance() {
@@ -51,4 +51,4 @@ void FileUtils::dumpBinary(const std::vector<float>& vec, const std::string& out
 }
 
 }  // namespace utils
-}  // namespace arcforge
+}  // namespace helmsman

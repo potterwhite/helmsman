@@ -25,8 +25,7 @@
 #include "Utils/pch.h"
 #include "log_entry.h"
 
-namespace arcforge {
-namespace embedded {
+namespace helmsman {
 namespace utils {
 
 // logsink abstract base class defining a common interface for all sinks
@@ -39,5 +38,4 @@ class LogSink {
 };
 
 }  // namespace utils
-}  // namespace embedded
-}  // namespace arcforge
+}  // namespace helmsman

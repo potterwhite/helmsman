@@ -21,10 +21,10 @@
 #include "Runtime/common/common-types.h"
 // #include "Runtime/onnx/onnx.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace runtime {
 
 const std::string_view kcurrent_lib_name = PROJECT_NAME;
 
 }  // namespace runtime
-}  // namespace arcforge
+}  // namespace helmsman

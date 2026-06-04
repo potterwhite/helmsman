@@ -21,4 +21,5 @@
 # apps/CMakeLists.txt
 
 add_subdirectory(matting)
+add_subdirectory(drm_test_red)
 

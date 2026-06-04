@@ -51,7 +51,7 @@ log_benchmark "=========================================="
 log_benchmark "Testing INT8 384x384"
 log_benchmark "=========================================="
 
-sshpass -p "${REMOTE_PASSWORD}" ssh "${REMOTE_HOST}" "cd ${REMOTE_TEST_DIR} && Helmsman_Matting_Client ${TEST_IMAGE} ${INT8_384_MODEL} ${TEST_OUTPUT_DIR}" 2>&1 | tee /tmp/int8_384_test.log
+sshpass -p "${REMOTE_PASSWORD}" ssh "${REMOTE_HOST}" "cd ${REMOTE_TEST_DIR} && Helmsman_Matting_Server ${TEST_IMAGE} ${INT8_384_MODEL} ${TEST_OUTPUT_DIR}" 2>&1 | tee /tmp/int8_384_test.log
 
 EXIT_CODE=${PIPESTATUS[0]}
 

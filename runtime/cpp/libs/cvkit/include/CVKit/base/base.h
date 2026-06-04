@@ -26,7 +26,7 @@
 #include "CVKit/common/common-types.h"
 #include "CVKit/pch.h"
 
-namespace arcforge {
+namespace helmsman {
 namespace cvkit {
 
 // forward declaration of PIMPL implementation class
@@ -62,4 +62,4 @@ class Base {
 };
 
 }  // namespace cvkit
-}  // namespace arcforge
+}  // namespace helmsman

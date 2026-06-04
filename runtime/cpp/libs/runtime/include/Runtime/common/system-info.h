@@ -23,20 +23,20 @@
 #pragma once
 #include <string>
 
-namespace arcforge {
+namespace helmsman {
 namespace runtime {
 
 /**
  * @brief Obtain the library's compile-time version string.
  * @return A string in the format "major.minor.patch".
  */
-std::string get_arcforge_runtime_library_version();
+std::string get_helmsman_runtime_library_version();
 
-std::string get_arcforge_runtime_library_author();
+std::string get_helmsman_runtime_library_author();
 
-std::string get_arcforge_runtime_library_author_email();
+std::string get_helmsman_runtime_library_author_email();
 
-std::string get_arcforge_runtime_library_build_timestamp();
+std::string get_helmsman_runtime_library_build_timestamp();
 
 }  // namespace runtime
-}  // namespace arcforge
+}  // namespace helmsman
