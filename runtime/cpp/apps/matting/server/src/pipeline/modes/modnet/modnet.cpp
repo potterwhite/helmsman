@@ -56,15 +56,30 @@ void MODNetMode::_Display(const cv::Mat& result, int output_w, int output_h) {
 		// ----- DRM show Mode -----
 		const int n_pixels = output_w * output_h;
 		argb_buf_.resize(static_cast<size_t>(n_pixels) * 4);
-		const uint8_t* bgr = result.ptr<uint8_t>(0);
 		uint8_t* xrgb = argb_buf_.data();
-		for (int i = 0; i < n_pixels; ++i) {
-			xrgb[0] = bgr[0];  // B → B
-			xrgb[1] = bgr[1];  // G → G
-			xrgb[2] = bgr[2];  // R → R
-			xrgb[3] = 0xFF;    // X (padding)
-			bgr += 3;
-			xrgb += 4;
+
+		if (result.channels() == 1) {
+			// Single channel alpha matte - display as grayscale
+			const uint8_t* alpha = result.ptr<uint8_t>(0);
+			for (int i = 0; i < n_pixels; ++i) {
+				xrgb[0] = alpha[0];  // B
+				xrgb[1] = alpha[0];  // G
+				xrgb[2] = alpha[0];  // R
+				xrgb[3] = 0xFF;      // X (padding)
+				alpha++;
+				xrgb += 4;
+			}
+		} else {
+			// 3-channel BGR image
+			const uint8_t* bgr = result.ptr<uint8_t>(0);
+			for (int i = 0; i < n_pixels; ++i) {
+				xrgb[0] = bgr[0];  // B → B
+				xrgb[1] = bgr[1];  // G → G
+				xrgb[2] = bgr[2];  // R → R
+				xrgb[3] = 0xFF;    // X (padding)
+				bgr += 3;
+				xrgb += 4;
+			}
 		}
 		drm_display_.ShowARGB(argb_buf_.data());
 	}
