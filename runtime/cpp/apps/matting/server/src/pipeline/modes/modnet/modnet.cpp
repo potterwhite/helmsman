@@ -32,6 +32,45 @@ void MODNetMode::SetEngine(InferenceEngine* engine) { engine_ = engine; }
 void MODNetMode::SetBackend(BackEnd* backend) { backend_ = backend; }
 void MODNetMode::SetAppConfig(const AppConfig& config) { config_ = config; }
 
+void MODNetMode::_InitOutputSink(int src_width, int src_height) {
+	auto& logger = helmsman::utils::Logger::GetInstance();
+
+	if (config_.output_mode == OutputMode::kDrm) {
+		if (drm_display_.Init(src_width, src_height)) {
+			std::tie(drm_panel_w_, drm_panel_h_) = drm_display_.PanelSize();
+			logger.Info("DRM display initialized: panel " + std::to_string(drm_panel_w_) +
+			                 "x" + std::to_string(drm_panel_h_),
+			            kModnetModuleName);
+		} else {
+			logger.Warning("DRM init failed. Falling back to mp4.", kModnetModuleName);
+			config_.output_mode = OutputMode::kMp4;
+		}
+	}
+}
+
+void MODNetMode::_Display(const cv::Mat& result, int output_w, int output_h) {
+	if (result.empty())
+		return;
+
+	if (config_.output_mode == OutputMode::kDrm) {
+		// ----- DRM show Mode -----
+		const int n_pixels = output_w * output_h;
+		argb_buf_.resize(static_cast<size_t>(n_pixels) * 4);
+		const uint8_t* bgr = result.ptr<uint8_t>(0);
+		uint8_t* xrgb = argb_buf_.data();
+		for (int i = 0; i < n_pixels; ++i) {
+			xrgb[0] = bgr[0];  // B → B
+			xrgb[1] = bgr[1];  // G → G
+			xrgb[2] = bgr[2];  // R → R
+			xrgb[3] = 0xFF;    // X (padding)
+			bgr += 3;
+			xrgb += 4;
+		}
+		drm_display_.ShowARGB(argb_buf_.data());
+	}
+	// MP4 mode: no display needed (image already saved by BackEnd)
+}
+
 int MODNetMode::Run() {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
@@ -69,11 +108,29 @@ int MODNetMode::Run() {
 	}
 
 	// 3. BackEnd: postprocess
+	cv::Mat result;
 	{
 		ScopedTimer t("runMODNet: postprocess", config_.timing_enabled, logger, kModnetModuleName);
 		backend_->SetForegroundImagePath(config_.input_path);
 		backend_->SetPostProcessor(std::make_shared<GuidedFilterPostProcessor>(2, 1e-4, 0.2f, 1));
-		backend_->Postprocess(outputs);
+		result = backend_->Postprocess(outputs);
+	}
+
+	// 4. Output: display or save
+	if (config_.output_mode == OutputMode::kDrm) {
+		// Init DRM display (original image dimensions)
+		cv::Mat original_img = cv::imread(config_.input_path, cv::IMREAD_COLOR);
+		if (!original_img.empty()) {
+			_InitOutputSink(original_img.cols, original_img.rows);
+			ScopedTimer t("runMODNet: display", config_.timing_enabled, logger, kModnetModuleName);
+			_Display(result, original_img.cols, original_img.rows);
+		}
+	}
+	// MP4 mode: image already saved by BackEnd::Postprocess()
+
+	// 5. Cleanup DRM
+	if (drm_display_.IsOpen()) {
+		drm_display_.Close();
 	}
 
 	return 0;

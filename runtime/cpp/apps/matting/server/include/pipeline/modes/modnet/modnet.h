@@ -21,10 +21,12 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include "common/types.h"
 #include "pipeline/stages/inference-engine/engine-core/inference-engine.h"
 #include "pipeline/stages/backend/backend.h"
 #include "pipeline/stages/frontend/stages/04-preprocess/preprocessor.h"
+#include "DRMKit/drm_display.h"
 
 class MODNetMode {
 public:
@@ -35,8 +37,17 @@ public:
     int Run();
 
 private:
+    void _InitOutputSink(int src_width, int src_height);
+    void _Display(const cv::Mat& result, int output_w, int output_h);
+
     InferenceEngine* engine_ = nullptr;  // Non-owning; owned by Pipeline
     BackEnd* backend_ = nullptr;  // Non-owning; owned by Pipeline
     AppConfig config_;
     Preprocessor preprocessor_;
+
+    // DRM display (initialized when output_mode == kDrm)
+    helmsman::drmkit::DrmDisplay drm_display_;
+    std::vector<uint8_t> argb_buf_;  // reusable buffer for BGR→XRGB conversion
+    int drm_panel_w_ = 0;
+    int drm_panel_h_ = 0;
 };
