@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.11.0](https://github.com/potterwhite/helmsman/compare/v0.10.0...v0.11.0) (2026-06-08)
+
+
+### ✨ Added
+
+* **rknn:** add NEON FP32↔FP16 library and clean up Exp2 flush code ([a6faae3](https://github.com/potterwhite/helmsman/commit/a6faae336678d5c7c0fd6149ed7d2e43fbdb515c))
+* **rknn:** add per-input-tensor write timing for s5_8_22_15 Exp1 ([ea676cc](https://github.com/potterwhite/helmsman/commit/ea676cc2305c9b7539f796b4a7f484d6b25c68e3))
+* **rknn:** add per-tensor cache flush timing for s5_8_22_15 Exp2 ([9ca4302](https://github.com/potterwhite/helmsman/commit/9ca430219eda7e85838f89f89ffd3de4ad59a48b))
+* **rknn:** NEON FP16 convert + per-tensor flush timing ([88b0c27](https://github.com/potterwhite/helmsman/commit/88b0c27ed05be138d0def7628ac7030dced2cd3d))
+
 ## [0.10.0](https://github.com/potterwhite/helmsman/compare/v0.9.0...v0.10.0) (2026-06-04)
 
 
