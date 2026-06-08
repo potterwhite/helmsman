@@ -132,8 +132,10 @@ int MODNetMode::Run() {
 	// 4. Output: display or save
 	if (config_.output_mode == OutputMode::kDrm) {
 		_InitOutputSink(result->frame.cols, result->frame.rows);
+		const int output_w = drm_panel_w_;
+		const int output_h = drm_panel_h_;
 		ScopedTimer t("runMODNet: display", config_.timing_enabled, logger, kModnetModuleName);
-		_Display(alpha, result->frame.cols, result->frame.rows);
+		_Display(alpha, output_w, output_h);
 	}
 	// MP4 mode: image already saved by BackEnd::Postprocess()
 
