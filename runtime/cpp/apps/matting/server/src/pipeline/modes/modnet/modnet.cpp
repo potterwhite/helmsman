@@ -54,13 +54,21 @@ void MODNetMode::_Display(const cv::Mat& result, int output_w, int output_h) {
 
 	if (config_.output_mode == OutputMode::kDrm) {
 		// ----- DRM show Mode -----
+		// Resize result to DRM panel dimensions
+		cv::Mat resized;
+		if (result.cols != output_w || result.rows != output_h) {
+			cv::resize(result, resized, cv::Size(output_w, output_h), 0, 0, cv::INTER_LINEAR);
+		} else {
+			resized = result;
+		}
+
 		const int n_pixels = output_w * output_h;
 		argb_buf_.resize(static_cast<size_t>(n_pixels) * 4);
 		uint8_t* xrgb = argb_buf_.data();
 
-		if (result.channels() == 1) {
+		if (resized.channels() == 1) {
 			// Single channel alpha matte - display as grayscale
-			const uint8_t* alpha = result.ptr<uint8_t>(0);
+			const uint8_t* alpha = resized.ptr<uint8_t>(0);
 			for (int i = 0; i < n_pixels; ++i) {
 				xrgb[0] = alpha[0];  // B
 				xrgb[1] = alpha[0];  // G
@@ -71,7 +79,7 @@ void MODNetMode::_Display(const cv::Mat& result, int output_w, int output_h) {
 			}
 		} else {
 			// 3-channel BGR image
-			const uint8_t* bgr = result.ptr<uint8_t>(0);
+			const uint8_t* bgr = resized.ptr<uint8_t>(0);
 			for (int i = 0; i < n_pixels; ++i) {
 				xrgb[0] = bgr[0];  // B → B
 				xrgb[1] = bgr[1];  // G → G
