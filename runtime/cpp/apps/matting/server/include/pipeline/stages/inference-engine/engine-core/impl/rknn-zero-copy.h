@@ -99,6 +99,12 @@ class InferenceEngineRKNNZeroCP : public InferenceEngine {
 	sa acc_execute_npu_{"  2/3-execute_npu"};
 	sa acc_read_output_{"  3/3-read_output_buffers"};
 
+	// Per-input-tensor write timing (s5_8_22_15 Exp1: granular profiling)
+	// acc_write_src_  = image tensor (input[0]), typically 60~65% of write time
+	// acc_write_rstate_ = recurrent states (input[1..N]), combined
+	sa acc_write_src_{"    1a-write_src"};
+	sa acc_write_rstate_{"    1b-write_rstate"};
+
 	// Latest per-frame sub-step timings (returned by GetLastSubTimings)
 	double last_write_input_ms_ = 0;
 	double last_execute_npu_ms_ = 0;
