@@ -56,12 +56,6 @@ void Pipeline::Init(const AppConfig& config) {
 	config_ = config;
 
 	// 1. Frontend (both video and single-image modes)
-	if (config_.is_video && config_.model_type == ModelType::kMODNet) {
-		logger.Error("MODNet does not support video input. Use --rvm for video.",
-		             kcurrent_module_name);
-		throw std::invalid_argument("MODNet does not support video input.");
-	}
-
 	try {
 		frontend_ = FrontEnd::Create(config_);
 	} catch (const std::exception& e) {
@@ -105,7 +99,7 @@ int Pipeline::Run() {
 
 	switch (config_.model_type) {
 		case ModelType::kMODNet:
-			logger.Info("Pipeline: running MODNet path (single-frame)", kcurrent_module_name);
+			logger.Info("Pipeline: running MODNet path", kcurrent_module_name);
 			return modnet_mode_.Run();
 		case ModelType::kRVM:
 			logger.Info("Pipeline: running RVM path (recurrent multi-frame)", kcurrent_module_name);

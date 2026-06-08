@@ -19,10 +19,18 @@
 // SOFTWARE.
 
 #include "pipeline/modes/modnet/modnet.h"
+#include <atomic>
 #include <chrono>
+#include <iomanip>
+#include <opencv2/imgproc.hpp>
+#include <sstream>
 #include "Utils/timing/timer.h"
+#include "common/common-define.h"
 
+using helmsman::utils::timing::ManualTimer;
 using helmsman::utils::timing::ScopedTimer;
+
+extern std::atomic<bool> g_stop_signal_received;
 
 inline constexpr std::string_view kModnetModuleName = "MODNetMode";
 
@@ -31,7 +39,7 @@ void MODNetMode::SetFrontend(FrontEnd* frontend) { frontend_ = frontend; }
 void MODNetMode::SetBackend(BackEnd* backend) { backend_ = backend; }
 void MODNetMode::SetAppConfig(const AppConfig& config) { config_ = config; }
 
-void MODNetMode::_InitOutputSink(int src_width, int src_height) {
+void MODNetMode::_InitOutputSink(int src_width, int src_height, double fps) {
 	auto& logger = helmsman::utils::Logger::GetInstance();
 
 	if (config_.output_mode == OutputMode::kDrm) {
@@ -45,6 +53,19 @@ void MODNetMode::_InitOutputSink(int src_width, int src_height) {
 			config_.output_mode = OutputMode::kMp4;
 		}
 	}
+	if (config_.output_mode == OutputMode::kMp4) {
+		const double output_fps = (fps > 0) ? fps : 30.0;
+		const std::string path = config_.output_bin_path + "/output_alpha.mp4";
+		video_writer_.open(path, cv::VideoWriter::fourcc('m', 'p', '4', 'v'), output_fps,
+		                   cv::Size(src_width, src_height));
+		if (video_writer_.isOpened()) {
+			logger.Info("VideoWriter opened: " + path + " (" + std::to_string(src_width) + "x" +
+			                 std::to_string(src_height) + " @ " + std::to_string(output_fps) + " fps)",
+			            kModnetModuleName);
+		} else {
+			logger.Warning("Failed to open VideoWriter: " + path, kModnetModuleName);
+		}
+	}
 }
 
 void MODNetMode::_Display(const cv::Mat& result, int output_w, int output_h) {
@@ -53,7 +74,6 @@ void MODNetMode::_Display(const cv::Mat& result, int output_w, int output_h) {
 
 	if (config_.output_mode == OutputMode::kDrm) {
 		// ----- DRM show Mode -----
-		// Resize result to DRM panel dimensions
 		cv::Mat resized;
 		if (result.cols != output_w || result.rows != output_h) {
 			cv::resize(result, resized, cv::Size(output_w, output_h), 0, 0, cv::INTER_LINEAR);
@@ -80,17 +100,32 @@ void MODNetMode::_Display(const cv::Mat& result, int output_w, int output_h) {
 			// 3-channel BGR image
 			const uint8_t* bgr = resized.ptr<uint8_t>(0);
 			for (int i = 0; i < n_pixels; ++i) {
-				xrgb[0] = bgr[0];  // B → B
-				xrgb[1] = bgr[1];  // G → G
-				xrgb[2] = bgr[2];  // R → R
+				xrgb[0] = bgr[0];  // B -> B
+				xrgb[1] = bgr[1];  // G -> G
+				xrgb[2] = bgr[2];  // R -> R
 				xrgb[3] = 0xFF;    // X (padding)
 				bgr += 3;
 				xrgb += 4;
 			}
 		}
 		drm_display_.ShowARGB(argb_buf_.data());
+
+	} else if (config_.output_mode == OutputMode::kMp4) {
+		// ----- VideoWriter Mode -----
+		if (video_writer_.isOpened()) {
+			// Convert single-channel alpha to 3-channel grayscale for VideoWriter
+			cv::Mat to_write;
+			if (result.channels() == 1) {
+				cv::cvtColor(result, to_write, cv::COLOR_GRAY2BGR);
+			} else {
+				to_write = result;
+			}
+			if (to_write.cols != output_w || to_write.rows != output_h) {
+				cv::resize(to_write, to_write, cv::Size(output_w, output_h));
+			}
+			video_writer_.write(to_write);
+		}
 	}
-	// MP4 mode: no display needed (image already saved by BackEnd)
 }
 
 int MODNetMode::Run() {
@@ -99,50 +134,104 @@ int MODNetMode::Run() {
 	const int model_input_height = engine_->GetInputHeight() > 0 ? engine_->GetInputHeight() : 512;
 	const int model_input_width = engine_->GetInputWidth() > 0 ? engine_->GetInputWidth() : 512;
 
-	// 1. Frontend: preprocess image (single interface, like RVM)
-	auto result = frontend_->ProcessOneFrame(model_input_width, model_input_height);
-	if (!result)
-		return -1;
+	// 1. Init output sink (DRM or VideoWriter) — once before the loop
+	_InitOutputSink(frontend_->width(), frontend_->height(), frontend_->fps());
 
-	// 2. Inference: benchmark 10 iterations
-	std::vector<TensorData> outputs;
-	{
-		ScopedTimer bench_timer("runMODNet: benchmark 10x total", config_.timing_enabled, logger,
-		                        kModnetModuleName);
-		for (int i = 0; i < 10; ++i) {
-			auto start = std::chrono::high_resolution_clock::now();
-			engine_->Infer({result->tensor}, outputs);
-			auto end = std::chrono::high_resolution_clock::now();
+	// 2. Main inference loop
+	fps_window_start_ = std::chrono::steady_clock::now();
 
-			std::chrono::duration<double, std::milli> dur = end - start;
-			logger.Info("[Performance Benchmark " + std::to_string(i + 1) +
-			                "] Inference Engine [infer()] cost: " + std::to_string(dur.count()) +
-			                " ms.",
+	while (true) {
+		// Check stop signal
+		if (g_stop_signal_received.load()) {
+			logger.Info("Stop signal received. Finishing at frame " + std::to_string(frame_count_) + ".",
 			            kModnetModuleName);
+			frontend_->Stop();
+			break;
 		}
+
+		// Frame header
+		if (frame_count_ > 0)
+			logger.Info("", kModnetModuleName);
+		logger.Info("───── Frame " + std::to_string(frame_count_ + 1) + " ─────", kModnetModuleName);
+
+		ManualTimer loop_t;
+		loop_t.start();
+
+		// 2a. Frontend: preprocess one frame
+		auto result = frontend_->ProcessOneFrame(model_input_width, model_input_height);
+		if (!result)
+			break;
+
+		// 2b. Inference
+		std::vector<TensorData> outputs;
+		double infer_ms = engine_->Infer({result->tensor}, outputs);
+
+		// 2c. BackEnd: postprocess → alpha matte
+		double postprocess_ms = 0.0;
+		cv::Mat alpha;
+		{
+			ManualTimer pp_t;
+			pp_t.start();
+			alpha = backend_->Postprocess(outputs, result->frame);
+			pp_t.stop();
+			postprocess_ms = pp_t.elapsed_ms();
+		}
+
+		// 2d. Display (DRM or VideoWriter)
+		const int output_w =
+		    (config_.output_mode == OutputMode::kDrm) ? drm_panel_w_ : result->frame.cols;
+		const int output_h =
+		    (config_.output_mode == OutputMode::kDrm) ? drm_panel_h_ : result->frame.rows;
+		double display_ms = 0.0;
+		{
+			ManualTimer d_t;
+			d_t.start();
+			_Display(alpha, output_w, output_h);
+			display_ms = d_t.stop();
+		}
+
+		// 2e. Per-frame timing
+		const double frame_total = loop_t.stop();
+		const auto fm = [&](double v) -> std::string {
+			std::ostringstream o;
+			o << std::fixed << std::setprecision(3) << v;
+			return o.str();
+		};
+		logger.Info("  frontend(preprocess: " + fm(result->preprocess_ms) + "ms)", kModnetModuleName);
+		logger.Info("  inference(total: " + fm(infer_ms) + "ms)", kModnetModuleName);
+		logger.Info("  backend(postprocess: " + fm(postprocess_ms) + "ms; display: " + fm(display_ms) +
+		                 "ms)",
+		            kModnetModuleName);
+		logger.Info("  total: " + fm(frame_total) + "ms", kModnetModuleName);
+
+		// FPS measurement: report every 30 frames
+		if (frame_count_ > 0 && frame_count_ % 30 == 0) {
+			auto now = std::chrono::steady_clock::now();
+			double elapsed = std::chrono::duration<double>(now - fps_window_start_).count();
+			logger.Info("[FPS] " + std::to_string(30.0 / elapsed) + " fps (last 30 frames in " +
+			                 std::to_string(elapsed) + "s)",
+			            kModnetModuleName);
+			fps_window_start_ = now;
+		}
+
+		frame_count_++;
 	}
 
-	// 3. BackEnd: postprocess
-	cv::Mat alpha;
-	{
-		ScopedTimer t("runMODNet: postprocess", config_.timing_enabled, logger, kModnetModuleName);
-		alpha = backend_->Postprocess(outputs, result->frame);
+	// 3. Cleanup
+	if (video_writer_.isOpened()) {
+		video_writer_.release();
+		logger.Info("Video alpha output complete: " + std::to_string(frame_count_) + " frames written.",
+		            kModnetModuleName);
 	}
 
-	// 4. Output: display or save
-	if (config_.output_mode == OutputMode::kDrm) {
-		_InitOutputSink(result->frame.cols, result->frame.rows);
-		const int output_w = drm_panel_w_;
-		const int output_h = drm_panel_h_;
-		ScopedTimer t("runMODNet: display", config_.timing_enabled, logger, kModnetModuleName);
-		_Display(alpha, output_w, output_h);
-	}
-	// MP4 mode: image already saved by BackEnd::Postprocess()
-
-	// 5. Cleanup DRM
 	if (drm_display_.IsOpen()) {
 		drm_display_.Close();
+		logger.Info("DRM display closed after " + std::to_string(frame_count_) + " frames.",
+		            kModnetModuleName);
 	}
+
+	logger.Info("MODNet pipeline finished. Total frames: " + std::to_string(frame_count_),
+	            kModnetModuleName);
 
 	return 0;
 }
