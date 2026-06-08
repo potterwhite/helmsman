@@ -25,12 +25,13 @@
 #include "common/types.h"
 #include "pipeline/stages/inference-engine/engine-core/inference-engine.h"
 #include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/frontend/stages/04-preprocess/preprocessor.h"
+#include "pipeline/stages/frontend/frontend-core/frontend.h"
 #include "DRMKit/drm_display.h"
 
 class MODNetMode {
 public:
     void SetEngine(InferenceEngine* engine);
+    void SetFrontend(FrontEnd* frontend);
     void SetBackend(BackEnd* backend);
     void SetAppConfig(const AppConfig& config);
 
@@ -41,9 +42,9 @@ private:
     void _Display(const cv::Mat& result, int output_w, int output_h);
 
     InferenceEngine* engine_ = nullptr;  // Non-owning; owned by Pipeline
+    FrontEnd* frontend_ = nullptr;  // Non-owning; owned by Pipeline
     BackEnd* backend_ = nullptr;  // Non-owning; owned by Pipeline
     AppConfig config_;
-    Preprocessor preprocessor_;
 
     // DRM display (initialized when output_mode == kDrm)
     helmsman::drmkit::DrmDisplay drm_display_;

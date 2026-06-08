@@ -20,15 +20,14 @@
 
 #include "pipeline/modes/modnet/modnet.h"
 #include <chrono>
-#include <opencv2/imgcodecs.hpp>
 #include "Utils/timing/timer.h"
-#include "pipeline/stages/backend/post-processor/guided-filter-post-processor.h"
 
 using helmsman::utils::timing::ScopedTimer;
 
 inline constexpr std::string_view kModnetModuleName = "MODNetMode";
 
 void MODNetMode::SetEngine(InferenceEngine* engine) { engine_ = engine; }
+void MODNetMode::SetFrontend(FrontEnd* frontend) { frontend_ = frontend; }
 void MODNetMode::SetBackend(BackEnd* backend) { backend_ = backend; }
 void MODNetMode::SetAppConfig(const AppConfig& config) { config_ = config; }
 
@@ -100,26 +99,19 @@ int MODNetMode::Run() {
 	const int model_input_height = engine_->GetInputHeight() > 0 ? engine_->GetInputHeight() : 512;
 	const int model_input_width = engine_->GetInputWidth() > 0 ? engine_->GetInputWidth() : 512;
 
-	// 1. Frontend: preprocess image
-	TensorData src;
-	{
-		ScopedTimer t("runMODNet: preprocess", config_.timing_enabled, logger, kModnetModuleName);
-		preprocessor_.SetDumpEnabled(config_.dump_enabled);
-		preprocessor_.SetOutputBinPath(config_.output_bin_path);
-		cv::Mat img = cv::imread(config_.input_path, cv::IMREAD_COLOR);
-		src = preprocessor_.preprocess(img, model_input_width, model_input_height);
-	}
+	// 1. Frontend: preprocess image (single interface, like RVM)
+	auto result = frontend_->ProcessOneFrame(model_input_width, model_input_height);
+	if (!result)
+		return -1;
 
 	// 2. Inference: benchmark 10 iterations
-	std::vector<TensorData> inputs = {src};
 	std::vector<TensorData> outputs;
-
 	{
 		ScopedTimer bench_timer("runMODNet: benchmark 10x total", config_.timing_enabled, logger,
 		                        kModnetModuleName);
 		for (int i = 0; i < 10; ++i) {
 			auto start = std::chrono::high_resolution_clock::now();
-			engine_->Infer(inputs, outputs);
+			engine_->Infer({result->tensor}, outputs);
 			auto end = std::chrono::high_resolution_clock::now();
 
 			std::chrono::duration<double, std::milli> dur = end - start;
@@ -131,23 +123,17 @@ int MODNetMode::Run() {
 	}
 
 	// 3. BackEnd: postprocess
-	cv::Mat result;
+	cv::Mat alpha;
 	{
 		ScopedTimer t("runMODNet: postprocess", config_.timing_enabled, logger, kModnetModuleName);
-		backend_->SetForegroundImagePath(config_.input_path);
-		backend_->SetPostProcessor(std::make_shared<GuidedFilterPostProcessor>(2, 1e-4, 0.2f, 1));
-		result = backend_->Postprocess(outputs);
+		alpha = backend_->Postprocess(outputs, result->frame);
 	}
 
 	// 4. Output: display or save
 	if (config_.output_mode == OutputMode::kDrm) {
-		// Init DRM display (original image dimensions)
-		cv::Mat original_img = cv::imread(config_.input_path, cv::IMREAD_COLOR);
-		if (!original_img.empty()) {
-			_InitOutputSink(original_img.cols, original_img.rows);
-			ScopedTimer t("runMODNet: display", config_.timing_enabled, logger, kModnetModuleName);
-			_Display(result, original_img.cols, original_img.rows);
-		}
+		_InitOutputSink(result->frame.cols, result->frame.rows);
+		ScopedTimer t("runMODNet: display", config_.timing_enabled, logger, kModnetModuleName);
+		_Display(alpha, result->frame.cols, result->frame.rows);
 	}
 	// MP4 mode: image already saved by BackEnd::Postprocess()
 
