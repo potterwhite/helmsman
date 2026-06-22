@@ -74,28 +74,54 @@ cv::Mat BackEnd::Postprocess(const std::vector<TensorData>& outputs,
 	}
 
 	// -------------------------
-	// Select the pha (alpha matte) tensor from outputs.
-	// Strategy: first try by name ("pha"), then fall back to first output.
-	//   - MODNet: outputs[0] = pha (only output)
-	//   - RVM:    fgr is skipped at ReadOutputBuffers3rd (§5.5),
-	//             so outputs = [pha, r1o, r2o, r3o, r4o]
-	const TensorData* pha_ptr = nullptr;
-	for (const auto& td : outputs) {
-		if (td.name == "pha") {
-			pha_ptr = &td;
+	// Select the alpha matte tensor from outputs.
+	// Strategy varies by model type:
+	//   - MODNet: only 1 output, name is "output"
+	//   - RVM:    multiple outputs, find by name "pha"
+	const TensorData* output_tensor_ptr = nullptr;
+
+	switch (config_.model_type) {
+		case ModelType::kMODNet:
+			// MODNet: single output, always the first one
+			if (!outputs.empty()) {
+				output_tensor_ptr = &outputs[0];
+			}
 			break;
-		}
-	}
-	if (!pha_ptr) {
-		throw std::runtime_error(
-		    "BackEnd: output tensor 'pha' not found in " +
-		    std::to_string(outputs.size()) + " outputs");
+
+		case ModelType::kRVM:
+			// RVM: multiple outputs, find "pha" by name
+			for (const auto& td : outputs) {
+				if (td.name == "pha") {
+					output_tensor_ptr = &td;
+					break;
+				}
+			}
+			break;
+
+		default:
+			// Unknown model type: try "pha" first, fallback to first
+			for (const auto& td : outputs) {
+				if (td.name == "pha") {
+					output_tensor_ptr = &td;
+					break;
+				}
+			}
+			if (!output_tensor_ptr && !outputs.empty()) {
+				output_tensor_ptr = &outputs[0];
+			}
+			break;
 	}
 
-	const TensorData& output = *pha_ptr;
+	if (!output_tensor_ptr) {
+		throw std::runtime_error(
+		    "BackEnd: failed to select output tensor for model type " +
+		    std::to_string(static_cast<int>(config_.model_type)));
+	}
+
+	const TensorData& output = *output_tensor_ptr;
 
 	if (config_.dump_enabled)
-		logger.Info("BackEnd: selected pha tensor '" + output.name + "' from " +
+		logger.Info("BackEnd: selected output tensor '" + output.name + "' from " +
 		            std::to_string(outputs.size()) + " outputs", kcurrent_module_name);
 
 	if (output.shape.size() != 4) {

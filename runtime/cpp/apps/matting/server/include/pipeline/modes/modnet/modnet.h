@@ -20,23 +20,54 @@
 
 #pragma once
 
+#include <chrono>
 #include <string>
+#include <vector>
+#include <opencv2/videoio.hpp>
+#include "Utils/timing/timer.h"
 #include "common/types.h"
 #include "pipeline/stages/inference-engine/engine-core/inference-engine.h"
 #include "pipeline/stages/backend/backend.h"
-#include "pipeline/stages/frontend/stages/04-preprocess/preprocessor.h"
+#include "pipeline/stages/frontend/frontend-core/frontend.h"
+#include "DRMKit/drm_display.h"
 
 class MODNetMode {
 public:
     void SetEngine(InferenceEngine* engine);
+    void SetFrontend(FrontEnd* frontend);
     void SetBackend(BackEnd* backend);
     void SetAppConfig(const AppConfig& config);
 
     int Run();
 
 private:
+    void _InitOutputSink(int src_width, int src_height, double fps);
+    void InitBackgroundImage(int width, int height);
+    double _Composite(const cv::Mat& frame, const cv::Mat& alpha_8u, int model_w, int model_h,
+                       int output_w, int output_h, cv::Mat& composed);
+    void _Display(const cv::Mat& result, int output_w, int output_h);
+    void _ReportAllAccumulatedTimers();
+
     InferenceEngine* engine_ = nullptr;  // Non-owning; owned by Pipeline
+    FrontEnd* frontend_ = nullptr;  // Non-owning; owned by Pipeline
     BackEnd* backend_ = nullptr;  // Non-owning; owned by Pipeline
     AppConfig config_;
-    Preprocessor preprocessor_;
+
+    // DRM display (initialized when output_mode == kDrm)
+    helmsman::drmkit::DrmDisplay drm_display_;
+    std::vector<uint8_t> argb_buf_;  // reusable buffer for BGR→XRGB conversion
+    int drm_panel_w_ = 0;
+    int drm_panel_h_ = 0;
+
+    // Video output (initialized when output_mode == kMp4)
+    cv::VideoWriter video_writer_;       // alpha matte output
+    cv::VideoWriter composited_writer_;  // composited (fg+bg) output
+
+    // Loop state
+    int frame_count_ = 0;
+    std::chrono::steady_clock::time_point fps_window_start_;
+
+    // Accumulated timing
+    using sa = helmsman::utils::timing::StageAccumulator;
+    sa acc_mainloop_{"mainloop (per frame)"};
 };

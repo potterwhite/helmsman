@@ -55,27 +55,19 @@ void Pipeline::Init(const AppConfig& config) {
 
 	config_ = config;
 
-	// 1. Frontend (video only)
-	if (config_.is_video) {
-		try {
-			frontend_ = FrontEnd::Create(config_);
-		} catch (const std::exception& e) {
-			logger.Error(std::string("Failed to create Frontend: ") + e.what(),
-			             kcurrent_module_name);
-			throw;
-		}
-
-		logger.Info("Video source: " + std::to_string(frontend_->width()) + "x" +
-		                std::to_string(frontend_->height()) + " @ " +
-		                std::to_string(frontend_->fps()) + " fps",
-		            kcurrent_module_name);
-
-		if (config_.model_type == ModelType::kMODNet) {
-			logger.Error("MODNet does not support video input. Use --rvm for video.",
-			             kcurrent_module_name);
-			throw std::invalid_argument("MODNet does not support video input.");
-		}
+	// 1. Frontend (both video and single-image modes)
+	try {
+		frontend_ = FrontEnd::Create(config_);
+	} catch (const std::exception& e) {
+		logger.Error(std::string("Failed to create Frontend: ") + e.what(),
+		             kcurrent_module_name);
+		throw;
 	}
+
+	logger.Info("Input source: " + std::to_string(frontend_->width()) + "x" +
+	                std::to_string(frontend_->height()) + " @ " +
+	                std::to_string(frontend_->fps()) + " fps",
+	            kcurrent_module_name);
 
 	// 2. InferenceEngine + model load
 	engine_ = InferenceEngine::Create(config_);
@@ -94,9 +86,10 @@ void Pipeline::Init(const AppConfig& config) {
 	rvm_mode_.SetEngine(engine_.get());
 	rvm_mode_.SetBackend(backend_.get());
 
+	modnet_mode_.SetAppConfig(config_);
+	modnet_mode_.SetFrontend(frontend_.get());
 	modnet_mode_.SetEngine(engine_.get());
 	modnet_mode_.SetBackend(backend_.get());
-	modnet_mode_.SetAppConfig(config_);
 }
 
 int Pipeline::Run() {
@@ -106,7 +99,7 @@ int Pipeline::Run() {
 
 	switch (config_.model_type) {
 		case ModelType::kMODNet:
-			logger.Info("Pipeline: running MODNet path (single-frame)", kcurrent_module_name);
+			logger.Info("Pipeline: running MODNet path", kcurrent_module_name);
 			return modnet_mode_.Run();
 		case ModelType::kRVM:
 			logger.Info("Pipeline: running RVM path (recurrent multi-frame)", kcurrent_module_name);
