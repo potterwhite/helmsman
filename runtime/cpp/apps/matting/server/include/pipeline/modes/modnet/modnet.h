@@ -41,6 +41,9 @@ public:
 
 private:
     void _InitOutputSink(int src_width, int src_height, double fps);
+    void InitBackgroundImage(int width, int height);
+    double _Composite(const cv::Mat& frame, const cv::Mat& alpha_8u, int model_w, int model_h,
+                       int output_w, int output_h, cv::Mat& composed);
     void _Display(const cv::Mat& result, int output_w, int output_h);
 
     InferenceEngine* engine_ = nullptr;  // Non-owning; owned by Pipeline

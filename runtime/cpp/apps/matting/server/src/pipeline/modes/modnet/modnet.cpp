@@ -22,10 +22,16 @@
 #include <atomic>
 #include <chrono>
 #include <iomanip>
+#include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <sstream>
+#include "RGAKit/rga_resize.h"
 #include "Utils/timing/timer.h"
 #include "common/common-define.h"
+
+using helmsman::rgakit::ImageDescriptor;
+using helmsman::rgakit::RgaPixelFormat;
+using helmsman::rgakit::RgaResize;
 
 using helmsman::utils::timing::ManualTimer;
 using helmsman::utils::timing::ScopedTimer;
@@ -33,6 +39,9 @@ using helmsman::utils::timing::ScopedTimer;
 extern std::atomic<bool> g_stop_signal_received;
 
 inline constexpr std::string_view kModnetModuleName = "MODNetMode";
+
+// Default fallback background color: BGR(155,255,120) = RGB(120,255,155)
+inline const cv::Scalar kDefaultBgColor{155, 255, 120};
 
 void MODNetMode::SetEngine(InferenceEngine* engine) { engine_ = engine; }
 void MODNetMode::SetFrontend(FrontEnd* frontend) { frontend_ = frontend; }
@@ -66,6 +75,37 @@ void MODNetMode::_InitOutputSink(int src_width, int src_height, double fps) {
 			logger.Warning("Failed to open VideoWriter: " + path, kModnetModuleName);
 		}
 	}
+}
+
+void MODNetMode::InitBackgroundImage(int width, int height) {
+	cv::Mat bg;
+	if (!config_.background_path.empty()) {
+		bg = cv::imread(config_.background_path, cv::IMREAD_COLOR);
+	}
+	if (bg.empty()) {
+		bg = cv::Mat(height, width, CV_8UC3, kDefaultBgColor);
+	} else {
+		cv::Mat resized(height, width, CV_8UC3);
+		ImageDescriptor src(bg.data, bg.cols, bg.rows, RgaPixelFormat::kBgr888);
+		ImageDescriptor dst(resized.data, width, height, RgaPixelFormat::kBgr888);
+		if (!RgaResize::Instance().Execute(src, dst)) {
+			fprintf(stderr, "[FATAL] RGA resize failed for background init — hardware error\n");
+			std::abort();
+		}
+		bg = resized;
+	}
+	backend_->SetBackgroundModelImage(bg.clone());
+}
+
+double MODNetMode::_Composite(const cv::Mat& frame, const cv::Mat& alpha_8u, int model_w,
+                               int model_h, int output_w, int output_h, cv::Mat& composed) {
+	if (alpha_8u.empty())
+		return 0.0;
+
+	ManualTimer t;
+	t.start();
+	composed = backend_->Composite(frame, alpha_8u, model_w, model_h, output_w, output_h);
+	return t.stop();
 }
 
 void MODNetMode::_Display(const cv::Mat& result, int output_w, int output_h) {
@@ -137,6 +177,9 @@ int MODNetMode::Run() {
 	// 1. Init output sink (DRM or VideoWriter) — once before the loop
 	_InitOutputSink(frontend_->width(), frontend_->height(), frontend_->fps());
 
+	// 1b. Init background image for compositing
+	InitBackgroundImage(model_input_width, model_input_height);
+
 	// 2. Main inference loop
 	fps_window_start_ = std::chrono::steady_clock::now();
 
@@ -177,20 +220,26 @@ int MODNetMode::Run() {
 			postprocess_ms = pp_t.elapsed_ms();
 		}
 
-		// 2d. Display (DRM or VideoWriter)
+		// 2d. Composite: blend alpha with background
 		const int output_w =
 		    (config_.output_mode == OutputMode::kDrm) ? drm_panel_w_ : result->frame.cols;
 		const int output_h =
 		    (config_.output_mode == OutputMode::kDrm) ? drm_panel_h_ : result->frame.rows;
+		cv::Mat composed;
+		const double composite_ms =
+		    _Composite(result->frame, alpha, model_input_width, model_input_height, output_w, output_h,
+		               composed);
+
+		// 2e. Display (DRM or VideoWriter)
 		double display_ms = 0.0;
 		{
 			ManualTimer d_t;
 			d_t.start();
-			_Display(alpha, output_w, output_h);
+			_Display(composed, output_w, output_h);
 			display_ms = d_t.stop();
 		}
 
-		// 2e. Per-frame timing
+		// 2f. Per-frame timing
 		const double frame_total = loop_t.stop();
 		const auto fm = [&](double v) -> std::string {
 			std::ostringstream o;
@@ -199,8 +248,8 @@ int MODNetMode::Run() {
 		};
 		logger.Info("  frontend(preprocess: " + fm(result->preprocess_ms) + "ms)", kModnetModuleName);
 		logger.Info("  inference(total: " + fm(infer_ms) + "ms)", kModnetModuleName);
-		logger.Info("  backend(postprocess: " + fm(postprocess_ms) + "ms; display: " + fm(display_ms) +
-		                 "ms)",
+		logger.Info("  backend(postprocess: " + fm(postprocess_ms) + "ms; composite: " +
+		                 fm(composite_ms) + "ms; display: " + fm(display_ms) + "ms)",
 		            kModnetModuleName);
 		logger.Info("  total: " + fm(frame_total) + "ms", kModnetModuleName);
 
