@@ -64,15 +64,26 @@ void MODNetMode::_InitOutputSink(int src_width, int src_height, double fps) {
 	}
 	if (config_.output_mode == OutputMode::kMp4) {
 		const double output_fps = (fps > 0) ? fps : 30.0;
-		const std::string path = config_.output_bin_path + "/output_alpha.mp4";
-		video_writer_.open(path, cv::VideoWriter::fourcc('m', 'p', '4', 'v'), output_fps,
+		const std::string alpha_path = config_.output_bin_path + "/output_alpha.mp4";
+		video_writer_.open(alpha_path, cv::VideoWriter::fourcc('m', 'p', '4', 'v'), output_fps,
 		                   cv::Size(src_width, src_height));
 		if (video_writer_.isOpened()) {
-			logger.Info("VideoWriter opened: " + path + " (" + std::to_string(src_width) + "x" +
+			logger.Info("VideoWriter opened: " + alpha_path + " (" + std::to_string(src_width) + "x" +
 			                 std::to_string(src_height) + " @ " + std::to_string(output_fps) + " fps)",
 			            kModnetModuleName);
 		} else {
-			logger.Warning("Failed to open VideoWriter: " + path, kModnetModuleName);
+			logger.Warning("Failed to open VideoWriter: " + alpha_path, kModnetModuleName);
+		}
+
+		const std::string comp_path = config_.output_bin_path + "/output_composited.mp4";
+		composited_writer_.open(comp_path, cv::VideoWriter::fourcc('m', 'p', '4', 'v'), output_fps,
+		                        cv::Size(src_width, src_height));
+		if (composited_writer_.isOpened()) {
+			logger.Info("VideoWriter opened: " + comp_path + " (" + std::to_string(src_width) + "x" +
+			                 std::to_string(src_height) + " @ " + std::to_string(output_fps) + " fps)",
+			            kModnetModuleName);
+		} else {
+			logger.Warning("Failed to open VideoWriter: " + comp_path, kModnetModuleName);
 		}
 	}
 }
@@ -150,21 +161,6 @@ void MODNetMode::_Display(const cv::Mat& result, int output_w, int output_h) {
 		}
 		drm_display_.ShowARGB(argb_buf_.data());
 
-	} else if (config_.output_mode == OutputMode::kMp4) {
-		// ----- VideoWriter Mode -----
-		if (video_writer_.isOpened()) {
-			// Convert single-channel alpha to 3-channel grayscale for VideoWriter
-			cv::Mat to_write;
-			if (result.channels() == 1) {
-				cv::cvtColor(result, to_write, cv::COLOR_GRAY2BGR);
-			} else {
-				to_write = result;
-			}
-			if (to_write.cols != output_w || to_write.rows != output_h) {
-				cv::resize(to_write, to_write, cv::Size(output_w, output_h));
-			}
-			video_writer_.write(to_write);
-		}
 	}
 }
 
@@ -239,6 +235,23 @@ int MODNetMode::Run() {
 			display_ms = d_t.stop();
 		}
 
+		// 2e2. Write video files (always, regardless of display mode)
+		if (video_writer_.isOpened()) {
+			cv::Mat alpha_bgr;
+			if (alpha.channels() == 1) {
+				cv::cvtColor(alpha, alpha_bgr, cv::COLOR_GRAY2BGR);
+			} else {
+				alpha_bgr = alpha;
+			}
+			if (alpha_bgr.cols != output_w || alpha_bgr.rows != output_h) {
+				cv::resize(alpha_bgr, alpha_bgr, cv::Size(output_w, output_h));
+			}
+			video_writer_.write(alpha_bgr);
+		}
+		if (composited_writer_.isOpened() && !composed.empty()) {
+			composited_writer_.write(composed);
+		}
+
 		// 2f. Per-frame timing
 		const double frame_total = loop_t.stop();
 		const auto fm = [&](double v) -> std::string {
@@ -270,6 +283,11 @@ int MODNetMode::Run() {
 	if (video_writer_.isOpened()) {
 		video_writer_.release();
 		logger.Info("Video alpha output complete: " + std::to_string(frame_count_) + " frames written.",
+		            kModnetModuleName);
+	}
+	if (composited_writer_.isOpened()) {
+		composited_writer_.release();
+		logger.Info("Video composited output complete: " + std::to_string(frame_count_) + " frames written.",
 		            kModnetModuleName);
 	}
 

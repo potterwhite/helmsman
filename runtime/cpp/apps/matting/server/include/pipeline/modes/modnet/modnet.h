@@ -58,7 +58,8 @@ private:
     int drm_panel_h_ = 0;
 
     // Video output (initialized when output_mode == kMp4)
-    cv::VideoWriter video_writer_;
+    cv::VideoWriter video_writer_;       // alpha matte output
+    cv::VideoWriter composited_writer_;  // composited (fg+bg) output
 
     // Loop state
     int frame_count_ = 0;
