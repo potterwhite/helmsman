@@ -266,6 +266,11 @@ int MODNetMode::Run() {
 		            kModnetModuleName);
 		logger.Info("  total: " + fm(frame_total) + "ms", kModnetModuleName);
 
+		// Accumulate timing stats
+		acc_mainloop_.record(frame_total);
+		backend_->RecordDisplay(display_ms);
+		backend_->RecordTotal(postprocess_ms + composite_ms + display_ms);
+
 		// FPS measurement: report every 30 frames
 		if (frame_count_ > 0 && frame_count_ % 30 == 0) {
 			auto now = std::chrono::steady_clock::now();
@@ -279,7 +284,10 @@ int MODNetMode::Run() {
 		frame_count_++;
 	}
 
-	// 3. Cleanup
+	// 3. Accumulated timing report
+	_ReportAllAccumulatedTimers();
+
+	// 4. Cleanup
 	if (video_writer_.isOpened()) {
 		video_writer_.release();
 		logger.Info("Video alpha output complete: " + std::to_string(frame_count_) + " frames written.",
@@ -301,4 +309,29 @@ int MODNetMode::Run() {
 	            kModnetModuleName);
 
 	return 0;
+}
+
+void MODNetMode::_ReportAllAccumulatedTimers() {
+	if (!config_.timing_enabled)
+		return;
+
+	auto& logger = helmsman::utils::Logger::GetInstance();
+
+	logger.Info("", kModnetModuleName);
+	logger.Info("═══════════ Accumulated Timing Stats ═══════════", kModnetModuleName);
+
+	logger.Info("────────── Frontend ──────────", kModnetModuleName);
+	frontend_->ReportAccumulatedTimers(true, logger, kModnetModuleName);
+
+	logger.Info("────────── Inference ──────────", kModnetModuleName);
+	engine_->ReportAccumulatedTimers(true, logger, kModnetModuleName);
+
+	logger.Info("────────── BackEnd ──────────", kModnetModuleName);
+	backend_->ReportAccumulatedTimers(true, logger, kModnetModuleName);
+
+	logger.Info("────────── Overall ──────────", kModnetModuleName);
+	acc_mainloop_.report(true, logger, kModnetModuleName);
+
+	logger.Info("═══════════ End of Accumulated Timing Stats ═══════════", kModnetModuleName);
+	logger.Info("", kModnetModuleName);
 }

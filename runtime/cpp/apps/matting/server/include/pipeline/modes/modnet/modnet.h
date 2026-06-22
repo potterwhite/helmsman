@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 #include <opencv2/videoio.hpp>
+#include "Utils/timing/timer.h"
 #include "common/types.h"
 #include "pipeline/stages/inference-engine/engine-core/inference-engine.h"
 #include "pipeline/stages/backend/backend.h"
@@ -45,6 +46,7 @@ private:
     double _Composite(const cv::Mat& frame, const cv::Mat& alpha_8u, int model_w, int model_h,
                        int output_w, int output_h, cv::Mat& composed);
     void _Display(const cv::Mat& result, int output_w, int output_h);
+    void _ReportAllAccumulatedTimers();
 
     InferenceEngine* engine_ = nullptr;  // Non-owning; owned by Pipeline
     FrontEnd* frontend_ = nullptr;  // Non-owning; owned by Pipeline
@@ -64,4 +66,8 @@ private:
     // Loop state
     int frame_count_ = 0;
     std::chrono::steady_clock::time_point fps_window_start_;
+
+    // Accumulated timing
+    using sa = helmsman::utils::timing::StageAccumulator;
+    sa acc_mainloop_{"mainloop (per frame)"};
 };
