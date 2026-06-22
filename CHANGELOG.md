@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.12.0](https://github.com/potterwhite/helmsman/compare/v0.11.0...v0.12.0) (2026-06-22)
+
+
+### ✨ Added
+
+* **backend:** support MODNet output tensor selection by model type ([8c1a6db](https://github.com/potterwhite/helmsman/commit/8c1a6db1ee40a5e0ac9db1e8ec267e3fb36e06a4))
+* **modnet:** add accumulated timing report (s5_3_3) ([a36d23b](https://github.com/potterwhite/helmsman/commit/a36d23bc00e7505564d17c592c421a7bbaa634bf))
+* **modnet:** add background compositing to video pipeline ([94c37cd](https://github.com/potterwhite/helmsman/commit/94c37cd0d311ed23cf5c6cc4d15926269a055268))
+* **modnet:** add composited video output (output_composited.mp4) ([86ca39f](https://github.com/potterwhite/helmsman/commit/86ca39f90800c1eff0b27038059d48e1931cde10))
+* **modnet:** add DRM display output support ([277e51b](https://github.com/potterwhite/helmsman/commit/277e51b3063249d634dd890b6be3cd55e7209e02))
+* **modnet:** add per-frame frontend & inference sub-timings (s5_3_4, s5_3_5) ([328de1a](https://github.com/potterwhite/helmsman/commit/328de1a31ae42ca235a00eb1fcec480e0c3eaddb))
+* **modnet:** add video inference support ([83f841a](https://github.com/potterwhite/helmsman/commit/83f841af92edbef1540a4a58643d9bd56873f3e4))
+* **modnet:** MODNet video pipeline complete (Block 5.3) ([ec489fe](https://github.com/potterwhite/helmsman/commit/ec489fe36524370d70a41bb7e2e141901f6391ee))
+
+
+### 🐛 Fixed
+
+* **modnet:** handle single-channel alpha in DRM display ([ab2dafc](https://github.com/potterwhite/helmsman/commit/ab2dafc27b6c1672c61714f59babbbb660f74c4e))
+* **modnet:** resize alpha to DRM panel dimensions before display ([c9aed79](https://github.com/potterwhite/helmsman/commit/c9aed79896c8578a1dc430863677e65a804f6367))
+* **modnet:** use DRM panel dimensions for display output ([376a614](https://github.com/potterwhite/helmsman/commit/376a6141c7b35b9591fd276ea2288a5a1ecbfbd7))
+
 ## [0.11.0](https://github.com/potterwhite/helmsman/compare/v0.10.0...v0.11.0) (2026-06-08)
 
 
