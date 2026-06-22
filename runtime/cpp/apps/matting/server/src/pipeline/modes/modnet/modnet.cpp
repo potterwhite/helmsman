@@ -188,11 +188,6 @@ int MODNetMode::Run() {
 			break;
 		}
 
-		// Frame header
-		if (frame_count_ > 0)
-			logger.Info("", kModnetModuleName);
-		logger.Info("───── Frame " + std::to_string(frame_count_ + 1) + " ─────", kModnetModuleName);
-
 		ManualTimer loop_t;
 		loop_t.start();
 
@@ -200,6 +195,11 @@ int MODNetMode::Run() {
 		auto result = frontend_->ProcessOneFrame(model_input_width, model_input_height);
 		if (!result)
 			break;
+
+		// Frame header (after successful read — avoids ghost frame on EOF)
+		if (frame_count_ > 0)
+			logger.Info("", kModnetModuleName);
+		logger.Info("───── Frame " + std::to_string(frame_count_ + 1) + " ─────", kModnetModuleName);
 
 		// 2b. Inference
 		std::vector<TensorData> outputs;
@@ -259,8 +259,24 @@ int MODNetMode::Run() {
 			o << std::fixed << std::setprecision(3) << v;
 			return o.str();
 		};
-		logger.Info("  frontend(preprocess: " + fm(result->preprocess_ms) + "ms)", kModnetModuleName);
-		logger.Info("  inference(total: " + fm(infer_ms) + "ms)", kModnetModuleName);
+		logger.Info("  frontend(read: " + fm(result->read_ms) + "ms; decode: " + fm(result->decode_ms) +
+		                 "ms; color_convert: " + fm(result->color_convert_ms) +
+		                 "ms; preprocess: " + fm(result->preprocess_ms) + "ms)",
+		            kModnetModuleName);
+
+		// Inference sub-timings (s5_3_5)
+		auto infer_sub = engine_->GetLastSubTimings();
+		if (!infer_sub.empty()) {
+			std::string sub_str = "  inference(";
+			for (size_t i = 0; i < infer_sub.size(); ++i) {
+				if (i > 0) sub_str += "; ";
+				sub_str += infer_sub[i].first + ": " + fm(infer_sub[i].second) + "ms";
+			}
+			sub_str += "; total: " + fm(infer_ms) + "ms)";
+			logger.Info(sub_str, kModnetModuleName);
+		} else {
+			logger.Info("  inference(total: " + fm(infer_ms) + "ms)", kModnetModuleName);
+		}
 		logger.Info("  backend(postprocess: " + fm(postprocess_ms) + "ms; composite: " +
 		                 fm(composite_ms) + "ms; display: " + fm(display_ms) + "ms)",
 		            kModnetModuleName);
